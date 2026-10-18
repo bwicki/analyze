@@ -55,7 +55,7 @@ export function renderProfile(container, data) {
   vline(data.takeoff, '#1f8a4c', data.labels.takeoff, 'start');
   vline(data.landing, '#c0392b', data.labels.landing, 'end');
   if (data.altMax) { const q = data.altMax; const x = X(xq(q)); out.push(`<circle cx="${x.toFixed(1)}" cy="${Y(q.alt).toFixed(1)}" r="3.5" fill="#14202e"/><text x="${(x + (x > W - 160 ? -6 : 6)).toFixed(1)}" y="${(Y(q.alt) - 5).toFixed(1)}" font-size="11" fill="#14202e" font-weight="600" text-anchor="${x > W - 160 ? 'end' : 'start'}">${esc(data.labels.max)} ${u.alt(q.alt)} · ${fmtTimeUTC(q.t)}</text>`); }
-  for (const e of data.events || []) if (!Number.isNaN(e.alt)) out.push(`<circle cx="${X(data.xMode === 'dist' ? e.dist : e.t).toFixed(1)}" cy="${Y(e.alt).toFixed(1)}" r="4.5" fill="#fff" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/>`);
+  for (const e of data.events || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<line x1="${X(ex).toFixed(1)}" y1="${(H - PB)}" x2="${X(ex).toFixed(1)}" y2="${(H - PB - 10)}" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/><circle cx="${X(ex).toFixed(1)}" cy="${Y(e.alt).toFixed(1)}" r="4" fill="#fff" stroke="${e.color || '#1f5fbf'}" stroke-width="2"><title>${esc(e.label || '')}</title></circle>`); }
   // ground speed trace
   out.push(`<line x1="${PL}" y1="${H + 2}" x2="${W - PR}" y2="${H + 2}" stroke="#e4e8ee"/>`);
   for (const v of [0, gTop / 2, gTop]) { const y = H + 8 + (1 - v / gTop) * (GH - 16); out.push(`<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="#eef1f5"/><text x="${PL - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${fmtInt(v)}</text>`); }
@@ -74,7 +74,7 @@ export function renderProfile(container, data) {
   svg.addEventListener('touchstart', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
   svg.addEventListener('touchmove', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
   function setHover(q) {
-    if (!q || Number.isNaN(q.alt)) { hg.innerHTML = ''; return; }
+    if (!q || Number.isNaN(q.alt) || Number.isNaN(xs(q))) { hg.innerHTML = ''; return; }
     const x = X(xs(q)), y = Y(q.alt);
     hg.innerHTML = `<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}" y2="${H + GH - 8}" stroke="#14202e" stroke-width="1"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#f6b03d" stroke="#14202e" stroke-width="1.5"/>`;
   }

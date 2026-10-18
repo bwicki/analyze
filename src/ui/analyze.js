@@ -10,6 +10,7 @@ import { movingMean, indexAt } from '../process/series.js';
 import { createMap, VARIO_COLORS, ALT_COLORS, varioClass, altClass } from './map.js';
 import { renderProfile } from './profile.js';
 import { downloadKmz } from '../export/download.js';
+import { mountEventsCard, eventsForDisplay } from './events.js';
 
 const DISPLAY_MAX = 3000;
 
@@ -41,14 +42,13 @@ export function mountAnalyze(root, ctx) {
       <div data-profile></div>
       <div class="legend" data-legend></div>
     </section>
-    <section class="card">
-      <div class="card-head"><h2>${esc(t('ana.events'))}</h2><span class="pill sm"><span class="dot x"></span>${esc(t('ana.eventsPhase2'))}</span></div>
-      <p class="muted small">${esc(t('ana.eventsHint'))}</p>
-    </section>
+    <div data-eventscard style="display:contents"></div>
   </main>`);
 
   const mapEl = el.querySelector('[data-map]');
   let map = null, profile = null, display = null, xMode = 'time';
+  const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q); } });
+  const shownEvents = () => eventsForDisplay().filter((e) => !evCard.hidden.has(e.type));
   const u = () => makeUnits(state.settings.units);
 
   const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
@@ -80,7 +80,7 @@ export function mountAnalyze(root, ctx) {
     const st = s.stats;
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
     const altMax = st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null;
-    return { pts, markers, step, colors: colorBy === 'alt' ? ALT_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon })), altMax, night: st.night.intervals };
+    return { pts, markers, step, colors: colorBy === 'alt' ? ALT_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon })), altMax, night: st.night.intervals, events: shownEvents() };
   }
 
   function render() {
@@ -192,11 +192,11 @@ export function mountAnalyze(root, ctx) {
   }
 
   const off = bus.on('track', render);
-  const off2 = bus.on('settings', () => {});
+  const off2 = bus.on('events', render), off3 = bus.on('events-filter', render);
   render();
   root.appendChild(el);
   setTimeout(() => map && map.invalidate(), 50);
-  return { unmount: () => { off(); off2(); map && map.destroy(); map = null; } };
+  return { unmount: () => { off(); off2(); off3(); evCard.unmount(); map && map.destroy(); map = null; } };
 }
 
 export function analyzeStatus() {

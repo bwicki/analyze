@@ -42,10 +42,11 @@ async function trackText(path, opts) {
   return blob.text();
 }
 
-function flightForm(flight, gzBlob) {
+function flightForm(flight, gzBlob, events) {
   const fd = new FormData();
   fd.set('meta', JSON.stringify(flight));
   if (gzBlob) fd.set('track', gzBlob, 'track.geojson.gz');
+  if (events !== undefined && events !== null) fd.set('events', events);       // JSON text; '' removes the stored log
   return fd;
 }
 
@@ -63,16 +64,24 @@ export const api = {
   },
   flights: {
     list: () => request('GET', '/api/flights'),
-    /** flight: {title, stats, meta, points, public}; geojsonText: the full-resolution GeoJSON. */
-    save: async (flight, geojsonText) => request('POST', '/api/flights', { body: flightForm(flight, await gzipText(geojsonText)) }),
-    update: async (id, flight, geojsonText = null) => request('PUT', `/api/flights/${id}`, { body: flightForm(flight, geojsonText === null ? null : await gzipText(geojsonText)) }),
+    /** flight: {title, stats, meta, points, public}; geojsonText: the full-resolution GeoJSON; eventsJson: raw log rows as JSON text ('' = none). */
+    save: async (flight, geojsonText, eventsJson) => request('POST', '/api/flights', { body: flightForm(flight, await gzipText(geojsonText), eventsJson) }),
+    update: async (id, flight, geojsonText = null, eventsJson) => request('PUT', `/api/flights/${id}`, { body: flightForm(flight, geojsonText === null ? null : await gzipText(geojsonText), eventsJson) }),
     get: (id) => request('GET', `/api/flights/${id}`),
     track: (id) => trackText(`/api/flights/${id}/track`),
+    events: (id) => request('GET', `/api/flights/${id}/events`),
     remove: (id) => request('DELETE', `/api/flights/${id}`),
   },
   view: {
     get: (id) => request('GET', `/api/view/${id}`, { code: null }),
     track: (id) => trackText(`/api/view/${id}/track`, { code: null }),
+    events: (id) => request('GET', `/api/view/${id}/events`, { code: null }),
+  },
+  /** Ereignislog straight from bwicki/gb_flight_data (needs a Kennung; the Worker holds the token). */
+  events: {
+    repoFlights: () => request('GET', '/api/events/flights'),
+    repoFlight: (flight) => request('GET', `/api/events/${encodeURIComponent(flight)}`),
+    mediaUrl: (file) => `${base()}/api/events/media/${encodeURIComponent(file)}`,
   },
   admin: {
     setupNeeded: () => request('GET', '/api/admin/setup', { code: null }).then((r) => !!r.needed),

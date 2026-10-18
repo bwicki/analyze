@@ -23,15 +23,22 @@ export async function listFlights(env, user) {
   return (r.results || []).map((row) => flightView(row));
 }
 
-/** Read the multipart body: meta (JSON string) + optional track (gzip). Also accepts plain JSON (meta only). */
+const EVENTS_MAX = 2 * 1024 * 1024;                 // JSON bytes of an event log per flight
+
+/**
+ * Read the multipart body: meta (JSON string) + optional track (gzip) + optional events (JSON text;
+ * an empty string removes the stored log). Also accepts plain JSON (meta only).
+ */
 async function readFlightBody(request) {
   const ct = (request.headers.get('Content-Type') || '').toLowerCase();
-  let meta = {}, track = null;
+  let meta = {}, track = null, events;
   if (ct.startsWith('multipart/form-data')) {
     const fd = await request.formData();
     meta = parseJson(fd.get('meta') || '{}');
     const f = fd.get('track');
     if (f && typeof f !== 'string') track = new Uint8Array(await f.arrayBuffer());
+    const ev = fd.get('events');
+    if (ev !== null && ev !== undefined) events = typeof ev === 'string' ? ev : await ev.text();
   } else {
     meta = await request.json().catch(() => ({}));
   }
@@ -39,7 +46,20 @@ async function readFlightBody(request) {
     if (track.byteLength < 20 || track[0] !== 0x1f || track[1] !== 0x8b) throw new HttpError(400, 'track must be gzip');
     if (track.byteLength > TRACK_MAX) throw new HttpError(413, 'track larger than 25 MB');
   }
-  return { meta, track };
+  if (events) {
+    if (events.length > EVENTS_MAX) throw new HttpError(413, 'event log larger than 2 MB');
+    let j; try { j = JSON.parse(events); } catch { throw new HttpError(400, 'events must be JSON'); }
+    if (!Array.isArray(j)) throw new HttpError(400, 'events must be a JSON array');
+  }
+  return { meta, track, events };
+}
+
+async function storeEvents(env, id, events, currentKey) {
+  if (events === undefined) return currentKey;
+  if (events === '') { if (currentKey) await env.FILES.delete(currentKey).catch(() => {}); return null; }
+  const key = `events/${id}.json`;
+  await env.FILES.put(key, events, { httpMetadata: { contentType: 'application/json' } });
+  return key;
 }
 
 function fields(m) {
@@ -64,7 +84,7 @@ async function checkQuota(env, user, addBytes, excludeId = null) {
 }
 
 export async function createFlight(env, user, request) {
-  const { meta, track } = await readFlightBody(request);
+  const { meta, track, events } = await readFlightBody(request);
   if (!track) throw new HttpError(400, 'track missing');
   await checkQuota(env, user, track.byteLength);
   const f = fields(meta);
@@ -73,8 +93,9 @@ export async function createFlight(env, user, request) {
   const key = `tracks/${id}.geojson.gz`;
   await env.FILES.put(key, track, { httpMetadata: { contentType: 'application/gzip' }, customMetadata: { code: user.code } });
   const now = Date.now();
-  await env.DB.prepare('INSERT INTO flights (id, code, title, start_ts, end_ts, stats, meta, track_key, track_bytes, points, public, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)')
-    .bind(id, user.code, f.title, f.startTs, f.endTs, f.stats, f.meta, key, track.byteLength, f.points, f.public ?? 1, now).run();
+  const eventsKey = await storeEvents(env, id, events, null);
+  await env.DB.prepare('INSERT INTO flights (id, code, title, start_ts, end_ts, stats, meta, track_key, track_bytes, points, events_key, public, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?13)')
+    .bind(id, user.code, f.title, f.startTs, f.endTs, f.stats, f.meta, key, track.byteLength, f.points, eventsKey, f.public ?? 1, now).run();
   await logAction(env, user.code, 'flight.create', `${id} ${f.title} ${track.byteLength} B`, request);
   const row = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
   return { ...flightView(row), url: `${env.APP_URL || ''}/v/${id}` };
@@ -94,7 +115,7 @@ export async function getFlight(env, user, id) {
 
 export async function updateFlight(env, user, id, request) {
   const row = await ownFlight(env, user, id);
-  const { meta, track } = await readFlightBody(request);
+  const { meta, track, events } = await readFlightBody(request);
   const f = fields({ title: row.title, stats: parseJson(row.stats), meta: parseJson(row.meta), points: row.points, ...meta });
   let bytes = row.track_bytes;
   if (track) {
@@ -102,8 +123,9 @@ export async function updateFlight(env, user, id, request) {
     await env.FILES.put(row.track_key, track, { httpMetadata: { contentType: 'application/gzip' }, customMetadata: { code: user.code } });
     bytes = track.byteLength;
   }
-  await env.DB.prepare('UPDATE flights SET title = ?2, start_ts = ?3, end_ts = ?4, stats = ?5, meta = ?6, track_bytes = ?7, points = ?8, public = ?9, updated_at = ?10 WHERE id = ?1')
-    .bind(id, f.title, f.startTs, f.endTs, f.stats, f.meta, bytes, f.points, f.public ?? row.public, Date.now()).run();
+  const eventsKey = await storeEvents(env, id, events, row.events_key);
+  await env.DB.prepare('UPDATE flights SET title = ?2, start_ts = ?3, end_ts = ?4, stats = ?5, meta = ?6, track_bytes = ?7, points = ?8, public = ?9, updated_at = ?10, events_key = ?11 WHERE id = ?1')
+    .bind(id, f.title, f.startTs, f.endTs, f.stats, f.meta, bytes, f.points, f.public ?? row.public, Date.now(), eventsKey).run();
   await logAction(env, user.code, 'flight.update', `${id} ${f.title}${track ? ` ${bytes} B` : ''}`, request);
   const out = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
   return { ...flightView(out), url: `${env.APP_URL || ''}/v/${id}` };
@@ -132,6 +154,21 @@ async function trackResponse(env, row, cache) {
 export async function getTrack(env, user, id) {
   const row = await ownFlight(env, user, id);
   return trackResponse(env, row, 'private, no-store');
+}
+
+/** The stored event log (JSON array) or an empty array. */
+async function eventsResponse(env, row, cache) {
+  if (!row.events_key) return new Response('[]', { headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
+  const obj = await env.FILES.get(row.events_key);
+  return new Response(obj ? obj.body : '[]', { headers: { 'Content-Type': 'application/json', 'Cache-Control': cache } });
+}
+export async function getEvents(env, user, id) {
+  const row = await ownFlight(env, user, id);
+  return eventsResponse(env, row, 'private, no-store');
+}
+export async function viewEvents(env, id) {
+  const row = await publicFlight(env, id);
+  return eventsResponse(env, row, 'public, max-age=300');
 }
 
 // ---- public viewer (short link /v/<id>) ---------------------------------------------------------------

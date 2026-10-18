@@ -136,8 +136,8 @@ async function loadViewer() {
   slots.view.innerHTML = `<main class="page"><div class="banner info"><div class="body"><h3>${esc(t('viewer.loading'))}</h3></div></div></main>`;
   try {
     const rec = await api.view.get(id.toUpperCase());
-    const text = await api.view.track(id.toUpperCase());
-    await openFlight({ ...rec, url: location.origin + location.pathname.replace(/\/$/, '') + '/v/' + rec.id }, text, { viewer: true });
+    const [text, eventRows] = await Promise.all([api.view.track(id.toUpperCase()), rec.hasEvents ? api.view.events(id.toUpperCase()).catch(() => null) : null]);
+    await openFlight({ ...rec, url: location.origin + location.pathname.replace(/\/$/, '') + '/v/' + rec.id }, text, { viewer: true, eventRows });
     document.title = `${rec.title || 'analyze'} – analyze`;
     gotoPhase('analyze');
   } catch (ex) {

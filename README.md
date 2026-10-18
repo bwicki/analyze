@@ -5,10 +5,11 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.4.0 = Phase 1 komplett + Phase 2, erster Schritt:** Kennung (6 Buchstaben), eigenes Logo,
-Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
-Viewer, Supermaster-Ansicht. Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2) – Einrichtung in §6.
-Noch offen (0.5.0 / 0.6.0): Ereignislog aus `gb_flight_data`, Profil-Assistent; Phase 3: ops-Übergabe.
+**Stand: Version 0.5.0 = Phase 1 komplett + Phase 2 bis auf den Profil-Assistenten:** Kennung (6 Buchstaben),
+eigenes Logo, Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code,
+öffentlicher Viewer, Supermaster-Ansicht, **Ereignislog** aus `bwicki/gb_flight_data` (über den Worker) oder als
+JSON/CSV-Datei – auf Karte, Höhenprofil, in der Tabelle und im Bericht (Seite 3). Dafür läuft ein kleiner Cloudflare
+Worker (`worker/`, D1 + R2) – Einrichtung in §6. Noch offen: 0.6.0 Profil-Assistent; Phase 3: ops-Übergabe, Fotos.
 
 ---
 
@@ -25,6 +26,7 @@ Noch offen (0.5.0 / 0.6.0): Ereignislog aus `gb_flight_data`, Profil-Assistent; 
 | `src/api.js`, `src/session.js`, `src/flightio.js` | Worker-Client, Kennung im Browser, Speichern/Öffnen von Fahrten (GeoJSON) |
 | `src/ui/start.js`, `flights.js`, `admin.js` | Startseite (Kennung), Meine Fahrten, Supermaster |
 | `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
+| `src/events/log.js`, `src/ui/events.js` | Ereignislog: Normalisierung der Reporting-App-Zeilen, Verknüpfung mit dem Track, Karte/Profil/Tabelle |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql` (D1), `src/` (API) |
 | `404.html` | Leitet Kurzlinks `/v/‹ID›` auf die App um (GitHub Pages) |
 | `tests/` | Automatische Tests (`node --test`), inkl. verdünnter GB26-Daten als Fixture und Worker-API mit Attrappen |
@@ -60,7 +62,11 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    oder Zeiten; Protokoll der Aufbereitung.
 3. **Auswerten** – Karte (Strasse/Topo/Satellit, Farbe nach Vario oder Höhe, Zeitmarker), Kennzahlen (ICAO oder
    metrisch), Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ Marker auf der Karte.
-   «In Google Earth öffnen» sichert eine KMZ mit Zeitregler.
+   «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. **Ereignislog:** «Aus gb_flight_data verknüpfen»
+   (abgeschlossene Fahrten der Reporting-App, passende nach Zeitraum markiert; braucht Kennung und Worker-Token) oder
+   «Datei (JSON/CSV)» (Export der Reporting-App). Ereignisse erscheinen als farbige Marker auf Karte und Profil,
+   als Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach Typ; Maus über eine Zeile zeigt den Punkt.
+   Beim Speichern der Fahrt wird das Log mitgespeichert (Viewer und «Öffnen» zeigen es).
 4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
    tragen Kurzlink und QR-Code in der Fusszeile.
 5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar. **Fahrt speichern** legt den
@@ -123,13 +129,20 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    Weicht sie von `apiBase` in `src/config.js` ab, dort anpassen (Pages deployt automatisch). Test:
    `https://analyze-api.‹subdomain›.workers.dev/api/health` → `{"ok":true,…}`.
 7. **Supermaster einrichten:** `https://analyze.wicki.aero/#admin` → Name + PIN (einmalig; danach nur noch Login).
+8. **Ereignislog freischalten (optional):** GitHub → *Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate*: Repository access nur `bwicki/gb_flight_data`, Permission **Contents: Read-only**,
+   Ablauf z. B. 1 Jahr. Token als GitHub-Secret `GITHUB_DATA_TOKEN` im Repo `bwicki/analyze` hinterlegen und
+   «Deploy worker» einmal laufen lassen – der Workflow legt es als Worker-Secret ab (`wrangler secret put`); der
+   Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs.
 
 Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
 730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro Kennung: 300 MB
 (`QUOTA_MB`), Track ≤ 25 MB komprimiert, Logo ≤ 1 MB. CORS: nur die Origins aus `APP_ORIGINS`.
 
 **API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
-`GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track` ·
-`GET /api/view/‹id›[/track]` (öffentlich) · `/api/admin/…` (Supermaster, Bearer-Token). Kennung als Header `X-Code`.
+`GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
+`GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
+`/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, 5 min Cache) · `/api/admin/…` (Supermaster,
+Bearer-Token). Kennung als Header `X-Code`. Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON).
 
 Lizenz: Alle Rechte vorbehalten – Nutzung nur mit ausdrücklicher Zustimmung und Quellenangabe (Wicki Partners Ballonteam).

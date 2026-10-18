@@ -12,13 +12,16 @@
 //   GET  /api/logo/<code>                    public logo (404 → app shows the default)
 //   GET  /api/flights · POST /api/flights    list / save (multipart: meta JSON + track gzip)
 //   GET|PUT|DELETE /api/flights/<id>         one flight (owner); GET /api/flights/<id>/track → gzip GeoJSON
+//   GET  /api/flights/<id>/events · /api/view/<id>/events   stored event log (JSON array)
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
+//   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code)
 //   GET  /api/admin/setup · POST /api/admin/setup · POST /api/admin/login · POST /api/admin/logout · PUT /api/admin/pin
 //   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
 
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
-import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, viewFlight, viewTrack, cleanup } from './flights.js';
+import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup } from './flights.js';
+import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
 import { logAction } from './log.js';
 
@@ -43,7 +46,7 @@ function rateLimited(key, max, windowMs = 10 * 60e3) {
 }
 const readJson = (request) => request.json().catch(() => ({}));
 
-export async function api(request, env, url) {
+export async function api(request, env, url, ctx) {
   const path = url.pathname.replace(/\/+$/, '');
   const m = request.method;
   const ip = request.headers.get('CF-Connecting-IP') || 'local';
@@ -58,6 +61,8 @@ export async function api(request, env, url) {
   if (viewId && m === 'GET') return json(await viewFlight(env, viewId, request));
   const viewTrackId = seg(/^\/api\/view\/([^/]+)\/track$/);
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
+  const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
+  if (viewEventsId && m === 'GET') return viewEvents(env, viewEventsId);
 
   if (path === '/api/codes' && m === 'POST') {
     if (rateLimited('create:' + ip, 5)) throw new HttpError(429, 'too many new codes – try again later');
@@ -65,7 +70,7 @@ export async function api(request, env, url) {
   }
 
   // ---- code user ---------------------------------------------------------------------------------
-  if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights')) {
+  if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events')) {
     const user = await codeFromRequest(env, request, url);
     if (!user) {
       if (rateLimited('guess:' + ip, 30)) throw new HttpError(429, 'too many attempts');
@@ -79,6 +84,14 @@ export async function api(request, env, url) {
     if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request));
     const trackId = seg(/^\/api\/flights\/([^/]+)\/track$/);
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
+    const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
+    if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
+    // Ereignislog straight from the repo (team data – any valid Kennung; the token stays in the Worker)
+    if (path === '/api/events/flights' && m === 'GET') return json(await listRepoFlights(env, ctx));
+    const mediaFile = seg(/^\/api\/events\/media\/([^/]+)$/);
+    if (mediaFile && m === 'GET') return getRepoMedia(env, mediaFile, ctx);
+    const repoFlight = seg(/^\/api\/events\/([^/]+)$/);
+    if (repoFlight && m === 'GET') return json(await getRepoFlight(env, repoFlight, ctx));
     const id = seg(/^\/api\/flights\/([^/]+)$/);
     if (id && m === 'GET') return json(await getFlight(env, user, id));
     if (id && m === 'PUT') return json(await updateFlight(env, user, id, request));
@@ -114,13 +127,13 @@ export async function api(request, env, url) {
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const cors = corsHeaders(env, request);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     try {
       if (url.pathname.startsWith('/api/')) {
-        const res = await api(request, env, url);
+        const res = await api(request, env, url, ctx);
         for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
         return res;
       }

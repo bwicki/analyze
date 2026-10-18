@@ -226,3 +226,10 @@ table.tbl.flights td:nth-child(2),table.tbl.flights td:nth-child(4){white-space:
 .qr svg{display:block;border:1px solid var(--border);border-radius:8px}
 .report .qrline{display:flex;align-items:center;gap:12px;font-size:12px;color:var(--muted)}
 .report .qrline svg{width:84px;height:84px}
+
+/* ---- Ereignislog ---- */
+.tag.ev{background:color-mix(in srgb, var(--c) 14%, #fff);color:var(--c);border:1px solid color-mix(in srgb, var(--c) 40%, #fff)}
+.pill.fchip{cursor:pointer;font:inherit;font-size:13px;color:var(--text)}
+.pill.fchip.off{opacity:.45;text-decoration:line-through}
+table.tbl.events td{vertical-align:top}
+table.tbl.events tr[data-sel]:hover td{background:#f4f8ff;cursor:default}

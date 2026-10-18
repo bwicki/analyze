@@ -1,0 +1,10 @@
+[
+ {"id": "e1", "flight_id": "TEST26", "callsign": "HB-XXX", "seq": 1, "reporter": "Crew A", "ts_utc": "2026-08-28T23:40:00.000Z", "type": "ATC", "lat": 51.60, "lon": 7.04, "alt_gps_m": 330, "place": "near Testdorf/DE", "atc_dir": "RX", "atc_station": "Test Radar", "atc_freq": "128.555", "atc_squawk": "7000", "atc_msg": "Identified", "gps_fix": true},
+ {"id": "e2", "flight_id": "TEST26", "callsign": "HB-XXX", "seq": 2, "reporter": "Crew A", "ts_utc": "2026-08-28T23:56:26.000Z", "type": "Ballast", "lat": 51.658, "lon": 7.134, "alt_gps_m": 273, "place": "near Testdorf/DE", "ballast_action": "count", "ballast_abs_kg": 596, "sand_left_kg": 564, "water_left_kg": 32, "gps_fix": true},
+ {"id": "e3", "flight_id": "TEST26", "callsign": "HB-XXX", "seq": 3, "reporter": "Crew B", "ts_utc": "2026-08-29T01:29:55.000Z", "type": "Ballast", "lat": 52.0, "lon": 7.9, "alt_gps_m": 500, "ballast_action": "drop", "ballast_delta_kg": -10, "ballast_abs_kg": 586, "ballast_medium": "sand", "gps_fix": true},
+ {"id": "e4", "flight_id": "TEST26", "callsign": "HB-XXX", "seq": 4, "reporter": "Crew B", "ts_utc": "2026-08-29T08:11:37.000Z", "type": "Ressources", "lat": "", "lon": "", "res_battery_pct": 80, "res_fuel_cell": "on", "res_o2": "2'900 lit (88%)"},
+ {"id": "e5", "flight_id": "TEST26", "callsign": "HB-XXX", "seq": 5, "reporter": "Crew A", "ts_utc": "2026-08-29T09:50:25.000Z", "type": "PIC", "crew_change": "PIC Change, new: Crew A"},
+ {"id": "e6", "flight_id": "TEST26", "seq": 6, "ts_utc": "2026-09-05T10:00:00.000Z", "type": "POS", "lat": 60.0, "lon": 26.0},
+ {"id": "e7", "flight_id": "TEST26", "seq": 7, "ts_utc": "2026-08-29T02:00:00.000Z", "type": "ATC", "atc_msg": "deleted row", "deleted": true},
+ {"id": "e8", "flight_id": "TEST26", "seq": 8, "ts_utc": "not a date", "type": "ATC"}
+]

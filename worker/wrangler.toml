@@ -17,6 +17,11 @@ TOKEN_HOURS = "12"
 APP_URL = "https://analyze.wicki.aero"
 # Flights are kept this long after the last change (concept decision 9); the cleanup runs daily.
 RETENTION_DAYS = "730"
+# Ereignislog source (private repo of the gb_notion_frontend app). The token is a secret, NOT a var:
+# GITHUB_DATA_TOKEN – set by the deploy workflow from the GitHub secret of the same name (README §6, step 8).
+DATA_REPO = "bwicki/gb_flight_data"
+DATA_BRANCH = "main"
+DATA_DIR = "data"
 
 # D1 database: create it once in the Cloudflare dashboard (Workers & Pages → D1 → "analyze")
 # and paste its ID below (README step 3b). Apply worker/schema.sql via the "migrate" workflow input.

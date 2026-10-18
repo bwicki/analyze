@@ -5,9 +5,10 @@ import { buildSegments, classifySegments, mergeSegments, DEFAULTS as SEG_DEFAULT
 import { deriveSeries } from './process/series.js';
 import { detectEvents, proposeTrim, DETECT_DEFAULTS } from './process/detect.js';
 import { computeStats } from './process/stats.js';
+import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.4.0';
+export const VERSION = '0.5.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -43,6 +44,7 @@ export const state = {
   segments: [], track: null, series: null, events: [], states: null, trim: null, stats: null,
   places: { takeoff: null, landing: null }, // reverse-geocoded names
   hover: null,      // index on the track under the cursor (map ↔ profile)
+  evlog: null,      // Ereignislog: {source: {kind: 'repo'|'file'|'saved', flight, name}, rows (raw), events (normalised), linked}
   flight: null,     // {id, title, url, updatedAt, public} once the current analysis is saved under the Kennung
   viewer: null,     // {id, title, owner:{code, displayName, logo}} when opened through a short link (read-only)
 };
@@ -75,7 +77,22 @@ export function recompute({ reclassify = true } = {}) {
   const t0 = s.track.points.t[0], t1 = s.track.points.t[s.track.points.n - 1];
   if (!s.trim || s.trim.auto || s.trim.from < t0 || s.trim.to > t1) s.trim = auto;
   s.stats = computeStats(s.track, s.series, s.events, s.trim, { nightLimitDeg: s.settings.nightLimitDeg });
+  relinkEvents();
   bus.emit('track');
+}
+
+/** Attach the Ereignislog to the current track (positions, altitudes, in-trim flags). */
+export function relinkEvents() {
+  const s = state;
+  if (!s.evlog) return;
+  s.evlog.linked = s.track && s.series ? linkEvents(s.evlog.events, s.track, s.series, s.trim) : s.evlog.events.map((e) => ({ ...e, idx: -1, inTrim: false, onTrack: false }));
+}
+
+/** Set (or clear with null) the Ereignislog. */
+export function setEventLog(evlog) {
+  state.evlog = evlog;
+  relinkEvents();
+  bus.emit('events');
 }
 
 /** Set a manual trim (ms) and recompute stats only. */
@@ -85,6 +102,7 @@ export function setTrim(from, to, auto = false) {
   if (auto) s.trim = proposeTrim(s.track, s.events, s.settings.detect);
   else s.trim = { from: Math.max(t0, Math.min(from, to)), to: Math.min(t1, Math.max(from, to)), auto: false };
   s.stats = computeStats(s.track, s.series, s.events, s.trim, { nightLimitDeg: s.settings.nightLimitDeg });
+  relinkEvents();
   bus.emit('track');
 }
 
@@ -99,13 +117,14 @@ export function setManualLanding(ms) {
   s.events = ev;
   s.trim = proposeTrim(s.track, s.events, s.settings.detect);
   s.stats = computeStats(s.track, s.series, s.events, s.trim, { nightLimitDeg: s.settings.nightLimitDeg });
+  relinkEvents();
   bus.emit('track');
 }
 
 export function resetAll() {
   const s = state;
   s.files = []; s.unknown = []; s.segments = []; s.track = null; s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; s.places = { takeoff: null, landing: null }; s.hover = null;
-  s.flight = null; s.viewer = null;
+  s.flight = null; s.viewer = null; s.evlog = null;
   s.visited = { import: true };
   bus.emit('track');
 }

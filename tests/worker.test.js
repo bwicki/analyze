@@ -32,8 +32,8 @@ function fakeD1() {
     if (/^SELECT \* FROM flights WHERE updated_at </.test(s)) return T.flights.filter((f) => f.updated_at < a(1));
     if (/^SELECT \* FROM flights ORDER BY/.test(s)) return T.flights.slice();
     if (/^SELECT f\.\*, c\.display_name/.test(s)) return T.flights.filter((f) => f.id === a(1)).map((f) => { const c = T.codes.find((x) => x.code === f.code); return { ...f, display_name: c.display_name, logo_key: c.logo_key, blocked: c.blocked }; });
-    if (/^INSERT INTO flights/.test(s)) { T.flights.push({ id: a(1), code: a(2), title: a(3), start_ts: a(4), end_ts: a(5), stats: a(6), meta: a(7), track_key: a(8), track_bytes: a(9), points: a(10), public: a(11), created_at: a(12), updated_at: a(12), events_key: null }); return []; }
-    if (/^UPDATE flights SET title/.test(s)) { const f = T.flights.find((x) => x.id === a(1)); Object.assign(f, { title: a(2), start_ts: a(3), end_ts: a(4), stats: a(5), meta: a(6), track_bytes: a(7), points: a(8), public: a(9), updated_at: a(10) }); return []; }
+    if (/^INSERT INTO flights/.test(s)) { T.flights.push({ id: a(1), code: a(2), title: a(3), start_ts: a(4), end_ts: a(5), stats: a(6), meta: a(7), track_key: a(8), track_bytes: a(9), points: a(10), events_key: a(11), public: a(12), created_at: a(13), updated_at: a(13) }); return []; }
+    if (/^UPDATE flights SET title/.test(s)) { const f = T.flights.find((x) => x.id === a(1)); Object.assign(f, { title: a(2), start_ts: a(3), end_ts: a(4), stats: a(5), meta: a(6), track_bytes: a(7), points: a(8), public: a(9), updated_at: a(10), events_key: a(11) }); return []; }
     if (/^DELETE FROM flights/.test(s)) { T.flights = T.flights.filter((f) => f.id !== a(1)); return []; }
     if (/^INSERT INTO admins/.test(s)) { T.admins.push({ name: a(1), pin_hash: a(2), created_at: a(3), last_login: null }); return []; }
     if (/^SELECT name, pin_hash FROM admins/.test(s)) return T.admins.filter((x) => x.name === a(1));
@@ -58,7 +58,7 @@ function fakeR2() {
   const objs = new Map();
   return {
     objs,
-    put: async (key, data, opts) => { objs.set(key, { data: data instanceof Uint8Array ? data : new Uint8Array(data), opts }); },
+    put: async (key, data, opts) => { objs.set(key, { data: data instanceof Uint8Array ? data : typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data), opts }); },
     get: async (key) => { const o = objs.get(key); return o ? { body: o.data, size: o.data.byteLength } : null; },
     delete: async (key) => { objs.delete(key); },
   };
@@ -111,6 +111,19 @@ test('code: create, me, save flight, list, view, update, delete', async () => {
   assert.equal((await call(e, 'POST', '/api/flights', { body: bad, headers: H })).status, 400);
   const list = await (await call(e, 'GET', '/api/flights', { headers: H })).json();
   assert.equal(list.length, 1); assert.equal(list[0].title, 'GB26'); assert.equal(list[0].meta.balloon, 'HB-QWV');
+  // event log stored with the flight, readable by owner and viewer, removable with an empty part
+  const fe = new FormData(); fe.set('meta', '{}'); fe.set('events', JSON.stringify([{ id: 'e1', ts_utc: '2026-08-29T00:11:00Z', type: 'ATC', atc_msg: 'Contact Langen' }]));
+  const withEv = await (await call(e, 'PUT', `/api/flights/${saved.id}`, { body: fe, headers: H })).json();
+  assert.equal(withEv.hasEvents, true);
+  assert.equal((await (await call(e, 'GET', `/api/flights/${saved.id}/events`, { headers: H })).json())[0].atc_msg, 'Contact Langen');
+  assert.equal((await (await call(e, 'GET', `/api/view/${saved.id}/events`)).json()).length, 1);
+  const bad2 = new FormData(); bad2.set('meta', '{}'); bad2.set('events', '{"not":"array"}');
+  assert.equal((await call(e, 'PUT', `/api/flights/${saved.id}`, { body: bad2, headers: H })).status, 400);
+  const none = new FormData(); none.set('meta', '{}'); none.set('events', '');
+  assert.equal((await (await call(e, 'PUT', `/api/flights/${saved.id}`, { body: none, headers: H })).json()).hasEvents, false);
+  assert.deepEqual(await (await call(e, 'GET', `/api/flights/${saved.id}/events`, { headers: H })).json(), []);
+  // repo event log needs the token
+  assert.equal((await call(e, 'GET', '/api/events/flights', { headers: H })).status, 503);
   // own track + public viewer
   const tr = await call(e, 'GET', `/api/flights/${saved.id}/track`, { headers: H });
   assert.equal(tr.headers.get('X-Analyze-Encoding'), 'gzip');

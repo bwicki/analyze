@@ -12,6 +12,8 @@ import { createMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
 import { session, logoUrl, DEFAULT_LOGO } from '../session.js';
 import { qrSvg } from '../util/qr.js';
+import { eventsForDisplay, typeLabel } from './events.js';
+import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'gas', 'pic', 'copilot', 'pax', 'startName', 'landName', 'remarks'];
 
@@ -124,14 +126,15 @@ export function mountReport(root, ctx) {
       <table><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th class="r">${esc(t('imp.col.points'))}</th></tr></thead>
         ${state.segments.filter((s) => s.status === 'use').map((s) => `<tr><td class="v">${s.id}</td><td class="v">${esc(s.file)}</td><td class="v">${fmtDayUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="v">${fmtDayUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="v" style="text-align:right">${fmtInt(s.n)}</td></tr>`).join('')}</table>
       <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}</div>
-      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: 2 }))}</span></div>`;
+      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: 2 }))}</span></div>
+      ${eventsSection()}`;
     // map + profile (static)
     const s = state; const dur = (s.trim.to - s.trim.from) / 1000; const step = Math.max(1, Math.ceil(dur / 1500));
     const pts = trackPoints(s.track, s.series, s.trim, step); const vsS = movingMean(s.track.points.t, s.series.vs, Math.max(15, step / 2));
     for (const q of pts) { q.vsS = vsS[q.i]; q.cls = varioClass(q.vsS); }
     const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin).map((x) => ({ ...x, dist: s.series.dist[x.i] }));
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
-    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate, night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null };
+    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate, night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: eventsForDisplay() };
     if (map) { map.destroy(); map = null; }
     mapEl = rep.querySelector('[data-repmap]');
     map = createMap(mapEl, { layer: 'osm' });
@@ -139,8 +142,23 @@ export function mountReport(root, ctx) {
     renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), aria: t('ana.profile') } });
   }
 
-  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport);
+  /** Page 3: Ereignislog table (when linked). */
+  function eventsSection() {
+    const lg = state.evlog; if (!lg || !lg.linked || !lg.linked.length) return '';
+    const sm = summarizeEvents(lg.events), un = makeUnits(state.settings.units);
+    const rows = lg.linked.filter((e) => e.inTrim);
+    const src = lg.source.kind === 'repo' || lg.source.kind === 'saved' ? lg.source.name || lg.source.flight : lg.source.name;
+    const summary = [t('ev.linkedCount', { n: rows.length, total: lg.events.length }), ...Object.entries(sm.counts).map(([k, v]) => `${typeLabel(k)} ${v}`), sm.ballastStart !== null ? t('ev.ballast', { from: fmtInt(sm.ballastStart), to: fmtInt(sm.ballastEnd), drops: sm.drops }) : ''].filter(Boolean).join(' · ');
+    return `<div style="break-before:page"></div>
+      <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">${esc(t('ana.events'))} · ${esc(src)}</h2>
+      <div style="font-size:12px">${esc(summary)}</div>
+      <table><thead><tr><th>${esc(t('ev.col.time'))}</th><th>${esc(t('ev.col.type'))}</th><th>${esc(t('ev.col.pos'))}</th><th>${esc(t('ana.r.alt'))}</th><th>${esc(t('ev.col.text'))}</th></tr></thead>
+        ${rows.map((e) => `<tr><td class="v">${fmtDayUTC(e.t)} ${fmtTimeUTC(e.t)}</td><td><span style="color:${EVENT_COLORS[e.type]};font-weight:600">${esc(typeLabel(e.type))}</span></td><td class="v">${!Number.isNaN(e.lat) ? icaoShort(e.lat, e.lon) : '–'}${e.place ? `<br><span class="muted">${esc(e.place)}</span>` : ''}</td><td class="v">${!Number.isNaN(e.alt) ? un.alt(e.alt) : '–'}</td><td>${esc(e.text)}${e.reporter ? ` <span class="muted">· ${esc(e.reporter)}</span>` : ''}</td></tr>`).join('')}</table>
+      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: 3 }))}</span></div>`;
+  }
+
+  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport);
   renderReport();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); map && map.destroy(); } };
+  return { unmount: () => { off(); off2(); off3(); map && map.destroy(); } };
 }

@@ -112,7 +112,10 @@ export function mountFlights(root, ctx) {
         if (!ok) return;
       }
       b.disabled = true; toast(t('fl.opening'));
-      try { const text = await api.flights.track(f.id); await openFlight({ ...f, url: shortUrl(f.id) }, text); ctx.refreshBars(); ctx.goto('analyze'); }
+      try {
+        const [text, eventRows] = await Promise.all([api.flights.track(f.id), f.hasEvents ? api.flights.events(f.id).catch(() => null) : null]);
+        await openFlight({ ...f, url: shortUrl(f.id) }, text, { eventRows }); ctx.refreshBars(); ctx.goto('analyze');
+      }
       catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); b.disabled = false; }
     },
     copy: async (b) => { if (await copyText(shortUrl(b.dataset.id))) toast(t('common.copied')); },
