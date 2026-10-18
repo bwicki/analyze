@@ -7,7 +7,7 @@ import { detectEvents, proposeTrim, DETECT_DEFAULTS } from './process/detect.js'
 import { computeStats } from './process/stats.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.1.0';
+export const VERSION = '0.4.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -43,6 +43,8 @@ export const state = {
   segments: [], track: null, series: null, events: [], states: null, trim: null, stats: null,
   places: { takeoff: null, landing: null }, // reverse-geocoded names
   hover: null,      // index on the track under the cursor (map ↔ profile)
+  flight: null,     // {id, title, url, updatedAt, public} once the current analysis is saved under the Kennung
+  viewer: null,     // {id, title, owner:{code, displayName, logo}} when opened through a short link (read-only)
 };
 
 export function saveSettings() { save(LS_SETTINGS, state.settings); bus.emit('settings'); }
@@ -103,6 +105,7 @@ export function setManualLanding(ms) {
 export function resetAll() {
   const s = state;
   s.files = []; s.unknown = []; s.segments = []; s.track = null; s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; s.places = { takeoff: null, landing: null }; s.hover = null;
+  s.flight = null; s.viewer = null;
   s.visited = { import: true };
   bus.emit('track');
 }

@@ -1,4 +1,6 @@
 // analyze – bootstrap, hash routing, header/action bar, settings panel. Views live in ./ui/*.js.
+// Routes: #start (Kennung), #import … #export (the five phases), #flights (Meine Fahrten), #admin
+// (Supermaster); ?v=<id> opens a saved flight read-only (short link analyze.wicki.aero/v/<id> → 404.html → here).
 
 import { initI18n, setLang, onLangChange, t, currentLang } from './i18n.js';
 import { state, bus, PHASES, VERSION, saveSettings, recompute, DEFAULT_SETTINGS } from './state.js';
@@ -9,13 +11,20 @@ import { mountClean, cleanStatus } from './ui/clean.js';
 import { mountAnalyze, analyzeStatus } from './ui/analyze.js';
 import { mountReport } from './ui/report.js';
 import { mountExport } from './ui/export.js';
+import { mountStart } from './ui/start.js';
+import { mountFlights } from './ui/flights.js';
+import { mountAdmin } from './ui/admin.js';
 import { DETECT_DEFAULTS } from './process/detect.js';
+import { session, hasAccess, hasServer, setMe, clearSession } from './session.js';
+import { api, ApiError } from './api.js';
+import { openFlight } from './flightio.js';
 
 const root = document.getElementById('app');
 const slots = { header: null, action: null, view: null, footer: null };
 let view = null;
 
-const VIEWS = { import: mountImport, clean: mountClean, analyze: mountAnalyze, report: mountReport, export: mountExport };
+const EXTRA = ['start', 'flights', 'admin'];
+const VIEWS = { import: mountImport, clean: mountClean, analyze: mountAnalyze, report: mountReport, export: mountExport, start: mountStart, flights: mountFlights, admin: mountAdmin };
 
 const ctx = {
   saveSettings,
@@ -23,13 +32,16 @@ const ctx = {
   goto: (p) => gotoPhase(p),
 };
 
-function phaseFromHash() { const h = location.hash.replace('#', ''); return PHASES.includes(h) ? h : 'import'; }
+function phaseFromHash() { const h = location.hash.replace('#', ''); return PHASES.includes(h) || EXTRA.includes(h) ? h : null; }
 
 function gotoPhase(p) {
-  if (!PHASES.includes(p)) p = 'import';
-  if (!phaseEnabled(p)) { toast(t('nav.needTrack'), true); p = state.track ? 'clean' : 'import'; }
+  if (!PHASES.includes(p) && !EXTRA.includes(p)) p = 'import';
+  if (p === 'flights' && !session.code) p = 'start';
+  if (p === 'start' && (state.viewer || !hasServer())) p = state.stats ? 'analyze' : 'import';
+  if (p === 'import' && !state.viewer && !hasAccess() && hasServer()) p = 'start';
+  if (PHASES.includes(p) && !phaseEnabled(p)) { toast(t('nav.needTrack'), true); p = state.viewer ? 'analyze' : state.track ? 'clean' : 'import'; }
   state.phase = p; state.visited[p] = true;
-  if (location.hash !== '#' + p) history.replaceState(null, '', '#' + p);
+  if (location.hash !== '#' + p) history.replaceState(null, '', location.search + '#' + p);
   mountView();
 }
 
@@ -42,7 +54,7 @@ function mountView() {
 }
 
 function renderHeaderBar() {
-  const el = renderHeader({ subtitle: t('hdr.subtitle'), onGoto: gotoPhase, onLang: (l) => setLang(l), settingsBody: settingsPanel });
+  const el = renderHeader({ subtitle: t('hdr.subtitle'), onGoto: gotoPhase, onLang: (l) => setLang(l), onNav: (v) => gotoPhase(v), settingsBody: settingsPanel });
   slots.header.replaceWith(el); slots.header = el;
 }
 
@@ -52,12 +64,16 @@ function statusFor(p) {
   if (p === 'analyze') return analyzeStatus();
   if (p === 'report') return esc(t('rep.status'));
   if (p === 'export') return esc(t('exp.status'));
+  if (p === 'start') return esc(t('start.status'));
+  if (p === 'flights') return esc(t('fl.status'));
+  if (p === 'admin') return esc(t('adm.status'));
   return '';
 }
 
 function renderAction() {
-  const i = PHASES.indexOf(state.phase);
-  const prev = i > 0 ? PHASES[i - 1] : null, next = i < PHASES.length - 1 ? PHASES[i + 1] : null;
+  const seq = state.viewer ? ['analyze', 'report'] : PHASES;
+  const i = seq.indexOf(state.phase);
+  const prev = i > 0 ? seq[i - 1] : null, next = i >= 0 && i < seq.length - 1 ? seq[i + 1] : null;
   const el = renderActionBar({
     back: prev ? { label: phaseLabel(prev) } : null,
     status: state.busy ? esc(t('imp.busy')) : statusFor(state.phase),
@@ -88,8 +104,9 @@ function settingsPanel() {
       ${num('detect.minAirSec', t('settings.minAir'), d.minAirSec, 's')}
       ${num('detect.minGroundSec', t('settings.minGround'), d.minGroundSec, 's')}
     </div><div class="row-wrap" style="gap:8px;padding-bottom:4px"><button class="btn sm" type="button" data-reset>${esc(t('settings.reset'))}</button><span class="muted small">${esc(t('settings.night'))}</span></div></details>
-    <div class="muted small">${esc(t('settings.storage'))}</div>`;
-  const bind = (body) => {
+    <div class="muted small">${esc(t('settings.storage'))}</div>
+    ${hasServer() && !state.viewer ? `<div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-nav="start">${esc(session.code ? t('settings.changeCode') : t('settings.toStart'))}</button><button class="btn sm" type="button" data-nav="admin">${esc(t('settings.admin'))}</button></div>` : ''}`;
+  const bind = (body, details) => {
     body.querySelectorAll('[data-s]').forEach((inp) => inp.addEventListener('change', () => {
       const k = inp.dataset.s, v = inp.type === 'checkbox' ? inp.checked : inp.value;
       if (k === 'units') s.units = v; else if (k === 'markerMin') s.markerMin = +v; else if (k === 'geocode') s.geocode = v;
@@ -101,13 +118,42 @@ function settingsPanel() {
       else bus.emit('track');
     }));
     const r = body.querySelector('[data-reset]'); if (r) r.addEventListener('click', () => { Object.assign(s, { gapSec: DEFAULT_SETTINGS.gapSec, otherFlightHours: DEFAULT_SETTINGS.otherFlightHours }); s.detect = { ...DETECT_DEFAULTS }; saveSettings(); if (state.files.length) recompute(); toast(t('settings.resetDone')); });
+    body.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => { details.open = false; gotoPhase(b.dataset.nav); }));
   };
   return { html: html_, bind };
 }
 
 function renderFooter() {
-  const el = html(`<footer class="app"><span>analyze.wicki.aero · v${VERSION} · ${esc(t('footer.rights'))}</span><span>${esc(t('footer.local'))}</span></footer>`);
+  const el = html(`<footer class="app"><span>analyze.wicki.aero · v${VERSION} · ${esc(t('footer.rights'))}</span><span>${esc(hasServer() ? t('footer.server') : t('footer.local'))}</span></footer>`);
   slots.footer.replaceWith(el); slots.footer = el;
+}
+
+/** ?v=<id>: load a saved flight read-only. Returns true when handled. */
+async function loadViewer() {
+  const id = new URLSearchParams(location.search).get('v');
+  if (!id || !/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(id.toUpperCase())) return false;
+  if (!hasServer()) return false;
+  slots.view.innerHTML = `<main class="page"><div class="banner info"><div class="body"><h3>${esc(t('viewer.loading'))}</h3></div></div></main>`;
+  try {
+    const rec = await api.view.get(id.toUpperCase());
+    const text = await api.view.track(id.toUpperCase());
+    await openFlight({ ...rec, url: location.origin + location.pathname.replace(/\/$/, '') + '/v/' + rec.id }, text, { viewer: true });
+    document.title = `${rec.title || 'analyze'} – analyze`;
+    gotoPhase('analyze');
+  } catch (ex) {
+    console.error(ex);
+    state.viewer = null;
+    slots.view.innerHTML = `<main class="page"><div class="banner warn"><div class="body"><h3>${esc(ex instanceof ApiError && ex.status === 404 ? t('viewer.notFound') : t('start.errNetwork'))}</h3><div class="sub"><a href="./">${esc(t('viewer.toApp'))}</a></div></div></div></main>`;
+    renderHeaderBar(); renderAction();
+  }
+  return true;
+}
+
+/** Refresh the stored Kennung in the background (display name, logo, blocked?). */
+async function refreshMe() {
+  if (!session.code || !hasServer()) return;
+  try { setMe(await api.me.get()); renderHeaderBar(); }
+  catch (ex) { if (ex instanceof ApiError && (ex.status === 401 || ex.status === 403)) { clearSession(); toast(t(ex.status === 403 ? 'start.errBlocked' : 'start.errUnknown'), true); renderHeaderBar(); if (!state.viewer) gotoPhase('start'); } }
 }
 
 async function boot() {
@@ -116,11 +162,15 @@ async function boot() {
   slots.header = document.createElement('div'); slots.action = document.createElement('div'); slots.view = document.createElement('div'); slots.footer = document.createElement('div');
   slots.view.style.display = 'contents';
   root.append(slots.header, slots.action, slots.view, slots.footer);
-  renderFooter();
+  renderFooter(); renderHeaderBar(); renderAction();
   onLangChange(() => { renderHeaderBar(); renderAction(); renderFooter(); mountView(); });
   bus.on('track', () => { renderHeaderBar(); renderAction(); });
-  window.addEventListener('hashchange', () => { const p = phaseFromHash(); if (p !== state.phase) gotoPhase(p); });
-  gotoPhase(phaseFromHash());
+  bus.on('flight', () => { renderHeaderBar(); });
+  window.addEventListener('hashchange', () => { const p = phaseFromHash(); if (p && p !== state.phase) gotoPhase(p); });
+  if (await loadViewer()) return;
+  const wanted = phaseFromHash();
+  gotoPhase(wanted || (hasServer() && !hasAccess() ? 'start' : 'import'));
+  refreshMe();
 }
 
 boot().catch((e) => { root.innerHTML = `<p style="padding:20px;color:#c0392b">Start failed: ${esc(e.message)}</p>`; console.error(e); });

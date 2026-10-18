@@ -5,8 +5,10 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.1.0 = Phase 1 (lokal, ohne Konto).** Kennung, Logo, Fahrtarchiv, Ereignislog aus
-`gb_flight_data`, Profil-Assistent, Kurzlink/QR und die ops-Übergabe folgen in Phase 2 und 3 (Konzept §13).
+**Stand: Version 0.4.0 = Phase 1 komplett + Phase 2, erster Schritt:** Kennung (6 Buchstaben), eigenes Logo,
+Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
+Viewer, Supermaster-Ansicht. Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2) – Einrichtung in §6.
+Noch offen (0.5.0 / 0.6.0): Ereignislog aus `gb_flight_data`, Profil-Assistent; Phase 3: ops-Übergabe.
 
 ---
 
@@ -20,7 +22,12 @@ Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Desi
 | `src/export/` | GPX, GeoJSON, KML/KMZ, CSV (`formats.js`), Downloads (`download.js`) |
 | `src/ui/` | Die fünf Phasen, Karte (Leaflet), Höhenprofil (SVG) |
 | `src/worker/parse-worker.js` | Parser im Web Worker (80-MB-Logs ohne Einfrieren der Seite) |
-| `tests/` | Automatische Tests (`node --test`), inkl. verdünnter GB26-Daten als Fixture |
+| `src/api.js`, `src/session.js`, `src/flightio.js` | Worker-Client, Kennung im Browser, Speichern/Öffnen von Fahrten (GeoJSON) |
+| `src/ui/start.js`, `flights.js`, `admin.js` | Startseite (Kennung), Meine Fahrten, Supermaster |
+| `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
+| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql` (D1), `src/` (API) |
+| `404.html` | Leitet Kurzlinks `/v/‹ID›` auf die App um (GitHub Pages) |
+| `tests/` | Automatische Tests (`node --test`), inkl. verdünnter GB26-Daten als Fixture und Worker-API mit Attrappen |
 | `docs/` | Konzept |
 | `design/` | Freigegebene Design-Boards (Phase 0) |
 | `CNAME` | Domain für GitHub Pages (`analyze.wicki.aero`) |
@@ -40,7 +47,7 @@ Kartenkacheln: OpenStreetMap, OpenTopoMap, Esri World Imagery. Ortsnamen (option
 5. Ab jetzt ist jede Änderung an `main` nach 1–2 Minuten unter **https://analyze.wicki.aero** live
    (Ersatzadresse: `https://bwicki.github.io/analyze/`).
 
-Kein Worker, keine Secrets in Phase 1.
+Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` in `src/config.js` leer lassen.
 
 ---
 
@@ -54,10 +61,21 @@ Kein Worker, keine Secrets in Phase 1.
 3. **Auswerten** – Karte (Strasse/Topo/Satellit, Farbe nach Vario oder Höhe, Zeitmarker), Kennzahlen (ICAO oder
    metrisch), Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ Marker auf der Karte.
    «In Google Earth öffnen» sichert eine KMZ mit Zeitregler.
-4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»).
-5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar.
+4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
+   tragen Kurzlink und QR-Code in der Fusszeile.
+5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar. **Fahrt speichern** legt den
+   geschnittenen Track (volle Auflösung, komprimiert), Kennzahlen und Stammdaten unter der Kennung ab und erzeugt den
+   Kurzlink `analyze.wicki.aero/v/‹ID›` (QR-Code daneben; «Kurzlink deaktivieren» macht die Fahrt privat).
 
-Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen).
+**Kennung:** Startseite → «Neue Kennung erzeugen» (einmal notieren) oder vorhandene eingeben. Die Kennung ist das
+einzige Geheimnis – wer sie kennt, sieht und ändert die Fahrten darunter. «Ohne Kennung ausprobieren» = Phase-1-Betrieb.
+**Meine Fahrten** (Klick auf die Kennung oben rechts): Liste, Öffnen ohne Neu-Import, Löschen, Anzeigename, eigenes
+Logo (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst Ballonteam-Logo), Vorgaben (Standard-Ballon, PIC).
+**Viewer:** Der Kurzlink zeigt Auswerten und Bericht ohne Kennung, ohne Bearbeiten.
+**Supermaster** (☰ → Supermaster oder `#admin`): einmalig Name + PIN einrichten; sieht alle Kennungen (sperren,
+löschen), alle Fahrten und das Nutzungsprotokoll.
+
+Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen), Kennung wechseln.
 
 ---
 
@@ -68,7 +86,8 @@ node --test tests/*.test.js
 ```
 
 Die Tests prüfen Leser, Zusammenfügen, Erkennung, Kennzahlen (GB26: Start 23:31 UTC, Landung 16:34 UTC,
-41 h 03 min, ≈ 1 588 km, 1 Neustart, 2 Nächte), Exporte und die Vollständigkeit der Übersetzungen.
+41 h 03 min, ≈ 1 588 km, 1 Neustart, 2 Nächte), Exporte, den GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit
+denselben Segmenten und Kennzahlen), die Worker-API (mit D1/R2-Attrappen) und die Vollständigkeit der Übersetzungen.
 Der Workflow `.github/workflows/tests.yml` führt sie bei jedem Push aus.
 
 ---
@@ -78,5 +97,39 @@ Der Workflow `.github/workflows/tests.yml` führt sie bei jedem Push aus.
 Ein Profil ist ein Eintrag in `src/parse/profiles.js`: Erkennung (Dateiendung, Kopfzeile), Lesen (Trennzeichen,
 Kopfzeile) und Zuordnung der Spalten zu den Normfeldern (Zeit, Breite, Länge, GPS-Höhe, Druckhöhe, Druck, Vario,
 Fahrt, Kurs, Runtime, Batterie) mit Einheit. Die beiden GB-Instrument-Profile dienen als Vorlage.
+
+---
+
+## 6. Phase 2 einrichten: Worker, D1, R2 (nur Browser, keine lokalen Werkzeuge)
+
+Gleiches Muster wie s2ground/ops: der Worker wird von GitHub Actions deployt, die Datenbank und der Speicher
+werden einmalig im Cloudflare-Dashboard angelegt.
+
+1. **D1-Datenbank anlegen:** Cloudflare-Dashboard → *Storage & Databases → D1 SQL Database → Create* → Name **`analyze`**
+   (Standort «Western Europe» wählen, wenn angeboten). Auf der Datenbankseite die **Database ID** kopieren und in
+   `worker/wrangler.toml` bei `database_id` eintragen (im Repo direkt auf GitHub editierbar: Datei öffnen → Stift).
+2. **R2-Bucket anlegen:** *R2 Object Storage → Create bucket* → Name **`analyze`** (Location hint «Western Europe»).
+   Beim ersten Mal muss R2 aktiviert werden (Zahlungsmittel hinterlegen; Free-Kontingent 10 GB reicht lange).
+3. **API-Token erzeugen:** *My Profile → API Tokens → Create Token → «Edit Cloudflare Workers»-Vorlage*, zusätzlich
+   die Berechtigungen **Account · D1 · Edit** und **Account · Workers R2 Storage · Edit** hinzufügen, auf das Konto
+   einschränken → Token kopieren.
+4. **GitHub-Secrets setzen:** Repo `bwicki/analyze` → *Settings → Secrets and variables → Actions → New repository
+   secret*: `CLOUDFLARE_API_TOKEN` (Token aus Schritt 3) und `CLOUDFLARE_ACCOUNT_ID` (Dashboard → Workers & Pages →
+   rechts «Account ID»).
+5. **Deployen mit Schema:** *Actions → «Deploy worker» → Run workflow* → Haken bei **migrate** → Run. Der Lauf legt
+   die Tabellen an (`worker/schema.sql`) und deployt den Worker `analyze-api`. Danach genügt jeder Push unter `worker/`;
+   `migrate` nur wieder anhaken, wenn sich `schema.sql` ändert (idempotent).
+6. **Adresse eintragen:** *Workers & Pages → analyze-api* zeigt die Adresse `https://analyze-api.‹subdomain›.workers.dev`.
+   Weicht sie von `apiBase` in `src/config.js` ab, dort anpassen (Pages deployt automatisch). Test:
+   `https://analyze-api.‹subdomain›.workers.dev/api/health` → `{"ok":true,…}`.
+7. **Supermaster einrichten:** `https://analyze.wicki.aero/#admin` → Name + PIN (einmalig; danach nur noch Login).
+
+Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
+730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro Kennung: 300 MB
+(`QUOTA_MB`), Track ≤ 25 MB komprimiert, Logo ≤ 1 MB. CORS: nur die Origins aus `APP_ORIGINS`.
+
+**API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
+`GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track` ·
+`GET /api/view/‹id›[/track]` (öffentlich) · `/api/admin/…` (Supermaster, Bearer-Token). Kennung als Header `X-Code`.
 
 Lizenz: Alle Rechte vorbehalten – Nutzung nur mit ausdrücklicher Zustimmung und Quellenangabe (Wicki Partners Ballonteam).

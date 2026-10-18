@@ -201,6 +201,42 @@ export function readIgc(text) {
   return { points: b.finish(), bad, columns: ['B-record'] };
 }
 
+/**
+ * GeoJSON: LineString features (our own exports, saved flights, QGIS/ogr2ogr output). Times come from
+ * properties.times (parallel array, ISO), else properties.time per feature, else the file is timeless.
+ * restart:true on a line resets the runtime counter → splitAtRestarts() recreates the source segments.
+ */
+export function readGeoJson(text) {
+  const b = new PointBuilder(4096); let bad = 0;
+  let doc; try { doc = JSON.parse(text); } catch { return { points: b.finish(), bad: 1, columns: [] }; }
+  const feats = doc.type === 'FeatureCollection' ? doc.features || [] : doc.type === 'Feature' ? [doc] : [];
+  let runtime = 0, fake = 0, timeless = false;
+  for (const f of feats) {
+    const g = f && f.geometry; if (!g) continue;
+    const P = f.properties || {};
+    const lines = g.type === 'LineString' ? [g.coordinates] : g.type === 'MultiLineString' ? g.coordinates : [];
+    if (P.kind && P.kind !== 'track') continue;
+    for (const coords of lines) {
+      if (P.restart) runtime = 0;
+      const times = Array.isArray(P.times) ? P.times : null;
+      let t0 = NaN;
+      for (let i = 0; i < coords.length; i++) {
+        const c = coords[i]; if (!Array.isArray(c) || c.length < 2) { bad++; continue; }
+        const [lon, lat, alt] = c;
+        let t = times ? Date.parse(times[i] || '') : NaN;
+        if (!times && Array.isArray(P.coordTimes)) t = Date.parse(P.coordTimes[i] || '');  // Mapbox togeojson style
+        if (Number.isNaN(t)) { timeless = true; t = fake++ * 1000; }
+        if (Number.isNaN(t0)) t0 = t;
+        const at = (arr) => (Array.isArray(arr) && arr[i] !== null && arr[i] !== undefined ? +arr[i] : NaN);
+        if (typeof lat !== 'number' || typeof lon !== 'number') { bad++; continue; }
+        b.push({ t, lat, lon, alt: typeof alt === 'number' ? alt : NaN, balt: at(P.palt_m), press: at(P.press_hpa), vs: at(P.vs_ms), gs: at(P.gs_ms), hdg: at(P.hdg_deg), batt: at(P.batt_v), runtime: runtime + (t - t0) / 1000, fix: true });
+      }
+      if (!Number.isNaN(t0) && coords.length) { const last = coords.length - 1; const tl = times ? Date.parse(times[last] || '') : NaN; runtime += Number.isNaN(tl) ? coords.length : (tl - t0) / 1000; }
+    }
+  }
+  return { points: b.finish(), bad, columns: ['LineString'], timeless };
+}
+
 /** Dispatch by profile.read.kind. */
 export function readWithProfile(text, profile) {
   const kind = profile.read && profile.read.kind;
@@ -209,5 +245,6 @@ export function readWithProfile(text, profile) {
   if (kind === 'gpx') return readGpx(text);
   if (kind === 'kml') return readKml(text);
   if (kind === 'igc') return readIgc(text);
+  if (kind === 'geojson') return readGeoJson(text);
   throw new Error(`unknown reader kind ${kind}`);
 }

@@ -1,0 +1,53 @@
+# Deploys the Cloudflare Worker (worker/ → analyze-api on workers.dev) when something under worker/
+# changes on main. The web app itself is published by GitHub Pages straight from the repository root.
+# One-time D1 schema: run this workflow manually (Actions → Deploy worker → Run workflow) with
+# "migrate" ticked – also after every change to worker/schema.sql (the schema is idempotent).
+# Secrets needed (repo → Settings → Secrets and variables → Actions), see README §6:
+#   CLOUDFLARE_API_TOKEN   – API token with Workers Scripts, D1 and Workers R2 Storage: Edit
+#   CLOUDFLARE_ACCOUNT_ID  – the account ID shown in the Cloudflare dashboard
+name: Deploy worker
+
+on:
+  push:
+    branches: [main]
+    paths: ['worker/**']
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: "Apply worker/schema.sql to the D1 database (first run and after schema changes)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests
+        run: node --test tests/*.test.js
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: D1 schema (only when requested)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.migrate }}
+        working-directory: worker
+        run: npx --yes wrangler@4 d1 execute analyze --remote --file=schema.sql
+      - name: Deploy Worker (analyze-api)
+        working-directory: worker
+        run: npx --yes wrangler@4 deploy

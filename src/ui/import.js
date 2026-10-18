@@ -6,7 +6,7 @@ import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtTimeUTC, fmtDurationHM, fmtDayUTC 
 import { state, bus, recompute, resetAll } from '../state.js';
 import { parseFiles } from '../parser.js';
 
-const ACCEPT = '.csv,.jsonl,.json,.txt,.gpx,.kml,.kmz,.igc,.zip,.log,.nmea';
+const ACCEPT = '.csv,.jsonl,.json,.geojson,.txt,.gpx,.kml,.kmz,.igc,.zip,.log,.nmea';
 
 export function mountImport(root, ctx) {
   const el = html(`<main class="page">

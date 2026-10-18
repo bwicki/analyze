@@ -11,7 +11,7 @@ export function trackPoints(track, series, trim, stepSec = 0) {
   for (let i = i0; i <= i1; i++) {
     const isGap = track.gap[i] === 1;
     if (stepSec > 0 && t[i] < nextT && !isGap && i !== i1) continue;
-    out.push({ i, t: t[i], lat: ps.lat[i], lon: ps.lon[i], alt: series.alt[i], balt: ps.balt[i], press: ps.press[i], vs: series.vs[i], gs: series.gs[i], hdg: ps.hdg[i], dist: series.dist[i], fix: ps.fix[i] === 1, gap: isGap || (lastKept >= 0 && hasGapBetween(track, lastKept, i)) });
+    out.push({ i, t: t[i], lat: ps.lat[i], lon: ps.lon[i], alt: series.alt[i], balt: ps.balt[i], press: ps.press[i], vs: series.vs[i], gs: series.gs[i], hdg: ps.hdg[i], batt: ps.batt[i], dist: series.dist[i], fix: ps.fix[i] === 1, gap: isGap || (lastKept >= 0 && hasGapBetween(track, lastKept, i)), seg: track.seg ? track.seg[i] : 0 });
     lastKept = i; nextT = t[i] + stepSec * 1000;
   }
   return out;

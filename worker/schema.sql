@@ -1,0 +1,69 @@
+-- analyze – D1 schema. Apply with the "migrate" option of the deploy workflow
+-- (or: npx wrangler d1 execute analyze --remote --file=worker/schema.sql). Idempotent.
+--
+-- Access model (concept §4, decisions of 18.10.2026):
+--   * Users have a 6-letter code (Kennung) and nothing else – whoever knows the code can read,
+--     save and delete that code's flights. No PIN for users.
+--   * The Supermaster (admins table) logs in with a name and a PIN; only he sees all codes,
+--     flights, tracker profiles and the usage log.
+CREATE TABLE IF NOT EXISTS codes (
+  code          TEXT PRIMARY KEY,            -- 6 chars, alphabet without I/O/0/1, e.g. KQZMWB
+  display_name  TEXT NOT NULL DEFAULT '',
+  logo_key      TEXT,                        -- R2 key logos/<code>.<ext>, NULL = default logo
+  logo_type     TEXT,                        -- image/png | image/jpeg | image/svg+xml
+  lang          TEXT NOT NULL DEFAULT 'de',
+  units         TEXT NOT NULL DEFAULT 'icao',
+  prefs         TEXT NOT NULL DEFAULT '{}',  -- JSON: default balloon, PIC, … (phase 2b)
+  created_at    INTEGER NOT NULL,
+  last_seen     INTEGER,
+  blocked       INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS flights (
+  id            TEXT PRIMARY KEY,            -- 8 chars, same alphabet; also the short link /v/<id>
+  code          TEXT NOT NULL,               -- owner (codes.code)
+  title         TEXT NOT NULL DEFAULT '',
+  start_ts      INTEGER,                     -- ms UTC
+  end_ts        INTEGER,
+  stats         TEXT NOT NULL DEFAULT '{}',  -- JSON summary (takeoff, landing, duration, distance, …)
+  meta          TEXT NOT NULL DEFAULT '{}',  -- JSON master data (balloon, PIC, pax, …)
+  track_key     TEXT NOT NULL,               -- R2 key tracks/<id>.geojson.gz
+  track_bytes   INTEGER NOT NULL DEFAULT 0,
+  points        INTEGER NOT NULL DEFAULT 0,
+  events_key    TEXT,                        -- R2 key events/<id>.json (phase 2b)
+  public        INTEGER NOT NULL DEFAULT 1,  -- 1 = the short link works for everyone (decision 12)
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS flights_code ON flights(code, start_ts);
+CREATE TABLE IF NOT EXISTS admins (
+  name          TEXT PRIMARY KEY,            -- login name, lower case (bwicki)
+  pin_hash      TEXT NOT NULL,               -- pbkdf2$<iterations>$<salt b64>$<hash b64>
+  created_at    INTEGER NOT NULL,
+  last_login    INTEGER
+);
+CREATE TABLE IF NOT EXISTS tokens (
+  token         TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  created_at    INTEGER NOT NULL,
+  expires_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS tracker_profiles (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL,
+  manufacturer  TEXT NOT NULL DEFAULT '',
+  version       INTEGER NOT NULL DEFAULT 1,
+  spec          TEXT NOT NULL,               -- JSON profile (see src/parse/profiles.js)
+  created_by    TEXT NOT NULL,               -- code
+  public        INTEGER NOT NULL DEFAULT 1,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS usage_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  t             INTEGER NOT NULL,            -- ms UTC
+  who           TEXT NOT NULL,               -- code, 'admin:<name>' or '-'
+  action        TEXT NOT NULL,
+  detail        TEXT,
+  ip            TEXT                         -- first two octets only
+);
+CREATE INDEX IF NOT EXISTS usage_t ON usage_log(t);

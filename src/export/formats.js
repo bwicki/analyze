@@ -39,16 +39,30 @@ export function toGpx({ pts, waypoints = [], name = 'Fahrt', creator = 'analyze.
   return out.join('\n');
 }
 
-/** GeoJSON FeatureCollection: one LineString per gap-free run (coordinates [lon, lat, alt], times in properties), points for waypoints. */
-export function toGeoJson({ pts, waypoints = [], name = 'Fahrt', stats = null, meta = null }) {
-  const lines = []; let cur = null;
+/**
+ * GeoJSON FeatureCollection: one LineString per gap-free run and per source segment (coordinates
+ * [lon, lat, alt]; times and the sensor series as parallel arrays in properties), points for waypoints.
+ * A line that starts a new source segment carries restart:true – readGeoJson() restores the segment
+ * boundaries from it, so a saved flight re-opens with the same restart count and warm-up masks.
+ */
+export function toGeoJson({ pts, waypoints = [], name = 'Fahrt', stats = null, meta = null, full = true }) {
+  const lines = []; let cur = null, lastSeg = null;
+  const num = (v, d) => (v === null || v === undefined || Number.isNaN(v) ? null : +v.toFixed(d));
   for (const p of pts) {
     if (!p.fix) continue;
-    if (p.gap || !cur) { cur = { coords: [], times: [], vs: [], gs: [] }; lines.push(cur); }
-    cur.coords.push([+p.lon.toFixed(6), +p.lat.toFixed(6), Number.isNaN(p.alt) ? null : +p.alt.toFixed(1)]);
-    cur.times.push(isoUTC(p.t)); cur.vs.push(Number.isNaN(p.vs) ? null : +p.vs.toFixed(2)); cur.gs.push(Number.isNaN(p.gs) ? null : +p.gs.toFixed(2));
+    const segChange = lastSeg !== null && p.seg !== undefined && p.seg !== lastSeg;
+    if (p.gap || segChange || !cur) { cur = { coords: [], times: [], vs: [], gs: [], palt: [], press: [], hdg: [], batt: [], restart: segChange }; lines.push(cur); }
+    lastSeg = p.seg;
+    cur.coords.push([+p.lon.toFixed(6), +p.lat.toFixed(6), num(p.alt, 1)]);
+    cur.times.push(isoUTC(p.t)); cur.vs.push(num(p.vs, 2)); cur.gs.push(num(p.gs, 2));
+    if (full) { cur.palt.push(num(p.balt, 1)); cur.press.push(num(p.press, 2)); cur.hdg.push(num(p.hdg, 1)); cur.batt.push(num(p.batt, 2)); }
   }
-  const features = lines.map((l, i) => ({ type: 'Feature', properties: { kind: 'track', segment: i + 1, times: l.times, vs_ms: l.vs, gs_ms: l.gs }, geometry: { type: 'LineString', coordinates: l.coords } }));
+  const any = (a) => a.some((v) => v !== null);
+  const features = lines.map((l, i) => {
+    const props = { kind: 'track', segment: i + 1, restart: l.restart, times: l.times, vs_ms: l.vs, gs_ms: l.gs };
+    if (full) { if (any(l.palt)) props.palt_m = l.palt; if (any(l.press)) props.press_hpa = l.press; if (any(l.hdg)) props.hdg_deg = l.hdg; if (any(l.batt)) props.batt_v = l.batt; }
+    return { type: 'Feature', properties: props, geometry: { type: 'LineString', coordinates: l.coords } };
+  });
   for (const w of waypoints) features.push({ type: 'Feature', properties: { kind: w.kind, name: w.name, time: isoUTC(w.t) }, geometry: { type: 'Point', coordinates: [+w.lon.toFixed(6), +w.lat.toFixed(6), Number.isNaN(w.alt) ? null : +w.alt.toFixed(1)] } });
   return JSON.stringify({ type: 'FeatureCollection', name, properties: { generator: 'analyze.wicki.aero', created: isoUTC(Date.now()), stats, meta }, features });
 }

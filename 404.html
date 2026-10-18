@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>analyze – Fahrt wird geöffnet</title>
+<meta name="robots" content="noindex">
+<!-- GitHub Pages serves this for every unknown path. Short links analyze.wicki.aero/v/<id> land here and
+     are forwarded to the app with ?v=<id> (the app itself is a single page). Everything else → start page. -->
+<script>
+  (function () {
+    var m = location.pathname.match(/\/v\/([2-9A-Za-z]{6,10})\/?$/);
+    var base = location.pathname.indexOf('/analyze/') === 0 ? '/analyze/' : '/';
+    location.replace(base + (m ? '?v=' + encodeURIComponent(m[1].toUpperCase()) : '') + (m ? '#analyze' : ''));
+  })();
+</script>
+<style>body{font-family:system-ui,sans-serif;color:#14202e;background:#f4f5f7;padding:40px}</style>
+</head>
+<body><p>analyze – Fahrt wird geöffnet … <a href="/">Zur App</a></p></body>
+</html>

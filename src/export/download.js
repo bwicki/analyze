@@ -35,7 +35,7 @@ export function exportData(stepSec = 0) {
   return { pts, waypoints: wps, name, stats: summaryForExport(), meta: { ...s.meta } };
 }
 
-function summaryForExport() {
+export function summaryForExport() {
   const st = state.stats; if (!st) return null;
   return { takeoff: st.takeoff && { time: new Date(st.takeoff.t).toISOString(), lat: st.takeoff.lat, lon: st.takeoff.lon }, landing: st.landing && { time: new Date(st.landing.t).toISOString(), lat: st.landing.lat, lon: st.landing.lon },
     durationSec: Math.round(st.durationSec), landings: st.landings, distanceM: Math.round(st.distanceM), straightM: Math.round(st.straightM), altMaxM: st.altMax && Math.round(st.altMax.v), vsMaxMs: st.vsMax && +st.vsMax.v.toFixed(2), vsMinMs: st.vsMin && +st.vsMin.v.toFixed(2), gsMaxMs: st.gsMax && +st.gsMax.v.toFixed(2), nightSec: Math.round(st.night.totalSec) };

@@ -22,7 +22,7 @@ async function parseOne(name, bytes, size, profiles, post) {
   post({ type: 'progress', name, stage: 'parse', profile: det.profile.name });
   const t0 = Date.now();
   const r = readWithProfile(text, det.profile);
-  return { name, size, profile: det.profile, points: r.points, bad: r.bad, columns: r.columns, ms: Date.now() - t0, timeless: det.profile.read.kind === 'kml' && r.points.n > 0 && r.points.t[0] < 1e9 };
+  return { name, size, profile: det.profile, points: r.points, bad: r.bad, columns: r.columns, ms: Date.now() - t0, timeless: r.timeless || (det.profile.read.kind === 'kml' && r.points.n > 0 && r.points.t[0] < 1e9) };
 }
 
 self.onmessage = async (e) => {
@@ -40,7 +40,7 @@ self.onmessage = async (e) => {
         let entries;
         try { entries = await unzip(buf); } catch (err) { results.push({ name: f.name, size: f.size, error: String(err.message || err) }); continue; }
         for (const en of entries) {
-          if (/\.(csv|jsonl|json|txt|gpx|kml|igc|log|nmea)$/i.test(en.name) === false) continue;
+          if (/\.(csv|jsonl|json|geojson|txt|gpx|kml|igc|log|nmea)$/i.test(en.name) === false) continue;
           const r = await parseOne(en.name, en.data, en.data.length, allProfiles, post);
           r.container = f.name; results.push(r);
         }

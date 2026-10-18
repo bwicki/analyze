@@ -10,11 +10,16 @@ import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
+import { session, logoUrl, DEFAULT_LOGO } from '../session.js';
+import { qrSvg } from '../util/qr.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'gas', 'pic', 'copilot', 'pax', 'startName', 'landName', 'remarks'];
 
 export function mountReport(root, ctx) {
   const m = state.meta;
+  // defaults of the Kennung (Meine Fahrten → Vorgaben) prefill empty fields of a new flight
+  const prefs = (session.me && session.me.prefs) || {};
+  if (!state.viewer && !state.flight) { if (!m.balloon && prefs.balloon) m.balloon = prefs.balloon; if (!m.pic && prefs.pic) m.pic = prefs.pic; }
   const el = html(`<main class="page">
     <div class="row-wrap" style="align-items:flex-start">
       <div class="col noprint" style="flex:1 1 380px">
@@ -58,7 +63,7 @@ export function mountReport(root, ctx) {
     </div>
   </main>`);
 
-  el.querySelectorAll('[data-f]').forEach((inp) => inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }));
+  el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
   onAct(el, { print: () => window.print() });
   let map = null, mapEl = null;
 
@@ -76,7 +81,7 @@ export function mountReport(root, ctx) {
     rep.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
         <div><div class="pk">${esc(t('rep.kicker'))}</div><h1>${esc(title)}</h1><div class="muted" style="font-size:14px">${esc(m.balloon ? m.balloon + ' · ' : '')}${esc(startName)} → ${esc(landName)} · ${fmtDateUTC(st.takeoff.t)}${st.landing && fmtDateUTC(st.landing.t) !== fmtDateUTC(st.takeoff.t) ? ' – ' + fmtDateUTC(st.landing.t) : ''}</div></div>
-        <img src="./img/logo.png" alt="Wicki Partners Ballonteam" style="height:46px;width:auto">
+        <img src="${esc(state.viewer && state.viewer.owner ? logoUrl(state.viewer.owner.code, state.viewer.owner.logo) : logoUrl(session.code, session.me && session.me.logo))}" alt="Logo" style="height:46px;width:auto;max-width:220px;object-fit:contain" onerror="this.onerror=null;this.src='${DEFAULT_LOGO}'">
       </div>
       <div class="bar"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('rep.master'))}</h2>
@@ -106,7 +111,8 @@ export function mountReport(root, ctx) {
       </table>
       ${m.remarks ? `<h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('rep.remarks'))}</h2><div style="font-size:13px;white-space:pre-line">${esc(m.remarks)}</div>` : ''}
       <div class="sig"><div>${esc(t('rep.sigPic'))}</div><div>${esc(t('rep.sigDate'))}</div></div>
-      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: 1 }))}</span></div>
+      ${state.flight && state.flight.public !== false ? `<div class="qrline">${qrSvg(state.flight.url, { size: 84 })}<span>${esc(t('rep.qrNote'))}<br><span class="mono">${esc(state.flight.url.replace(/^https?:\/\//, ''))}</span></span></div>` : ''}
+      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}${state.flight ? ` · ${esc(state.flight.url.replace(/^https?:\/\//, ''))}` : ''}</span><span>${esc(t('rep.page', { n: 1 }))}</span></div>
       <div style="break-before:page"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">${esc(t('ana.map'))} · ${esc(t('rep.mapSub', { min: state.settings.markerMin }))}</h2>
       <div class="map" data-repmap style="height:440px"></div>

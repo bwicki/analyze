@@ -49,6 +49,7 @@ export const PROFILES = [
   { id: 'gpx', name: 'GPX 1.0/1.1', manufacturer: 'Standard', version: 1, detect: { ext: ['gpx'], headMatches: /<gpx[\s>]/i }, read: { kind: 'gpx' } },
   { id: 'kml', name: 'KML (Google Earth, Garmin inReach)', manufacturer: 'Standard', version: 1, detect: { ext: ['kml'], headMatches: /<kml[\s>]/i }, read: { kind: 'kml' } },
   { id: 'igc', name: 'IGC (FAI-Logger)', manufacturer: 'Standard', version: 1, detect: { ext: ['igc'], headMatches: /^A[A-Z0-9]{3}/m }, read: { kind: 'igc' } },
+  { id: 'geojson', name: 'GeoJSON (analyze, QGIS)', manufacturer: 'Standard', version: 1, detect: { ext: ['geojson', 'json'], headMatches: /"type"\s*:\s*"(FeatureCollection|Feature)"/ }, read: { kind: 'geojson' } },
 ];
 
 const UNIT_TO_SI = { m: 1, ft: 0.3048, kt: 0.514444, 'm/s': 1, 'km/h': 1 / 3.6, 'cm/s': 0.01, 'ft/min': 0.00508, V: 1, '%': 1, hPa: 1 };
