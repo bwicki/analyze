@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>analyze – Auswerten auf dem Handy</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f5f7;color:#14202e;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:15px;line-height:1.4}
+a{color:#1f5fbf;text-decoration:none}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.muted{color:#5b6b7f}
+.card{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.card h2{margin:0;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6b7f}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-weight:600;font-size:15px;cursor:pointer}
+.btn.primary{background:#1f5fbf;border-color:#1f5fbf;color:#fff}
+.btn.chip{min-height:36px;font-size:13px;font-weight:500;padding:0 10px}
+.ph{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;border:1.5px solid #b8c2d0;font-size:13px;font-family:"IBM Plex Mono",monospace;color:#5b6b7f;flex:none;background:#fff}
+.ph.done{background:#1f8a4c;border-color:#1f8a4c;color:#fff}
+.ph.active{background:#f6b03d;border-color:#f6b03d;color:#14202e;font-weight:600}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:6px 0;border-bottom:1px solid #eef1f5}
+.row:last-child{border-bottom:0}
+.row span:first-child{font-size:13px;color:#5b6b7f}
+.val{white-space:nowrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:14px;font-weight:500;text-align:right}
+.tile{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.tile .k{font-size:11px;color:#5b6b7f;text-transform:uppercase;letter-spacing:.04em}
+.tile .v{white-space:nowrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:20px;font-weight:600;line-height:1.15}
+.tile .u{white-space:nowrap;font-size:11px;color:#5b6b7f}
+.seg{display:flex;border:1px solid #c7d0dc;border-radius:10px;overflow:hidden;background:#fff}
+.seg button{flex:1;min-height:36px;border:0;background:#fff;color:#5b6b7f;font:inherit;font-weight:500;cursor:pointer;padding:0 8px;font-size:13px}
+.seg button.on{background:#14202e;color:#fff}
+.menu{width:40px;height:40px;border:1px solid #c7d0dc;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#14202e;box-sizing:border-box;cursor:pointer}
+</style>
+</helmet>
+<div style="width:390px;min-height:844px;display:flex;flex-direction:column;background:#f4f5f7">
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;background:#fff;border-bottom:1px solid #d9dee6">
+    <div style="display:flex;flex-direction:column"><strong style="font-size:17px">analyze</strong><span class="muted" style="font-size:11px">GB26 · HB-QWV</span></div>
+    <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Logo" style="height:32px;width:auto">
+    <button class="menu" type="button" aria-label="Menü"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+  </header>
+  <nav aria-label="Phasen" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:#fff;border-bottom:1px solid #d9dee6">
+    <span class="ph done">1</span><span style="flex:1;height:2px;background:#1f8a4c"></span>
+    <span class="ph done">2</span><span style="flex:1;height:2px;background:#1f8a4c"></span>
+    <span class="ph active">3</span><span style="flex:1;height:2px;background:#d9dee6"></span>
+    <span class="ph">4</span><span style="flex:1;height:2px;background:#d9dee6"></span>
+    <span class="ph">5</span>
+    <span style="margin-left:12px;font-size:13px;font-weight:600">Auswerten</span>
+  </nav>
+
+  <main style="flex:1;padding:12px 16px;display:flex;flex-direction:column;gap:12px">
+    <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:10px">
+      <div class="tile"><span class="k">Fahrtdauer</span><span class="v">41:03</span><span class="u">h:min · 1 Landung</span></div>
+      <div class="tile"><span class="k">Strecke</span><span class="v">1 589</span><span class="u">km · 1 551 Luftlinie</span></div>
+      <div class="tile"><span class="k">Höhe max.</span><span class="v">3 097</span><span class="u">ft · 944 m</span></div>
+      <div class="tile"><span class="k">Nachtfahrt</span><span class="v">13:00</span><span class="u">h:min · 2 Nächte</span></div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><h2>Karte</h2><div class="seg" style="width:150px"><button class="on" type="button">Strasse</button><button type="button">Sat</button></div></div>
+      <img src="/_blob/237fd0be90653a8ce6ace8f8f29beb04" alt="Karte des Tracks" style="width:100%;height:auto;border-radius:8px;border:1px solid #d9dee6;display:block">
+      <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn chip" type="button">Google Earth (KMZ)</button><button class="btn chip" type="button">Start in Maps</button><button class="btn chip" type="button">Landung in Maps</button></div>
+    </div>
+
+    <div class="card">
+      <h2>Höhenprofil</h2>
+      <img src="/_blob/eb068a5d3cd1db1027ff1d98540bd4bf" alt="Höhenprofil" style="width:100%;height:auto;display:block">
+      <span class="muted" style="font-size:12px">Tippen zeigt Zeit, Höhe und Vario · Linie rot = Sinken, blau = Steigen · grau = Nacht</span>
+    </div>
+
+    <div class="card">
+      <h2>Kennzahlen</h2>
+      <div class="row"><span>Start</span><span class="val">28.08. 23:31 UTC<br><span class="muted" style="font-size:11px;font-family:'IBM Plex Sans',sans-serif">Gladbeck (DE)</span></span></div>
+      <div class="row"><span>Landung</span><span class="val">30.08. 16:34 UTC<br><span class="muted" style="font-size:11px;font-family:'IBM Plex Sans',sans-serif">bei Loviisa (FI)</span></span></div>
+      <div class="row"><span>Steigen / Sinken max.</span><span class="val">+3.0 / −2.2 m/s</span></div>
+      <div class="row"><span>Fahrt über Grund</span><span class="val">37 kt max · 21 kt</span></div>
+      <div class="row"><span>Beschleunigung max.</span><span class="val">0.30 g · prüfen</span></div>
+      <div class="row"><span>Ereignisse</span><span class="val">68 verknüpft</span></div>
+      <button class="btn chip" type="button" style="align-self:flex-start">Alle Kennzahlen</button>
+    </div>
+  </main>
+
+  <div style="position:sticky;bottom:0;display:flex;gap:10px;padding:10px 16px;background:#fff;border-top:1px solid #d9dee6">
+    <a class="btn" href="Bereinigen.dc.html" style="flex:1">← Zurück</a>
+    <a class="btn primary" href="Bericht.dc.html" style="flex:2">Weiter zum Bericht →</a>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

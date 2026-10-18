@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>analyze – Phase 2 Bereinigen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f5f7;color:#14202e;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.4}
+a{color:#1f5fbf;text-decoration:none}a:hover{color:#174a95}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.muted{color:#5b6b7f}
+header.top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px 20px;padding:12px 28px;border-bottom:1px solid #d9dee6;background:#fff}
+header.top .brand{display:flex;flex-direction:column;min-width:120px}
+header.top .brand strong{font-size:18px}
+header.top .brand span{font-size:13px;color:#5b6b7f}
+header.top nav.phases{display:flex;gap:2px;flex-wrap:wrap}
+header.top .right{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+header.top .right img{height:46px;width:auto}
+header.top .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:#5b6b7f;font-weight:500;min-height:44px;box-sizing:border-box;font-size:15px;border:0;background:transparent;cursor:pointer;font-family:inherit}
+.ph .n{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid #b8c2d0;font-size:13px;font-family:"IBM Plex Mono",monospace;flex:none}
+.ph.active{background:#14202e;color:#fff}
+.ph.active .n{background:#f6b03d;border-color:#f6b03d;color:#14202e;font-weight:600}
+.ph.done .n{background:#1f8a4c;border-color:#1f8a4c;color:#fff}
+.actionbar{display:flex;align-items:center;gap:12px;padding:10px 28px;background:#fff;border-bottom:1px solid #d9dee6;flex-wrap:wrap}
+.actionbar .status{flex:1;font-size:14px;color:#5b6b7f;min-width:200px}
+.card{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6b7f}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;border-radius:10px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+.btn.primary{background:#1f5fbf;border-color:#1f5fbf;color:#fff}
+.btn.sm{min-height:40px;font-size:14px;padding:0 12px}
+.btn.xs{min-height:30px;font-size:12px;padding:0 10px}
+.btn.okish{border-color:#9fd8b4;color:#14532d;background:#e6f6ec}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid #d9dee6;background:#fff;font-size:14px;min-height:38px;box-sizing:border-box}
+.pill.sm{min-height:30px;padding:3px 10px;font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.dot.g{background:#1f8a4c}.dot.y{background:#d98c00}.dot.r{background:#c0392b}.dot.b{background:#1f5fbf}.dot.x{background:#9aa7b6}
+.seg{display:flex;border:1px solid #c7d0dc;border-radius:10px;overflow:hidden;background:#fff;width:90px}
+.seg button{flex:1;min-height:44px;border:0;background:#fff;color:#5b6b7f;font:inherit;font-weight:500;cursor:pointer}
+.seg button.on{background:#14202e;color:#fff}
+.menu{width:44px;height:40px;border:1px solid #c7d0dc;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#14202e;box-sizing:border-box;cursor:pointer}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:12px;color:#5b6b7f;text-transform:uppercase;letter-spacing:.04em;font-weight:600;padding:8px 10px;border-bottom:1px solid #d9dee6}
+td{padding:9px 10px;border-bottom:1px solid #eef1f5;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.in{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-size:16px;box-sizing:border-box;width:100%}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;color:#5b6b7f;font-weight:500}
+.chk{display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;cursor:pointer}
+.chk input{width:20px;height:20px;accent-color:#1f5fbf}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid #eef1f5}
+.row:last-child{border-bottom:0}
+.val{white-space:nowrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:15px;font-weight:500}
+.banner{display:flex;gap:16px;align-items:center;padding:12px 18px;border-radius:12px;border:1px solid #9fd8b4;background:#e6f6ec;color:#14532d;font-size:15px}
+details.exp{border:1px solid #d9dee6;border-radius:10px;background:#f9fafb;padding:0 14px}
+details.exp summary{cursor:pointer;min-height:42px;display:flex;align-items:center;font-weight:600;font-size:14px}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header class="top">
+    <div class="brand"><strong>analyze</strong><span>Fahrtanalyse · Wicki Partners Ballonteam</span></div>
+    <nav class="phases" aria-label="Phasen">
+      <a class="ph done" href="Importieren.dc.html"><span class="n">1</span>Importieren</a>
+      <a class="ph active" href="Bereinigen.dc.html"><span class="n">2</span>Bereinigen</a>
+      <a class="ph" href="Auswerten.dc.html"><span class="n">3</span>Auswerten</a>
+      <a class="ph" href="Bericht.dc.html"><span class="n">4</span>Bericht</a>
+      <a class="ph" href="Exportieren.dc.html"><span class="n">5</span>Exportieren</a>
+    </nav>
+    <div class="right">
+      <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Logo Wicki Partners Ballonteam">
+      <div class="tools">
+        <a class="pill sm" href="MeineFahrten.dc.html"><span class="dot g"></span><span class="mono">KQZMWB</span> · Balthasar</a>
+        <div class="seg" aria-label="Sprache"><button class="on" type="button">DE</button><button type="button">EN</button></div>
+        <button class="menu" type="button" aria-label="Menü"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="actionbar">
+    <div class="status"><strong style="color:#14202e">Start 28.08. 23:31 UTC · Landung 30.08. 16:34 UTC</strong> · 41 h 03 min · 1 Landung · 3 Segmente zusammengefügt, Vorschlag für Schnitt übernommen</div>
+    <a class="btn" href="Importieren.dc.html">← Zurück</a>
+    <a class="btn primary" href="Auswerten.dc.html">Weiter zu Auswerten →</a>
+  </div>
+
+  <main style="flex:1;padding:22px 28px;display:flex;flex-direction:column;gap:18px">
+    <div class="banner"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>Zusammengefügt:</strong> Segment 2 und 3 schliessen mit 25 s Lücke aneinander (Tracker-Neustart 30.08. 02:41:52 UTC). Boden-Punkte vor dem Start (3 h 41 min) und nach der Landung (44 min) werden abgeschnitten.</span></div>
+
+    <div class="card">
+      <h2>Zeitleiste · Segmente, Boden/Fahrt, Schnitt</h2>
+      <div style="overflow-x:auto">
+      <svg viewBox="0 0 1180 150" width="1180" height="150" role="img" aria-label="Zeitleiste der drei Segmente mit Start- und Landeschnitt" font-family="IBM Plex Sans, sans-serif">
+        <rect x="117" y="24" width="118" height="60" fill="#14202e" fill-opacity="0.06"/>
+        <rect x="592" y="24" width="197" height="60" fill="#14202e" fill-opacity="0.06"/>
+        <text x="176" y="20" text-anchor="middle" font-size="11" fill="#5b6b7f">Nacht 1</text>
+        <text x="690" y="20" text-anchor="middle" font-size="11" fill="#5b6b7f">Nacht 2</text>
+        <rect x="40" y="38" width="24" height="18" rx="3" fill="#9aa7b6"/>
+        <rect x="64" y="38" width="66" height="18" rx="3" fill="#9aa7b6"/>
+        <rect x="130" y="38" width="659" height="18" rx="3" fill="#1f5fbf"/>
+        <rect x="789" y="38" width="336" height="18" rx="3" fill="#1f5fbf"/>
+        <rect x="1125" y="38" width="18" height="18" rx="3" fill="#9aa7b6"/>
+        <rect x="40" y="62" width="24" height="10" rx="2" fill="#fff" stroke="#c7d0dc"/>
+        <rect x="64" y="62" width="724" height="10" rx="2" fill="#fff" stroke="#c7d0dc"/>
+        <rect x="789" y="62" width="354" height="10" rx="2" fill="#fff" stroke="#c7d0dc"/>
+        <text x="52" y="86" text-anchor="middle" font-size="11" fill="#5b6b7f">S1</text>
+        <text x="426" y="86" text-anchor="middle" font-size="11" fill="#5b6b7f">Segment 2 · log_260828_2049</text>
+        <text x="966" y="86" text-anchor="middle" font-size="11" fill="#5b6b7f">Segment 3 · log_260830_0242</text>
+        <line x1="788.5" y1="30" x2="788.5" y2="76" stroke="#c0392b" stroke-width="2"/>
+        <text x="788.5" y="104" text-anchor="middle" font-size="11" fill="#c0392b">Neustart · Lücke 25 s</text>
+        <g>
+          <line x1="128.6" y1="28" x2="128.6" y2="80" stroke="#1f8a4c" stroke-width="2.5"/>
+          <rect x="120.6" y="78" width="16" height="16" rx="3" fill="#1f8a4c"/>
+          <text x="128.6" y="118" text-anchor="middle" font-size="12" font-weight="600" fill="#1f8a4c">Schnitt 23:29</text>
+          <text x="128.6" y="132" text-anchor="middle" font-size="11" fill="#1f8a4c">Start 23:31</text>
+        </g>
+        <g>
+          <line x1="1126" y1="28" x2="1126" y2="80" stroke="#c0392b" stroke-width="2.5"/>
+          <rect x="1118" y="78" width="16" height="16" rx="3" fill="#c0392b"/>
+          <text x="1126" y="118" text-anchor="middle" font-size="12" font-weight="600" fill="#c0392b">Schnitt 16:36</text>
+          <text x="1126" y="132" text-anchor="middle" font-size="11" fill="#c0392b">Landung 16:34</text>
+        </g>
+        <line x1="20" y1="100" x2="1160" y2="100" stroke="#d9dee6"/>
+        <g font-size="11" fill="#5b6b7f" text-anchor="middle">
+          <text x="68" y="146">21:00</text><text x="141" y="146">29.08.</text><text x="214" y="146">03:00</text><text x="287" y="146">06:00</text><text x="360" y="146">09:00</text><text x="432" y="146">12:00</text><text x="505" y="146">15:00</text><text x="578" y="146">18:00</text><text x="651" y="146">21:00</text><text x="723" y="146">30.08.</text><text x="869" y="146">06:00</text><text x="942" y="146">09:00</text><text x="1014" y="146">12:00</text><text x="1087" y="146">15:00</text>
+        </g>
+      </svg>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;font-size:13px" class="muted">
+        <span class="pill sm"><span class="dot b"></span>in Fahrt</span>
+        <span class="pill sm"><span class="dot x"></span>am Boden</span>
+        <span class="pill sm"><span class="dot g"></span>Schnitt Anfang</span>
+        <span class="pill sm"><span class="dot r"></span>Schnitt Ende · Neustart</span>
+        <span>Griffe mit der Maus ziehen oder Zeiten rechts eintippen.</span>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:18px;align-items:start">
+      <div class="card">
+        <h2>Start- und Landeerkennung</h2>
+        <div class="row"><span>Start</span><span class="val">28.08. 23:31:04 UTC</span></div>
+        <div class="row"><span class="muted" style="font-size:14px">Gladbeck, DE</span><span class="val" style="font-size:13px">5133N 00658E</span></div>
+        <div class="row"><span>Landung</span><span class="val">30.08. 16:34:42 UTC</span></div>
+        <div class="row"><span class="muted" style="font-size:14px">bei Loviisa, FI</span><span class="val" style="font-size:13px">6028N 02624E</span></div>
+        <div class="row"><span>Zwischenlandungen</span><span class="val">keine</span></div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn okish sm" type="button">Vorschlag übernommen ✓</button>
+          <button class="btn sm" type="button">Landung von Hand setzen</button>
+        </div>
+        <details class="exp"><summary>Regeln der Erkennung (Experte)</summary>
+          <div class="row"><span>Fenster</span><span class="val">120 s</span></div>
+          <div class="row"><span>in Fahrt ab</span><span class="val">GS &gt; 2.5 kt oder |Vario| &gt; 0.4 m/s</span></div>
+          <div class="row"><span>am Boden ab</span><span class="val">GS &lt; 1 kt und |Vario| &lt; 0.25 m/s</span></div>
+        </details>
+      </div>
+
+      <div class="card">
+        <h2>Trimmen</h2>
+        <label class="f">Anfang (UTC)<input class="in mono" type="text" value="28.08.2026 23:29:00"></label>
+        <label class="f">Ende (UTC)<input class="in mono" type="text" value="30.08.2026 16:36:00"></label>
+        <label class="chk"><input type="checkbox" checked> Automatisch: 2 min vor dem Start bis 2 min nach der Landung</label>
+        <label class="chk"><input type="checkbox" checked> Punkte ohne GPS-Fix für Karte und Strecke überspringen</label>
+        <div class="row"><span>Entfernt vor Start</span><span class="val">13 406 Punkte</span></div>
+        <div class="row"><span>Entfernt nach Landung</span><span class="val">2 652 Punkte</span></div>
+        <div class="row"><span>Bleiben</span><span class="val">136 445 Punkte</span></div>
+      </div>
+
+      <div class="card">
+        <h2>Protokoll der Aufbereitung</h2>
+        <div class="row"><span>Dateien gelesen</span><span class="val">6 (3 verwendet)</span></div>
+        <div class="row"><span>Duplikate erkannt</span><span class="val">2 (CSV = JSONL)</span></div>
+        <div class="row"><span>Zeitstempel verworfen</span><span class="val">17</span></div>
+        <div class="row"><span>Doppelte Sekunden</span><span class="val">935 (gemittelt)</span></div>
+        <div class="row"><span>Lücken &gt; 30 s</span><span class="val">0</span></div>
+        <div class="row"><span>Neustarts</span><span class="val">1 (25 s)</span></div>
+        <div class="row"><span>Vario-Ausreisser geglättet</span><span class="val">12 (10-s-Mittel)</span></div>
+        <span class="muted" style="font-size:13px">Dieses Protokoll wird im Fahrtbericht auf Seite 3 abgedruckt.</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Segmente</h2>
+      <table>
+        <thead><tr><th>Nr.</th><th>Datei</th><th>von (UTC)</th><th>bis (UTC)</th><th>Dauer</th><th>Lücke davor</th><th>Zustand</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="mono">1</td><td class="mono">log_000000_1949.jsonl</td><td class="mono">28.08. 19:50:31</td><td class="mono">28.08. 20:49:01</td><td class="mono">0 h 59 min</td><td class="mono">–</td><td><span class="pill sm"><span class="dot x"></span>Boden · vor dem Schnitt</span></td><td><button class="btn xs" type="button">Ausschliessen</button></td></tr>
+          <tr><td class="mono">2</td><td class="mono">log_260828_2049.jsonl</td><td class="mono">28.08. 20:49:16</td><td class="mono">30.08. 02:41:52</td><td class="mono">29 h 53 min</td><td class="mono">15 s</td><td><span class="pill sm"><span class="dot b"></span>Boden → Start → Fahrt</span></td><td><button class="btn xs" type="button">Ausschliessen</button></td></tr>
+          <tr><td class="mono">3</td><td class="mono">log_260830_0242.jsonl</td><td class="mono">30.08. 02:42:17</td><td class="mono">30.08. 17:18:54</td><td class="mono">14 h 37 min</td><td class="mono" style="color:#c0392b">25 s (Neustart)</td><td><span class="pill sm"><span class="dot b"></span>Fahrt → Landung → Boden</span></td><td><button class="btn xs" type="button">Ausschliessen</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

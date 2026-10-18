@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>analyze – Phase 5 Exportieren und teilen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f5f7;color:#14202e;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.4}
+a{color:#1f5fbf;text-decoration:none}a:hover{color:#174a95}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.muted{color:#5b6b7f}
+header.top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px 20px;padding:12px 28px;border-bottom:1px solid #d9dee6;background:#fff}
+header.top .brand{display:flex;flex-direction:column;min-width:120px}
+header.top .brand strong{font-size:18px}
+header.top .brand span{font-size:13px;color:#5b6b7f}
+header.top nav.phases{display:flex;gap:2px;flex-wrap:wrap}
+header.top .right{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+header.top .right img{height:46px;width:auto}
+header.top .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:#5b6b7f;font-weight:500;min-height:44px;box-sizing:border-box;font-size:15px;border:0;background:transparent;cursor:pointer;font-family:inherit}
+.ph .n{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid #b8c2d0;font-size:13px;font-family:"IBM Plex Mono",monospace;flex:none}
+.ph.active{background:#14202e;color:#fff}
+.ph.active .n{background:#f6b03d;border-color:#f6b03d;color:#14202e;font-weight:600}
+.ph.done .n{background:#1f8a4c;border-color:#1f8a4c;color:#fff}
+.actionbar{display:flex;align-items:center;gap:12px;padding:10px 28px;background:#fff;border-bottom:1px solid #d9dee6;flex-wrap:wrap}
+.actionbar .status{flex:1;font-size:14px;color:#5b6b7f;min-width:200px}
+.card{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6b7f}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;border-radius:10px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+.btn.primary{background:#1f5fbf;border-color:#1f5fbf;color:#fff}
+.btn.sm{min-height:40px;font-size:14px;padding:0 12px}
+.btn.okish{border-color:#9fd8b4;color:#14532d;background:#e6f6ec}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid #d9dee6;background:#fff;font-size:14px;min-height:38px;box-sizing:border-box}
+.pill.sm{min-height:30px;padding:3px 10px;font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.dot.g{background:#1f8a4c}.dot.b{background:#1f5fbf}.dot.x{background:#9aa7b6}
+.seg{display:flex;border:1px solid #c7d0dc;border-radius:10px;overflow:hidden;background:#fff}
+.seg button{flex:1;min-height:44px;border:0;background:#fff;color:#5b6b7f;font:inherit;font-weight:500;cursor:pointer;padding:0 12px}
+.seg button.on{background:#14202e;color:#fff}
+.seg.lang{width:90px}
+.menu{width:44px;height:40px;border:1px solid #c7d0dc;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#14202e;box-sizing:border-box;cursor:pointer}
+.in{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-size:16px;box-sizing:border-box;width:100%}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;color:#5b6b7f;font-weight:500}
+.chk{display:flex;align-items:center;gap:10px;min-height:40px;font-size:14px;cursor:pointer}
+.chk input{width:20px;height:20px;accent-color:#1f5fbf}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:8px 0;border-bottom:1px solid #eef1f5}
+.row:last-child{border-bottom:0}
+.val{white-space:nowrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:15px;font-weight:500}
+.exp{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid #d9dee6;border-radius:12px;background:#fff}
+.exp .ico{width:44px;height:44px;border-radius:10px;background:#eef1f5;display:flex;align-items:center;justify-content:center;flex:none;font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;color:#14202e}
+.exp .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.exp .t strong{font-size:16px}
+.exp .t span{font-size:13px;color:#5b6b7f}
+.qr{width:150px;height:150px;border:1px solid #d9dee6;border-radius:8px;background:#fff;display:grid;grid-template-columns:repeat(9, 1fr);grid-template-rows:repeat(9, 1fr);padding:10px;box-sizing:border-box;gap:2px}
+.qr i{display:block;background:#14202e;border-radius:1px}
+.qr i.o{background:transparent}
+.banner{display:flex;gap:16px;align-items:center;padding:12px 18px;border-radius:12px;border:1px solid #9fd8b4;background:#e6f6ec;color:#14532d;font-size:15px}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header class="top">
+    <div class="brand"><strong>analyze</strong><span>Fahrtanalyse · Wicki Partners Ballonteam</span></div>
+    <nav class="phases" aria-label="Phasen">
+      <a class="ph done" href="Importieren.dc.html"><span class="n">1</span>Importieren</a>
+      <a class="ph done" href="Bereinigen.dc.html"><span class="n">2</span>Bereinigen</a>
+      <a class="ph done" href="Auswerten.dc.html"><span class="n">3</span>Auswerten</a>
+      <a class="ph done" href="Bericht.dc.html"><span class="n">4</span>Bericht</a>
+      <a class="ph active" href="Exportieren.dc.html"><span class="n">5</span>Exportieren</a>
+    </nav>
+    <div class="right">
+      <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Logo Wicki Partners Ballonteam">
+      <div class="tools">
+        <a class="pill sm" href="MeineFahrten.dc.html"><span class="dot g"></span><span class="mono">KQZMWB</span> · Balthasar</a>
+        <div class="seg lang" aria-label="Sprache"><button class="on" type="button">DE</button><button type="button">EN</button></div>
+        <button class="menu" type="button" aria-label="Menü"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="actionbar">
+    <div class="status"><strong style="color:#14202e">GB26 · HB-QWV</strong> · gespeichert unter KQZMWB am 17.10.2026 14:08 UTC · Kurzlink aktiv</div>
+    <a class="btn" href="Bericht.dc.html">← Zurück</a>
+    <a class="btn primary" href="MeineFahrten.dc.html">Fertig · zu Meine Fahrten</a>
+  </div>
+
+  <main style="flex:1;padding:22px 28px;display:flex;flex-direction:column;gap:18px">
+    <div class="banner"><svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg><span><strong>Fahrt gespeichert.</strong> Track, Kennzahlen, Stammdaten und Bericht liegen unter Deiner Kennung; die Fahrt kann jederzeit ohne Neu-Import geöffnet werden.</span></div>
+
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+      <div style="flex:2 1 600px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div class="card">
+          <h2>Dateien herunterladen</h2>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <label class="f" style="width:260px">Auflösung der Punkte
+              <select class="in"><option>jeder Punkt (1 s) · 136 445 Punkte</option><option selected>alle 10 s · 13 645 Punkte</option><option>alle 60 s · 2 274 Punkte</option></select>
+            </label>
+            <label class="chk"><input type="checkbox" checked> Start, Landung und Ereignisse als Wegpunkte</label>
+            <label class="chk"><input type="checkbox" checked> Vario, Fahrt und Druckhöhe als Zusatzfelder</label>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:12px">
+            <div class="exp"><div class="ico">GPX</div><div class="t"><strong>GPX 1.1</strong><span>Track mit 2 Segmenten · ele, time, Erweiterungen · 2.5 MB</span></div><button class="btn sm" type="button">Sichern</button></div>
+            <div class="exp"><div class="ico">JSON</div><div class="t"><strong>GeoJSON</strong><span>LineString [lon, lat, alt] + Zeiten, Punkte, Kennzahlen · 1.9 MB</span></div><button class="btn sm" type="button">Sichern</button></div>
+            <div class="exp"><div class="ico">KMZ</div><div class="t"><strong>KML/KMZ für Google Earth</strong><span>gx:Track mit Zeitregler, absolute Höhe, Marker · 0.6 MB</span></div><button class="btn sm" type="button">Sichern</button></div>
+            <div class="exp"><div class="ico">CSV</div><div class="t"><strong>CSV normiert</strong><span>10 Normfelder in SI-Einheiten, UTF-8, Semikolon · 1.1 MB</span></div><button class="btn sm" type="button">Sichern</button></div>
+            <div class="exp"><div class="ico">PDF</div><div class="t"><strong>Fahrtbericht</strong><span>3 Seiten A4 · Logo KQZMWB · 17.10.2026</span></div><button class="btn sm okish" type="button">Sichern</button></div>
+            <div class="exp"><div class="ico">ZIP</div><div class="t"><strong>Alles als ZIP</strong><span>alle Formate plus Rohdateien der Fahrt · 48 MB</span></div><button class="btn sm" type="button">Sichern</button></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Unter der Kennung speichern</h2>
+          <div class="row"><span>Kennung</span><span class="val">KQZMWB · Balthasar</span></div>
+          <div class="row"><span>Titel der Fahrt</span><span class="val">GB26 · HB-QWV · Gladbeck → Loviisa</span></div>
+          <div class="row"><span>Gespeichert</span><span class="val">17.10.2026 14:08 UTC · Version 2</span></div>
+          <div class="row"><span>Aufbewahrung</span><span class="val">bis 17.10.2028 (2 Jahre)</span></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn okish" type="button">Gespeichert ✓</button>
+            <button class="btn" type="button">Als neue Version speichern</button>
+            <a class="btn" href="MeineFahrten.dc.html">Meine Fahrten öffnen</a>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1 1 340px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div class="card">
+          <h2>Teilen · Viewer</h2>
+          <p style="margin:0;font-size:15px">Wer den Link hat, sieht Karte, Höhenprofil und Kennzahlen – ohne Kennung, ohne Bearbeiten. Fotos erscheinen dort in der Folgephase.</p>
+          <label class="f">Kurzlink
+            <input class="in mono" type="text" readonly value="analyze.wicki.aero/v/7K2M4Q">
+          </label>
+          <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+            <div class="qr" aria-label="QR-Code zum Viewer (Platzhalter)">
+              <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i>
+              <i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i>
+              <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i></i>
+              <i class="o"></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i class="o"></i>
+              <i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i>
+              <i class="o"></i><i class="o"></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i><i></i><i class="o"></i>
+              <i></i><i></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i><i></i><i></i>
+              <i></i><i class="o"></i><i></i><i class="o"></i><i class="o"></i><i></i><i></i><i class="o"></i><i class="o"></i>
+              <i></i><i></i><i></i><i class="o"></i><i></i><i class="o"></i><i></i><i></i><i class="o"></i>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn sm" type="button">Link kopieren</button>
+              <button class="btn sm" type="button">QR als PNG</button>
+              <button class="btn sm" type="button">Per WhatsApp senden</button>
+            </div>
+          </div>
+          <label class="chk"><input type="checkbox" checked> Viewer öffentlich (jeder mit Link)</label>
+          <label class="chk"><input type="checkbox"> Link nach 30 Tagen deaktivieren</label>
+        </div>
+
+        <div class="card">
+          <h2>Weitergabe an andere Apps</h2>
+          <div class="row"><span>ops.wicki.aero · Fahrtdaten</span><button class="btn sm" type="button">Track übergeben</button></div>
+          <div class="row"><span>Google Earth</span><button class="btn sm" type="button">KMZ öffnen</button></div>
+          <div class="row"><span>Google Maps (Start / Landung)</span><button class="btn sm" type="button">Links</button></div>
+          <span class="muted" style="font-size:13px">Google Earth nimmt die KMZ per Doppelklick entgegen und zeigt den Zeitregler; einen Direktlink mit fremden Daten bietet Google Earth nicht an.</span>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1000}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

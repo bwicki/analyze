@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>analyze – Start und Kennung</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f5f7;color:#14202e;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.4}
+a{color:#1f5fbf;text-decoration:none}a:hover{color:#174a95}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.muted{color:#5b6b7f}
+.card{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:22px 24px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6b7f}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;border-radius:10px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+.btn.primary{background:#1f5fbf;border-color:#1f5fbf;color:#fff}
+.btn.big{min-height:60px;font-size:18px;padding:0 28px}
+.in{min-height:48px;padding:0 14px;border-radius:8px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-size:16px;box-sizing:border-box;width:100%}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;color:#5b6b7f;font-weight:500}
+.seg{display:flex;border:1px solid #c7d0dc;border-radius:10px;overflow:hidden;background:#fff;width:90px}
+.seg button{flex:1;min-height:44px;border:0;background:#fff;color:#5b6b7f;font:inherit;font-weight:500;cursor:pointer}
+.seg button.on{background:#14202e;color:#fff}
+.ph{display:flex;align-items:center;gap:10px;padding:8px 0;color:#14202e;font-size:15px}
+.ph .n{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid #b8c2d0;font-size:13px;font-family:"IBM Plex Mono",monospace;flex:none;color:#5b6b7f}
+.code{font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:40px;font-weight:600;letter-spacing:.18em;color:#1f5fbf;text-align:center;padding:14px 0;border:1px dashed #c7d0dc;border-radius:10px;background:#f9fafb}
+.infobox{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:8px;background:#f4f8ff;border:1px solid #c9dcf7;font-size:14px}
+.infobox strong{font-size:14px}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 28px;flex-wrap:wrap;background:#fff;border-bottom:1px solid #d9dee6">
+    <div style="display:flex;flex-direction:column">
+      <strong style="font-size:20px">analyze</strong>
+      <span class="muted" style="font-size:13px">Fahrtanalyse aus Trackerdaten · Wicki Partners Ballonteam</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+      <div class="seg" aria-label="Sprache"><button class="on" type="button">DE</button><button type="button">EN</button></div>
+      <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Logo Wicki Partners Ballonteam" style="height:60px;width:auto">
+    </div>
+  </header>
+
+  <main style="flex:1;padding:36px 28px;display:flex;justify-content:center">
+    <div style="display:grid;grid-template-columns:repeat(2, minmax(0, 1fr));gap:24px;width:100%;max-width:1040px;align-items:start">
+
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <h2>Mit Kennung weiter</h2>
+          <p style="margin:0;font-size:15px">Die Kennung aus sechs Buchstaben öffnet Deine gespeicherten Fahrten und Berichte und zeigt Dein Logo.</p>
+          <label class="f">Kennung
+            <input class="in mono" type="text" maxlength="6" placeholder="z. B. KQZMWB" style="font-size:22px;letter-spacing:.14em;text-transform:uppercase;min-height:56px">
+          </label>
+          <label class="f">PIN (nur wenn Du einen gesetzt hast)
+            <input class="in mono" type="password" maxlength="4" placeholder="····" style="width:160px">
+          </label>
+          <button class="btn primary big" type="button">Fahrten öffnen →</button>
+          <a href="Auswerten.dc.html" style="font-size:14px">Ohne Kennung ausprobieren (Analyse und Exporte, kein Speichern)</a>
+        </div>
+
+        <div class="card">
+          <h2>Neue Kennung erzeugen</h2>
+          <p style="margin:0;font-size:15px">Einmalig erzeugen, aufschreiben, fertig. Kein Passwort nötig; ein PIN lässt sich später in den Einstellungen setzen.</p>
+          <sc-if value="{{hasCode}}" hint-placeholder-val="{{ true }}">
+            <div class="code">{{code}}</div>
+            <div class="infobox"><strong>Notiere diese Kennung.</strong> Sie wird nur hier angezeigt und kann nicht wiederhergestellt werden.</div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn" type="button">Kopieren</button>
+              <button class="btn primary" type="button">Mit dieser Kennung starten →</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{noCode}}" hint-placeholder-val="{{ false }}">
+            <button class="btn big" type="button" onClick="{{ generate }}">Kennung erzeugen</button>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:20px">
+        <div class="card">
+          <h2>So läuft eine Analyse</h2>
+          <div class="ph"><span class="n">1</span><span><strong>Importieren</strong> – Dateien oder ZIP aus dem Tracker hineinziehen</span></div>
+          <div class="ph"><span class="n">2</span><span><strong>Bereinigen</strong> – Teilaufzeichnungen zusammenfügen, Start und Landung festlegen</span></div>
+          <div class="ph"><span class="n">3</span><span><strong>Auswerten</strong> – Karte, Höhenprofil, Kennzahlen, Ereignisse</span></div>
+          <div class="ph"><span class="n">4</span><span><strong>Bericht</strong> – Stammdaten ergänzen, Fahrtbericht als PDF</span></div>
+          <div class="ph"><span class="n">5</span><span><strong>Exportieren</strong> – GPX, GeoJSON, Google Earth; Fahrt speichern und teilen</span></div>
+        </div>
+        <div class="card">
+          <h2>Trackerformate</h2>
+          <p style="margin:0;font-size:15px">Erkannt werden WPB-Tracker (CSV, JSONL), GPX, KML/KMZ, IGC, aprs.fi und Garmin inReach. Unbekannte Dateien beschreibt ein Assistent in drei Schritten; das Profil steht danach allen zur Verfügung.</p>
+          <span class="muted" style="font-size:13px">Alle Berechnungen laufen in Deinem Browser. Gespeichert wird nur, was Du unter Deiner Kennung ablegst.</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+  <footer class="muted" style="padding:12px 28px;font-size:12px;border-top:1px solid #d9dee6;background:#fff">analyze.wicki.aero · Version 0.1 · Alle Rechte vorbehalten – Wicki Partners Ballonteam</footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { code: '' };
+  }
+  renderVals() {
+    const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const generate = () => {
+      let c = '';
+      for (let i = 0; i < 6; i++) c += letters[Math.floor(Math.random() * letters.length)];
+      this.setState({ code: c });
+    };
+    return { code: this.state.code, hasCode: !!this.state.code, noCode: !this.state.code, generate };
+  }
+}
+</script>
+</body>
+</html>

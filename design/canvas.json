@@ -1,0 +1,30 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-10-17T11:50:00Z"},
+  "title": "analyze.wicki.aero – UI-Boards",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 1280, "h": 900, "title": "0 · Start: Kennung eingeben oder erzeugen", "expand": "fill", "is_interactive": true},
+    "Importieren.dc.html": {"x": 1360, "y": 0, "w": 1280, "h": 1000, "title": "Phase 1 · Importieren (Dateien, Profile, Segmente)", "expand": "fill", "is_interactive": true},
+    "Bereinigen.dc.html": {"x": 2720, "y": 0, "w": 1280, "h": 1000, "title": "Phase 2 · Bereinigen (Zusammenfügen, Start/Landung, Trimmen)", "expand": "fill", "is_interactive": true},
+    "Auswerten.dc.html": {"x": 0, "y": 1280, "w": 1280, "h": 1500, "title": "Phase 3 · Auswerten (Karte, Höhenprofil, Kennzahlen, Ereignisse)", "expand": "fill", "is_interactive": true},
+    "Bericht.dc.html": {"x": 1360, "y": 1280, "w": 1280, "h": 1300, "title": "Phase 4 · Bericht (Stammdaten, Vorschau)", "expand": "fill", "is_interactive": true},
+    "Exportieren.dc.html": {"x": 2720, "y": 1280, "w": 1280, "h": 1000, "title": "Phase 5 · Exportieren und teilen", "expand": "fill", "is_interactive": true},
+    "Profilassistent.dc.html": {"x": 0, "y": 3080, "w": 1280, "h": 1200, "title": "Assistent · Unbekanntes Trackerformat beschreiben", "expand": "fill", "is_interactive": true},
+    "MeineFahrten.dc.html": {"x": 1360, "y": 3080, "w": 1280, "h": 900, "title": "Meine Fahrten (hinter der Kennung)", "expand": "fill", "is_interactive": true},
+    "Fahrtbericht_A4.dc.html": {"x": 2720, "y": 3080, "w": 794, "h": 2270, "title": "Fahrtbericht PDF · Seiten 1 und 2 (A4)", "paper": "a4", "print": "flow"},
+    "Handy.dc.html": {"x": 3594, "y": 3080, "w": 390, "h": 844, "title": "Handy · Auswerten (390 px)", "expand": "fill", "is_interactive": true}
+  },
+  "order": [
+    "Main.dc.html", "Importieren.dc.html", "Bereinigen.dc.html",
+    "Auswerten.dc.html", "Bericht.dc.html", "Exportieren.dc.html",
+    "Profilassistent.dc.html", "MeineFahrten.dc.html", "Fahrtbericht_A4.dc.html", "Handy.dc.html"
+  ],
+  "notes": {
+    "row1": {"x": 0, "y": -260, "text": "analyze.wicki.aero · Zugang und Datenaufbereitung (Phasen 0–2)", "kind": "title1", "maxW": 4000},
+    "row2": {"x": 0, "y": 1020, "text": "Auswertung, Bericht, Export (Phasen 3–5)", "kind": "title1", "maxW": 4000},
+    "row3": {"x": 0, "y": 2820, "text": "Profil-Assistent, Meine Fahrten, PDF-Seite, Handy-Ansicht", "kind": "title1", "maxW": 4000}
+  },
+  "designSystems": []
+}

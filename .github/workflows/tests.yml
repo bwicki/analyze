@@ -1,0 +1,17 @@
+# Runs the automatic tests on every push and pull request.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Unit tests (readers, pipeline on GB26 fixture, exports, i18n)
+        run: node --test tests/*.test.js

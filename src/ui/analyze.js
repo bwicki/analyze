@@ -1,0 +1,206 @@
+// Phase 3 · Auswerten: tiles, map, Kennzahlen, Höhenprofil (coupled hover), place names, events placeholder.
+
+import { t, tx } from '../i18n.js';
+import { esc, html, onAct, toast, copyText } from '../util/dom.js';
+import { fmtInt, fmtNum, fmtTimeUTC, fmtDateTimeUTC, fmtDurationHM, fmtDurationClock, fmtBearing, icaoShort, fmtLocalByLon, fmtDayUTC } from '../util/format.js';
+import { makeUnits } from '../util/units.js';
+import { state, bus } from '../state.js';
+import { trackPoints, timeMarkers } from '../process/track.js';
+import { movingMean, indexAt } from '../process/series.js';
+import { createMap, VARIO_COLORS, ALT_COLORS, varioClass, altClass } from './map.js';
+import { renderProfile } from './profile.js';
+import { downloadKmz } from '../export/download.js';
+
+const DISPLAY_MAX = 3000;
+
+export function mountAnalyze(root, ctx) {
+  const el = html(`<main class="page">
+    <div class="tiles" data-tiles></div>
+    <div class="row-wrap">
+      <section class="card" style="flex:2 1 620px">
+        <div class="card-head"><h2>${esc(t('ana.map'))}</h2><div class="row-wrap noprint" style="gap:8px;align-items:center">
+          <div class="seg" data-layer><button type="button" data-l="osm">${esc(t('ana.layer.osm'))}</button><button type="button" data-l="topo">${esc(t('ana.layer.topo'))}</button><button type="button" data-l="sat">${esc(t('ana.layer.sat'))}</button></div>
+          <div class="seg" data-color><button type="button" data-c="vario">${esc(t('ana.color.vario'))}</button><button type="button" data-c="alt">${esc(t('ana.color.alt'))}</button></div>
+          <select class="in sm" data-marker style="width:auto"><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="180">3 h</option></select>
+        </div></div>
+        <div class="map" data-map></div>
+        <div class="row-wrap noprint" style="gap:8px;align-items:center">
+          <button class="btn chip" type="button" data-act="kmz">${esc(t('ana.googleEarth'))}</button>
+          <a class="btn chip" data-gm-start target="_blank" rel="noopener">${esc(t('ana.gmStart'))}</a>
+          <a class="btn chip" data-gm-land target="_blank" rel="noopener">${esc(t('ana.gmLanding'))}</a>
+          <span class="muted small" style="margin-left:auto">${esc(t('ana.mapLegend'))}</span>
+        </div>
+      </section>
+      <section class="card" style="flex:1 1 360px" data-stats></section>
+    </div>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('ana.profile'))}</h2><div class="row-wrap noprint" style="gap:8px;align-items:center">
+        <div class="seg" data-xmode><button type="button" data-x="time">${esc(t('ana.x.time'))}</button><button type="button" data-x="dist">${esc(t('ana.x.dist'))}</button></div>
+      </div></div>
+      <div class="readout" data-readout><span class="muted">${esc(t('ana.readoutHint'))}</span></div>
+      <div data-profile></div>
+      <div class="legend" data-legend></div>
+    </section>
+    <section class="card">
+      <div class="card-head"><h2>${esc(t('ana.events'))}</h2><span class="pill sm"><span class="dot x"></span>${esc(t('ana.eventsPhase2'))}</span></div>
+      <p class="muted small">${esc(t('ana.eventsHint'))}</p>
+    </section>
+  </main>`);
+
+  const mapEl = el.querySelector('[data-map]');
+  let map = null, profile = null, display = null, xMode = 'time';
+  const u = () => makeUnits(state.settings.units);
+
+  const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
+  el.querySelectorAll('[data-layer] button').forEach((b) => b.addEventListener('click', () => { state.settings.mapLayer = b.dataset.l; ctx.saveSettings(); map && map.setLayer(b.dataset.l); segBtns('[data-layer]', 'l', b.dataset.l); }));
+  el.querySelectorAll('[data-color] button').forEach((b) => b.addEventListener('click', () => { state.settings.colorBy = b.dataset.c; ctx.saveSettings(); render(); }));
+  el.querySelectorAll('[data-xmode] button').forEach((b) => b.addEventListener('click', () => { xMode = b.dataset.x; renderProfileCard(); segBtns('[data-xmode]', 'x', xMode); }));
+  const markerSel = el.querySelector('[data-marker]'); markerSel.value = String(state.settings.markerMin);
+  markerSel.addEventListener('change', () => { state.settings.markerMin = +markerSel.value; ctx.saveSettings(); render(); });
+  onAct(el, {
+    kmz: () => downloadKmz(10),
+    copy: async () => { const txt = statsText(); if (await copyText(txt)) toast(t('common.copied')); },
+    units: (b) => { state.settings.units = b.dataset.u; ctx.saveSettings(); render(); },
+    geocode: () => fetchPlaces(true),
+  });
+
+  function buildDisplay() {
+    const s = state; if (!s.track || !s.stats) return null;
+    const dur = (s.trim.to - s.trim.from) / 1000;
+    const step = Math.max(1, Math.ceil(dur / DISPLAY_MAX));
+    const pts = trackPoints(s.track, s.series, s.trim, step);
+    // smoothed vario for colouring at the display resolution
+    const half = Math.max(45, step);
+    const vsS = movingMean(s.track.points.t, s.series.vs, half);
+    const alts = pts.map((q) => q.alt).filter((a) => !Number.isNaN(a));
+    const aMin = Math.min(...alts), aMax = Math.max(...alts);
+    const colorBy = s.settings.colorBy;
+    for (const q of pts) { q.vsS = vsS[q.i]; q.cls = colorBy === 'alt' ? altClass(q.alt, aMin, aMax) : varioClass(q.vsS); }
+    const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin).map((m) => ({ ...m, dist: s.series.dist[m.i] }));
+    const st = s.stats;
+    const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
+    const altMax = st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null;
+    return { pts, markers, step, colors: colorBy === 'alt' ? ALT_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon })), altMax, night: st.night.intervals };
+  }
+
+  function render() {
+    display = buildDisplay();
+    segBtns('[data-layer]', 'l', state.settings.mapLayer); segBtns('[data-color]', 'c', state.settings.colorBy); segBtns('[data-xmode]', 'x', xMode);
+    renderTiles(); renderStats(); renderMap(); renderProfileCard(); renderLegend();
+    if (state.settings.geocode) fetchPlaces(false);
+  }
+
+  function renderMap() {
+    if (!display) return;
+    if (!map) { map = createMap(mapEl, { layer: state.settings.mapLayer }); if (!map) return; map.onHover((q) => { profile && profile.setHover(q); readout(q); }); }
+    const every = state.settings.markerMin >= 180 ? 1 : state.settings.markerMin >= 60 ? 3 : state.settings.markerMin >= 30 ? 6 : 12;
+    map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate') });
+    const st = state.stats;
+    const gm = (p) => (p && !Number.isNaN(p.lat) ? `https://www.google.com/maps?q=${p.lat.toFixed(6)},${p.lon.toFixed(6)}` : '#');
+    el.querySelector('[data-gm-start]').href = gm(st.takeoff); el.querySelector('[data-gm-land]').href = gm(st.landing);
+  }
+
+  function renderProfileCard() {
+    if (!display) return;
+    const un = u();
+    profile = renderProfile(el.querySelector('[data-profile]'), { ...display, xMode, units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), aria: t('ana.profile') }, onHover: (q) => { map && map.setHover(q); readout(q); } });
+  }
+
+  function readout(q) {
+    const r = el.querySelector('[data-readout]'); const un = u();
+    if (!q) { r.innerHTML = `<span class="muted">${esc(t('ana.readoutHint'))}</span>`; return; }
+    r.innerHTML = `<span>${esc(t('ana.r.time'))} <b>${fmtDayUTC(q.t)} ${fmtTimeUTC(q.t, true)} UTC</b></span><span>${esc(t('ana.r.alt'))} <b>${un.alt(q.alt, true)}</b></span><span>${esc(t('ana.r.vs'))} <b>${un.vs(q.vsS)}</b></span><span>${esc(t('ana.r.gs'))} <b>${un.speed(q.gs, 1)}</b></span><span>${esc(t('ana.r.pos'))} <b>${icaoShort(q.lat, q.lon)}</b></span><span>${esc(t('ana.r.dist'))} <b>${un.dist(q.dist - display.pts[0].dist)}</b></span>`;
+  }
+
+  function renderLegend() {
+    const lg = el.querySelector('[data-legend]');
+    if (state.settings.colorBy === 'alt') lg.innerHTML = `<span>${esc(t('ana.legendAlt'))}</span>` + ALT_COLORS.map((c) => `<span class="sw" style="background:${c}"></span>`).join('');
+    else lg.innerHTML = [`<span><span class="sw" style="background:${VARIO_COLORS[0]}"></span> ${esc(t('ana.sink'))} &lt; −0.5 m/s</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[1]}"></span> −0.5 … −0.15</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[2]}"></span> ${esc(t('ana.neutral'))}</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[3]}"></span> +0.15 … +0.5</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[4]}"></span> ${esc(t('ana.climb'))} &gt; +0.5 m/s</span>`, `<span style="margin-left:auto">${esc(t('ana.legendNote'))}</span>`].join('');
+  }
+
+  function renderTiles() {
+    const st = state.stats, un = u();
+    el.querySelector('[data-tiles]').innerHTML = `
+      <div class="tile"><span class="k">${esc(t('st.duration'))}</span><span class="v">${fmtDurationClock(st.durationSec)}</span><span class="u">h:min · ${st.landings} ${esc(t(st.landings === 1 ? 'st.landing1' : 'st.landingN'))}</span></div>
+      <div class="tile"><span class="k">${esc(t('st.distance'))}</span><span class="v">${un.dist(st.distanceM).replace(/ km$/, '')}</span><span class="u">km · ${un.dist(st.straightM)} ${esc(t('st.straightShort'))}</span></div>
+      <div class="tile"><span class="k">${esc(t('st.altMax'))}</span><span class="v">${st.altMax ? un.alt(st.altMax.v).replace(/ (ft|m)$/, '') : '–'}</span><span class="u">${un.altUnit} · ${st.altMax ? fmtTimeUTC(st.altMax.t) + ' UTC' : ''}</span></div>
+      <div class="tile"><span class="k">${esc(t('st.vs'))}</span><span class="v" style="font-size:20px">${st.vsMax ? un.vs(st.vsMax.v).replace(/ m\/s$/, '') : '–'} / ${st.vsMin ? un.vs(st.vsMin.v).replace(/ m\/s$/, '') : '–'}</span><span class="u">m/s · ${esc(t('st.vsSub'))}</span></div>
+      <div class="tile"><span class="k">${esc(t('st.gs'))}</span><span class="v">${st.gsMax ? fmtNum(un.speedValue(st.gsMax.v), 0) : '–'} / ${fmtNum(un.speedValue(st.gsMean), 0)}</span><span class="u">${un.speedUnit} ${esc(t('st.gsSub'))}</span></div>
+      <div class="tile"><span class="k">${esc(t('st.night'))}</span><span class="v">${fmtDurationClock(st.night.totalSec)}</span><span class="u">h:min · ${st.night.intervals.length} ${esc(t(st.night.intervals.length === 1 ? 'st.night1' : 'st.nightN'))}</span></div>`;
+  }
+
+  function placeLine(kind, p) {
+    const name = state.places[kind];
+    return `${name ? esc(name) + ' · ' : ''}${icaoShort(p.lat, p.lon)}`;
+  }
+
+  function renderStats() {
+    const st = state.stats, un = u(), s = state.settings;
+    const row = (k, v, sub = '') => `<div class="row"><span class="k2">${esc(k)}</span><span class="val">${v}${sub ? `<br><span class="sub">${sub}</span>` : ''}</span></div>`;
+    const warm = st.accVertMax && st.accVertMax.v > 1.5;
+    el.querySelector('[data-stats]').innerHTML = `<div class="card-head"><h2>${esc(t('ana.stats'))}</h2><div class="row-wrap noprint" style="gap:6px"><div class="seg"><button type="button" data-act="units" data-u="icao" class="${s.units !== 'metric' ? 'on' : ''}">ft · kt</button><button type="button" data-act="units" data-u="metric" class="${s.units === 'metric' ? 'on' : ''}">m · km/h</button></div><button class="btn chip" type="button" data-act="copy">${esc(t('ana.copy'))}</button></div></div>
+      ${row(t('st.takeoff'), st.takeoff ? fmtDateTimeUTC(st.takeoff.t) : '–', st.takeoff ? `${fmtLocalByLon(st.takeoff.t, st.takeoff.lon)} · ${placeLine('takeoff', st.takeoff)}` : '')}
+      ${row(t('st.landingAt'), st.landing ? fmtDateTimeUTC(st.landing.t) : '–', st.landing ? `${fmtLocalByLon(st.landing.t, st.landing.lon)} · ${placeLine('landing', st.landing)}` : '')}
+      ${row(t('st.landings'), `${st.landings}`, st.intermediate.length ? esc(t('st.intermediateList', { list: st.intermediate.map((l) => `${fmtTimeUTC(l.t)} (${fmtDurationHM(l.groundSec || 0)})`).join(', ') })) : esc(t('st.noIntermediate')))}
+      ${row(t('st.duration'), `<span class="big">${fmtDurationHM(st.durationSec)}</span>`, st.intermediate.length ? esc(t('st.airtime', { v: fmtDurationHM(st.airSec) })) : '')}
+      ${row(t('st.distanceLine'), `${un.dist(st.distanceM)} · ${un.dist(st.straightM)} · ${fmtBearing(st.bearingDeg)}`)}
+      ${row(t('st.altMaxGps'), st.altMax ? un.alt(st.altMax.v, true) : '–', st.altMax ? `${fmtDateTimeUTC(st.altMax.t)}` : '')}
+      ${st.baroMax ? row(t('st.altMaxBaro'), un.alt(st.baroMax.v, true)) : ''}
+      ${row(t('st.altMean'), un.alt(st.altMean, true))}
+      ${row(t('st.vsMax'), st.vsMax ? un.vs(st.vsMax.v) : '–', st.vsMax ? `${fmtDateTimeUTC(st.vsMax.t)} · ${esc(t('st.vs30'))}` : '')}
+      ${row(t('st.vsMin'), st.vsMin ? un.vs(st.vsMin.v) : '–', st.vsMin ? `${fmtDateTimeUTC(st.vsMin.t)} · ${esc(t('st.vs30'))}` : '')}
+      ${row(t('st.gsLine'), `${st.gsMax ? un.speed(st.gsMax.v) : '–'} · ${un.speed(st.gsMean)}`, esc(t('st.gsSub2')))}
+      ${row(t('st.accV'), st.accVertMax ? un.acc(st.accVertMax.v) : '–', st.accVertMax ? `${fmtDateTimeUTC(st.accVertMax.t)} · ${esc(t('st.accDerived'))}${warm ? ' · ' + esc(t('st.check')) : ''}` : '')}
+      ${row(t('st.accH'), st.accHorMax ? un.acc(st.accHorMax.v) : '–', st.accHorMax ? `${fmtDateTimeUTC(st.accHorMax.t)} · ${esc(t('st.accDerived'))}` : '')}
+      ${row(t('st.touchdown'), st.touchdown.length ? st.touchdown.map((x) => un.vs(x.vs)).join(' · ') : '–', esc(t('st.touchdownSub')))}
+      ${row(t('st.nightLine'), fmtDurationHM(st.night.totalSec), st.night.intervals.map((iv, k) => `${esc(t('st.nightN1', { n: k + 1 }))} ${fmtTimeUTC(iv.from)}–${fmtTimeUTC(iv.to)} UTC`).join(' · ') + ' · ' + esc(t('st.civil')))}
+      ${row(t('st.segments'), `${state.track.segments.length} · ${st.restarts}${st.restarts ? ` (${st.restartList.map((r) => Math.round(r.sec) + ' s').join(', ')})` : ''}`, esc(t('st.segmentsSub', { points: fmtInt(st.nPoints), gaps: st.gaps.length })))}
+      ${row(t('st.tracker'), esc([...new Set(state.files.filter((f) => f.profile).map((f) => f.profile.name))].join(', ') || '–'), st.batt ? `${fmtNum(st.batt.min, 2)}–${fmtNum(st.batt.max, 2)} V` : '')}
+      ${!state.places.takeoff && s.geocode === false ? `<button class="btn chip noprint" type="button" data-act="geocode">${esc(t('ana.geocodeBtn'))}</button>` : ''}`;
+  }
+
+  function statsText() {
+    const st = state.stats, un = u(); const L = [];
+    L.push(`${t('st.takeoff')}: ${fmtDateTimeUTC(st.takeoff.t)} ${state.places.takeoff || ''} ${icaoShort(st.takeoff.lat, st.takeoff.lon)}`);
+    if (st.landing) L.push(`${t('st.landingAt')}: ${fmtDateTimeUTC(st.landing.t)} ${state.places.landing || ''} ${icaoShort(st.landing.lat, st.landing.lon)}`);
+    L.push(`${t('st.landings')}: ${st.landings}`, `${t('st.duration')}: ${fmtDurationHM(st.durationSec)}`, `${t('st.distanceLine')}: ${un.dist(st.distanceM)} / ${un.dist(st.straightM)} / ${fmtBearing(st.bearingDeg)}`);
+    if (st.altMax) L.push(`${t('st.altMaxGps')}: ${un.alt(st.altMax.v, true)} (${fmtDateTimeUTC(st.altMax.t)})`);
+    if (st.vsMax) L.push(`${t('st.vsMax')}: ${un.vs(st.vsMax.v)}`); if (st.vsMin) L.push(`${t('st.vsMin')}: ${un.vs(st.vsMin.v)}`);
+    if (st.gsMax) L.push(`${t('st.gsLine')}: ${un.speed(st.gsMax.v)} / ${un.speed(st.gsMean)}`);
+    L.push(`${t('st.nightLine')}: ${fmtDurationHM(st.night.totalSec)}`);
+    return L.join('\n').replace(/ /g, ' ');
+  }
+
+  // ---- reverse geocoding (OpenStreetMap Nominatim, two requests per flight, cached per position)
+  const geoCache = new Map();
+  async function fetchPlaces(force) {
+    const st = state.stats; if (!st) return;
+    const jobs = [['takeoff', st.takeoff], ['landing', st.landing]].filter(([k, p]) => p && !Number.isNaN(p.lat) && (force || !state.places[k]));
+    for (const [k, p] of jobs) {
+      const key = `${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
+      if (geoCache.has(key)) { state.places[k] = geoCache.get(key); continue; }
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&accept-language=${document.documentElement.lang || 'de'}`, { headers: { Accept: 'application/json' } });
+        if (!res.ok) throw new Error(String(res.status));
+        const j = await res.json(); const a = j.address || {};
+        const town = a.city || a.town || a.village || a.municipality || a.county || j.name || '';
+        const name = town ? `${town}${a.country_code ? ' (' + a.country_code.toUpperCase() + ')' : ''}` : '';
+        geoCache.set(key, name); state.places[k] = name;
+      } catch { geoCache.set(key, ''); }
+    }
+    if (jobs.length) { renderStats(); bus.emit('places'); }
+  }
+
+  const off = bus.on('track', render);
+  const off2 = bus.on('settings', () => {});
+  render();
+  root.appendChild(el);
+  setTimeout(() => map && map.invalidate(), 50);
+  return { unmount: () => { off(); off2(); map && map.destroy(); map = null; } };
+}
+
+export function analyzeStatus() {
+  const st = state.stats; if (!st) return '';
+  const un = makeUnits(state.settings.units);
+  return tx('ana.status', { title: state.meta.title || `${state.places.takeoff || icaoShort(st.takeoff.lat, st.takeoff.lon)} → ${st.landing ? (state.places.landing || icaoShort(st.landing.lat, st.landing.lon)) : '…'}`, dur: fmtDurationHM(st.durationSec), dist: un.dist(st.distanceM) });
+}

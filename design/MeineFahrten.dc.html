@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>analyze – Meine Fahrten</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f4f5f7;color:#14202e;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.4}
+a{color:#1f5fbf;text-decoration:none}a:hover{color:#174a95}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.muted{color:#5b6b7f}
+header.top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px 20px;padding:12px 28px;border-bottom:1px solid #d9dee6;background:#fff}
+header.top .brand{display:flex;flex-direction:column;min-width:120px}
+header.top .brand strong{font-size:18px}
+header.top .brand span{font-size:13px;color:#5b6b7f}
+header.top nav.phases{display:flex;gap:2px;flex-wrap:wrap}
+header.top .right{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+header.top .right img{height:46px;width:auto}
+header.top .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.tab{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;border-radius:999px;color:#5b6b7f;font-weight:600;border:1px solid transparent;background:transparent;cursor:pointer;font:inherit}
+.tab.on{background:#14202e;color:#fff}
+.actionbar{display:flex;align-items:center;gap:12px;padding:10px 28px;background:#fff;border-bottom:1px solid #d9dee6;flex-wrap:wrap}
+.actionbar .status{flex:1;font-size:14px;color:#5b6b7f;min-width:200px}
+.card{background:#fff;border:1px solid #d9dee6;border-radius:12px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.card h2{margin:0;font-size:14px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#5b6b7f}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 20px;border-radius:10px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-weight:600;font-size:16px;cursor:pointer}
+.btn.primary{background:#1f5fbf;border-color:#1f5fbf;color:#fff}
+.btn.sm{min-height:40px;font-size:14px;padding:0 12px}
+.btn.xs{min-height:30px;font-size:12px;padding:0 10px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:999px;border:1px solid #d9dee6;background:#fff;font-size:14px;min-height:38px;box-sizing:border-box}
+.pill.sm{min-height:30px;padding:3px 10px;font-size:13px}
+.dot{width:10px;height:10px;border-radius:50%;flex:none;display:inline-block}
+.dot.g{background:#1f8a4c}.dot.y{background:#d98c00}.dot.b{background:#1f5fbf}.dot.x{background:#9aa7b6}
+.seg{display:flex;border:1px solid #c7d0dc;border-radius:10px;overflow:hidden;background:#fff}
+.seg button{flex:1;min-height:44px;border:0;background:#fff;color:#5b6b7f;font:inherit;font-weight:500;cursor:pointer;padding:0 12px}
+.seg button.on{background:#14202e;color:#fff}
+.seg.lang{width:90px}
+.menu{width:44px;height:40px;border:1px solid #c7d0dc;border-radius:10px;background:#fff;display:flex;align-items:center;justify-content:center;color:#14202e;box-sizing:border-box;cursor:pointer}
+.in{min-height:44px;padding:0 12px;border-radius:8px;border:1px solid #c7d0dc;background:#fff;color:#14202e;font:inherit;font-size:16px;box-sizing:border-box;width:100%}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;color:#5b6b7f;font-weight:500}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{text-align:left;font-size:12px;color:#5b6b7f;text-transform:uppercase;letter-spacing:.04em;font-weight:600;padding:8px 10px;border-bottom:1px solid #d9dee6}
+td{padding:10px 10px;border-bottom:1px solid #eef1f5;vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #eef1f5}
+.row:last-child{border-bottom:0}
+.val{white-space:nowrap;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:15px;font-weight:500}
+.logo{width:180px;height:60px;border:1px dashed #9aa7b6;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;color:#5b6b7f;text-align:center;background:#fff;padding:6px;box-sizing:border-box}
+</style>
+</helmet>
+<div style="min-height:100vh;display:flex;flex-direction:column">
+  <header class="top">
+    <div class="brand"><strong>analyze</strong><span>Fahrtanalyse · Wicki Partners Ballonteam</span></div>
+    <nav class="phases" aria-label="Ansichten">
+      <a class="tab on" href="MeineFahrten.dc.html">Meine Fahrten</a>
+      <a class="tab" href="Importieren.dc.html">Neue Fahrt</a>
+      <button class="tab" type="button">Einstellungen</button>
+      <button class="tab" type="button">Trackerprofile</button>
+    </nav>
+    <div class="right">
+      <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Logo Wicki Partners Ballonteam">
+      <div class="tools">
+        <span class="pill sm"><span class="dot g"></span><span class="mono">KQZMWB</span> · Balthasar</span>
+        <div class="seg lang" aria-label="Sprache"><button class="on" type="button">DE</button><button type="button">EN</button></div>
+        <button class="menu" type="button" aria-label="Menü"><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14M3 10h14M3 15h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <div class="actionbar">
+    <div class="status"><strong style="color:#14202e">4 Fahrten</strong> · 2 Berichte als PDF · Aufbewahrung 2 Jahre ab Speicherung</div>
+    <input class="in" type="search" placeholder="Suchen (Titel, Ballon, Ort)" style="width:280px">
+    <a class="btn primary" href="Importieren.dc.html">+ Neue Fahrt</a>
+  </div>
+
+  <main style="flex:1;padding:22px 28px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+    <div class="card" style="flex:3 1 700px">
+      <h2>Gespeicherte Fahrten</h2>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Datum</th><th>Titel</th><th>Ballon</th><th>Start → Landung</th><th style="text-align:right">Dauer</th><th style="text-align:right">km</th><th>Bericht</th><th>Viewer</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="mono">28.08.2026</td><td><a href="Auswerten.dc.html"><strong>GB26 · Gordon Bennett 2026</strong></a><br><span class="muted" style="font-size:12px">WPB JSONL · 3 Dateien · Version 2</span></td><td class="mono">HB-QWV</td><td>Gladbeck → bei Loviisa (FI)</td><td class="mono" style="text-align:right">41:03</td><td class="mono" style="text-align:right">1 589</td><td><span class="pill sm"><span class="dot g"></span>PDF 17.10.</span></td><td class="mono"><a href="#">/v/7K2M4Q</a></td><td><button class="btn xs" type="button">Öffnen</button></td></tr>
+          <tr><td class="mono">24.05.2026</td><td><a href="#"><strong>Nachtfahrt Gladbeck</strong></a><br><span class="muted" style="font-size:12px">WPB JSONL · 1 Datei</span></td><td class="mono">HB-QWV</td><td>Gladbeck → bei Düren (DE)</td><td class="mono" style="text-align:right">5:52</td><td class="mono" style="text-align:right">74</td><td><span class="pill sm"><span class="dot g"></span>PDF 02.06.</span></td><td class="mono"><a href="#">/v/B3NQ8W</a></td><td><button class="btn xs" type="button">Öffnen</button></td></tr>
+          <tr><td class="mono">01.05.2026</td><td><a href="#"><strong>AMBC26 · Bitterfeld</strong></a><br><span class="muted" style="font-size:12px">WPB JSONL · 2 Dateien · Ereignislog AMBC26</span></td><td class="mono">HB-QPJ</td><td>Bitterfeld → bei Hörby (SE)</td><td class="mono" style="text-align:right">16:48</td><td class="mono" style="text-align:right">462</td><td><span class="pill sm"><span class="dot y"></span>Stammdaten fehlen</span></td><td class="mono">–</td><td><button class="btn xs" type="button">Öffnen</button></td></tr>
+          <tr><td class="mono">16.05.2026</td><td><a href="#"><strong>Augsburg Morgenfahrt</strong></a><br><span class="muted" style="font-size:12px">GPX · Garmin</span></td><td class="mono">HB-QWP</td><td>Augsburg → bei Dachau (DE)</td><td class="mono" style="text-align:right">3:02</td><td class="mono" style="text-align:right">41</td><td><span class="pill sm"><span class="dot x"></span>kein Bericht</span></td><td class="mono">–</td><td><button class="btn xs" type="button">Öffnen</button></td></tr>
+        </tbody>
+      </table>
+      </div>
+      <span class="muted" style="font-size:13px">Öffnen lädt die gespeicherte Fahrt ohne Neu-Import. Löschen fragt nach dem PIN, falls gesetzt.</span>
+    </div>
+
+    <div style="flex:1 1 320px;display:flex;flex-direction:column;gap:18px;min-width:0">
+      <div class="card">
+        <h2>Kennung und Logo</h2>
+        <div class="row"><span>Kennung</span><span class="val">KQZMWB</span></div>
+        <label class="f">Anzeigename<input class="in" type="text" value="Balthasar"></label>
+        <div class="row"><span>PIN</span><span><button class="btn xs" type="button">PIN setzen</button></span></div>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <img src="/_blob/3c2a4c45bc2d9fc271d9afcdbeb2a779" alt="Aktuelles Logo" style="height:56px;width:auto;border:1px solid #d9dee6;border-radius:8px;padding:4px;background:#fff">
+          <div class="logo">Eigenes Logo hochladen<br>PNG/SVG, max. 1 MB</div>
+        </div>
+        <span class="muted" style="font-size:13px">Ohne eigenes Logo erscheint das Logo Wicki Partners Ballonteam in der App und auf den Berichten.</span>
+      </div>
+      <div class="card">
+        <h2>Vorgaben</h2>
+        <div class="row"><span>Einheiten</span><div class="seg" style="width:200px"><button class="on" type="button">ft · kt</button><button type="button">m · km/h</button></div></div>
+        <div class="row"><span>Standard-Ballon</span><span class="val">HB-QWV</span></div>
+        <div class="row"><span>Nacht-Definition</span><span class="val">bürgerl. Dämmerung</span></div>
+        <div class="row"><span>Zeitmarker</span><span class="val">60 min</span></div>
+        <button class="btn sm" type="button" style="align-self:flex-start">Expertenmenü (Erkennungsregeln)</button>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
