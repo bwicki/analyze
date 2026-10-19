@@ -28,7 +28,7 @@ DATA_DIR = "data"
 [[d1_databases]]
 binding = "DB"
 database_name = "analyze"
-database_id = "REPLACE-WITH-YOUR-D1-DATABASE-ID"
+database_id = "555946b6-0726-45a8-a765-f7219fcea48d"
 
 # R2 bucket for tracks, logos and reports: create it once in the dashboard (R2 → Create bucket → "analyze").
 [[r2_buckets]]
