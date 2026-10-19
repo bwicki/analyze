@@ -156,8 +156,9 @@ export async function api(request, env, url, ctx) {
 // for small additions (CREATE TABLE IF NOT EXISTS cannot add columns to an existing table).
 const MIGRATIONS = [
   { test: 'SELECT team FROM codes LIMIT 1', apply: 'ALTER TABLE codes ADD COLUMN team INTEGER NOT NULL DEFAULT 0' },
-  { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, flight_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', taken_at INTEGER, exif_tz INTEGER, exif_lat REAL, exif_lon REAL, exif_alt REAL, caption TEXT NOT NULL DEFAULT \'\', image_key TEXT NOT NULL, thumb_key TEXT NOT NULL, bytes INTEGER NOT NULL DEFAULT 0, width INTEGER, height INTEGER, created_at INTEGER NOT NULL)' },
+  { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, flight_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', taken_at INTEGER, exif_tz INTEGER, manual INTEGER NOT NULL DEFAULT 0, exif_lat REAL, exif_lon REAL, exif_alt REAL, caption TEXT NOT NULL DEFAULT \'\', image_key TEXT NOT NULL, thumb_key TEXT NOT NULL, bytes INTEGER NOT NULL DEFAULT 0, width INTEGER, height INTEGER, created_at INTEGER NOT NULL)' },
   { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE INDEX IF NOT EXISTS photos_flight ON photos(flight_id, taken_at)', always: true },
+  { test: 'SELECT manual FROM photos LIMIT 1', apply: 'ALTER TABLE photos ADD COLUMN manual INTEGER NOT NULL DEFAULT 0' },
 ];
 let migrated = null;
 function ensureSchema(env) {

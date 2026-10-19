@@ -14,6 +14,8 @@ function fakeD1() {
     let m;
     if (/^SELECT team FROM codes LIMIT 1/.test(s)) return [];
     if (/^SELECT id FROM photos LIMIT 1/.test(s)) return [];
+    if (/^SELECT manual FROM photos LIMIT 1/.test(s)) throw new Error('no such column: manual');   // forces the ALTER once
+    if (/^ALTER TABLE photos ADD COLUMN manual/.test(s)) return [];
     if (/^CREATE (TABLE|INDEX)/.test(s)) return [];
     if (/^SELECT COUNT\(\*\) AS n FROM admins/.test(s)) return [{ n: T.admins.length }];
     if (/^SELECT COUNT\(\*\) AS n FROM codes/.test(s)) return [{ n: T.codes.length }];
@@ -56,8 +58,8 @@ function fakeD1() {
     if (/^SELECT \* FROM photos WHERE id = \?1 AND flight_id/.test(s)) return T.photos.filter((p) => p.id === a(1) && p.flight_id === a(2));
     if (/^SELECT \* FROM photos WHERE id = \?1$/.test(s)) return T.photos.filter((p) => p.id === a(1));
     if (/^SELECT p\.\*, f\.public AS fpublic/.test(s)) return T.photos.filter((p) => p.id === a(1)).map((p) => { const f = T.flights.find((x) => x.id === p.flight_id); const c = T.codes.find((x) => x.code === f.code); return { ...p, fpublic: f.public, blocked: c.blocked }; });
-    if (/^INSERT INTO photos/.test(s)) { T.photos.push({ id: a(1), flight_id: a(2), code: a(3), name: a(4), taken_at: a(5), exif_tz: a(6), exif_lat: a(7), exif_lon: a(8), exif_alt: a(9), caption: a(10), image_key: a(11), thumb_key: a(12), bytes: a(13), width: a(14), height: a(15), created_at: a(16) }); return []; }
-    if (/^UPDATE photos SET caption/.test(s)) { const p = T.photos.find((x) => x.id === a(1)); Object.assign(p, { caption: a(2), taken_at: a(3) }); return []; }
+    if (/^INSERT INTO photos/.test(s)) { T.photos.push({ id: a(1), flight_id: a(2), code: a(3), name: a(4), taken_at: a(5), exif_tz: a(6), exif_lat: a(7), exif_lon: a(8), exif_alt: a(9), caption: a(10), image_key: a(11), thumb_key: a(12), bytes: a(13), width: a(14), height: a(15), created_at: a(16), manual: 0 }); return []; }
+    if (/^UPDATE photos SET caption/.test(s)) { const p = T.photos.find((x) => x.id === a(1)); Object.assign(p, { caption: a(2), taken_at: a(3), manual: a(4) }); return []; }
     if (/^DELETE FROM photos WHERE id/.test(s)) { T.photos = T.photos.filter((p) => p.id !== a(1)); return []; }
     if (/^DELETE FROM photos WHERE flight_id/.test(s)) { T.photos = T.photos.filter((p) => p.flight_id !== a(1)); return []; }
     if (/^UPDATE flights SET updated_at/.test(s)) { const f = T.flights.find((x) => x.id === a(1)); if (f) f.updated_at = a(2); return []; }
@@ -196,7 +198,12 @@ test('photos: upload (JPEG + thumb), list owner/public, caption, serve, delete, 
   const img = await call(e, 'GET', `/api/photos/${p.id}/thumb`);
   assert.equal(img.status, 200); assert.equal(img.headers.get('Content-Type'), 'image/jpeg');
   const upd = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { caption: 'Start in Gladbeck' }, headers: H })).json();
-  assert.equal(upd.caption, 'Start in Gladbeck');
+  assert.equal(upd.caption, 'Start in Gladbeck'); assert.equal(upd.manual, false); assert.equal(upd.cameraTime, Date.UTC(2026, 7, 29, 1, 0));
+  // manual time (0.7.1): UTC entered by hand; clearing resets manual as well
+  const man = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { cameraTime: Date.UTC(2026, 7, 29, 3, 30), manual: true }, headers: H })).json();
+  assert.equal(man.manual, true); assert.equal(man.cameraTime, Date.UTC(2026, 7, 29, 3, 30)); assert.equal(man.caption, 'Start in Gladbeck');
+  const clr = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { cameraTime: null }, headers: H })).json();
+  assert.equal(clr.manual, false); assert.equal(clr.cameraTime, null);
   // private flight → viewer and image 404 for strangers, owner still sees it
   await call(e, 'PUT', `/api/flights/${fl.id}`, { body: { public: false }, headers: H });
   assert.equal((await call(e, 'GET', `/api/view/${fl.id}/photos`)).status, 404);

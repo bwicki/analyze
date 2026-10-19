@@ -5,11 +5,11 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.7.0 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
+**Stand: Version 0.7.1 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle Kennungen geteilt), **Fotos** auf dem Track
-(EXIF-Zeit, Kamerazeitzone, Viewer/QR, Berichtsseite). Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2)
+(EXIF-Zeit oder Zeit von Hand, Kamerazeitzone, Viewer/QR, Berichtsseite). Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2)
 – Einrichtung in §6. Offen in Phase 3: Stammdaten-Übergabe aus ops.wicki.aero.
 
 ---
@@ -79,6 +79,9 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    verkleinert (+ Vorschaubild) und unter der Kennung gespeichert. «Kamerazeit» = Zeitzone der Kamera-Uhr (Heimzeit,
    Sommerzeit UTC+02:00; EXIF-Zonen neuerer Handys werden direkt verwendet), «Feinkorrektur» für vor-/nachgehende
    Uhren, «Aus GPS-Fotos vorschlagen» bestimmt die Zone aus Fotos mit GPS-Position (Δ = Abstand zum Track).
+   Fotos **ohne EXIF-Zeit** (Screenshots, WhatsApp-Bilder) erhalten im Kästchen ein Feld «Zeit von Hand (UTC)»:
+   Zeit eintippen oder einen Punkt auf Karte/Höhenprofil anklicken und «📍 Pin übernehmen» – die Zeit gilt dann
+   direkt als UTC (Kamerazeit/Feinkorrektur wirken nicht), «×» entfernt sie wieder (ab 0.7.1).
    Bildtext je Foto, Maus über ein Foto → Ort auf Karte/Profil, Klick → Grossansicht. Der Viewer hinter dem
    Kurzlink/QR-Code zeigt die Fotos ebenfalls; der Bericht erhält eine Fotoseite (bis 24 Bilder).
 4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
@@ -168,9 +171,9 @@ Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine
 `GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
 `/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-Kennungen, 5 min Cache) · `GET /api/profiles`
 (öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `GET|POST /api/flights/‹id›/photos`,
-`PUT|DELETE /api/flights/‹id›/photos/‹pid›`, `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;
+`PUT|DELETE /api/flights/‹id›/photos/‹pid›` (PUT: `caption`, `cameraTime` [+ `manual: true` = UTC von Hand, `null` löscht]), `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;
 öffentlich bei öffentlicher Fahrt) · `/api/admin/…` (Supermaster, Bearer-Token). Kennung als Header `X-Code`.
 Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON); Foto = multipart `meta` + `image` + `thumb` (JPEG).
-Tabellen, die nach der ersten Migration dazukamen (`codes.team`, `photos`), legt der Worker beim ersten Aufruf selbst an.
+Tabellen und Spalten, die nach der ersten Migration dazukamen (`codes.team`, `photos`, `photos.manual`), legt der Worker beim ersten Aufruf selbst an.
 
 Lizenz: Alle Rechte vorbehalten – Nutzung nur mit ausdrücklicher Zustimmung und Quellenangabe (Wicki Partners Ballonteam).

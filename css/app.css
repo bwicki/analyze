@@ -266,6 +266,9 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .photo img{width:100%;aspect-ratio:4/3;object-fit:cover;cursor:zoom-in;display:block;background:#eef1f5}
 .photo figcaption{display:flex;flex-direction:column;gap:3px;padding:8px 10px}
 .photo .cap{min-height:30px;font-size:13px;padding:0 8px}
+.photo .manual-time{display:flex;flex-direction:column;gap:4px;margin:2px 0}
+.photo .manual-time input[type=datetime-local]{font-size:12px;padding:2px 6px;min-height:28px;width:100%;box-sizing:border-box}
+.photo .manual-time .btn.sm{padding:2px 8px;min-height:28px;font-size:12px}
 .photo .del{position:absolute;top:6px;right:6px;margin:0}
 .lightbox{position:fixed;inset:0;background:rgba(20,32,46,.92);z-index:120;display:flex;align-items:center;justify-content:center}
 .lightbox img{max-width:94vw;max-height:84vh;object-fit:contain;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5)}

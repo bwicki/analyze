@@ -10,7 +10,7 @@ const QUOTA_DEFAULT_MB = 300;
 const isPhotoId = (s) => /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{10}$/.test(s);
 
 export function photoView(row) {
-  return { id: row.id, flightId: row.flight_id, name: row.name, cameraTime: row.taken_at, exifTz: row.exif_tz, exifLat: row.exif_lat, exifLon: row.exif_lon, exifAlt: row.exif_alt, caption: row.caption || '', bytes: row.bytes, width: row.width, height: row.height, createdAt: row.created_at };
+  return { id: row.id, flightId: row.flight_id, name: row.name, cameraTime: row.taken_at, exifTz: row.exif_tz, manual: !!row.manual, exifLat: row.exif_lat, exifLon: row.exif_lon, exifAlt: row.exif_alt, caption: row.caption || '', bytes: row.bytes, width: row.width, height: row.height, createdAt: row.created_at };
 }
 
 async function ownFlight(env, user, id) {
@@ -72,8 +72,11 @@ export async function updatePhoto(env, user, flightId, photoId, body, request) {
   const row = await env.DB.prepare('SELECT * FROM photos WHERE id = ?1 AND flight_id = ?2').bind(photoId, flightId).first();
   if (!row) throw new HttpError(404, 'not found');
   const caption = body.caption !== undefined ? String(body.caption || '').slice(0, 300) : row.caption;
+  // cameraTime: camera clock (zone applied by the client) – or, with manual = true, a UTC time entered by hand
+  // for photos without EXIF time; cameraTime: null clears the time again (manual is reset too).
   const takenAt = body.cameraTime !== undefined ? (Number.isFinite(body.cameraTime) ? body.cameraTime : null) : row.taken_at;
-  await env.DB.prepare('UPDATE photos SET caption = ?2, taken_at = ?3 WHERE id = ?1').bind(photoId, caption, takenAt).run();
+  const manual = body.cameraTime !== undefined ? (takenAt === null ? 0 : (body.manual ? 1 : 0)) : (body.manual !== undefined ? (body.manual ? 1 : 0) : (row.manual || 0));
+  await env.DB.prepare('UPDATE photos SET caption = ?2, taken_at = ?3, manual = ?4 WHERE id = ?1').bind(photoId, caption, takenAt, manual).run();
   const out = await env.DB.prepare('SELECT * FROM photos WHERE id = ?1').bind(photoId).first();
   return photoView(out);
 }

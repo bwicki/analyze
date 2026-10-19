@@ -52,7 +52,7 @@ export function mountAnalyze(root, ctx) {
   const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
   // click on the map or the profile pins a moment on both (hover stays transient)
   function pin(q) { pinned = q && q.fix ? q : null; map && map.setPinned(pinned); profile && profile.setPinned(pinned); readout(pinned); }
-  const phCard = mountPhotosCard(el.querySelector('[data-photoscard]'), { goto: (p) => ctx.goto(p), onSelect: (p) => { const q = p && p.onTrack ? { t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
+  const phCard = mountPhotosCard(el.querySelector('[data-photoscard]'), { goto: (p) => ctx.goto(p), getPinned: () => pinned, onSelect: (p) => { const q = p && p.onTrack ? { t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
   const shownEvents = () => [...eventsForDisplay().filter((e) => !evCard.hidden.has(e.type)), ...photosForDisplay()];
   const u = () => makeUnits(state.settings.units);
 
