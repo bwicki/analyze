@@ -12,6 +12,7 @@ function fakeD1() {
     const s = sql.replace(/\s+/g, ' ').trim();
     const a = (i) => args[i - 1];
     let m;
+    if (/^SELECT team FROM codes LIMIT 1/.test(s)) return [];
     if (/^SELECT COUNT\(\*\) AS n FROM admins/.test(s)) return [{ n: T.admins.length }];
     if (/^SELECT COUNT\(\*\) AS n FROM codes/.test(s)) return [{ n: T.codes.length }];
     if (/^SELECT COUNT\(\*\) AS n FROM usage_log/.test(s)) return [{ n: T.usage_log.length }];

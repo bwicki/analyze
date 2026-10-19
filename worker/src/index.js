@@ -139,6 +139,22 @@ export async function api(request, env, url, ctx) {
   throw new HttpError(404, 'not found');
 }
 
+// Columns added after the first schema: applied once per isolate so a "migrate" run is not needed
+// for small additions (CREATE TABLE IF NOT EXISTS cannot add columns to an existing table).
+const MIGRATIONS = [
+  { test: 'SELECT team FROM codes LIMIT 1', apply: 'ALTER TABLE codes ADD COLUMN team INTEGER NOT NULL DEFAULT 0' },
+];
+let migrated = null;
+function ensureSchema(env) {
+  if (!migrated) migrated = (async () => {
+    for (const mg of MIGRATIONS) {
+      try { await env.DB.prepare(mg.test).first(); }
+      catch { try { await env.DB.prepare(mg.apply).run(); console.log('migrated:', mg.apply); } catch (e) { console.error('migration failed', mg.apply, e); } }
+    }
+  })().catch(() => { migrated = null; });
+  return migrated;
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -146,6 +162,7 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     try {
       if (url.pathname.startsWith('/api/')) {
+        await ensureSchema(env);
         const res = await api(request, env, url, ctx);
         for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
         return res;
