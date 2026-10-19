@@ -2,7 +2,7 @@
 
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast, confirmDialog } from '../util/dom.js';
-import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtTimeUTC, fmtDurationHM, fmtDayUTC } from '../util/format.js';
+import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtTimeUTC, fmtDurationHM, fmtDateUTC } from '../util/format.js';
 import { state, bus, recompute, resetAll } from '../state.js';
 import { parseFiles } from '../parser.js';
 import { openAssistant } from './assist.js';
@@ -110,9 +110,9 @@ export function mountImport(root, ctx) {
       table.innerHTML = `<p class="muted">${esc(t('imp.empty'))}</p>`;
     } else {
       const rows = shown.map((s) => `<tr class="${s.status === 'use' ? '' : 'dim'}">
-        <td class="mono">${esc(s.file)}${s.part ? ` <span class="tag">${s.part}/${s.parts}</span>` : ''}</td>
+        <td class="mono file">${esc(s.file)}${s.part ? ` <span class="tag">${s.part}/${s.parts}</span>` : ''}</td>
         <td>${esc(s.profileName || '–')}</td>
-        <td class="mono nowrap small">${fmtDayUTC(s.t0)} ${fmtTimeUTC(s.t0)} –<br>${fmtDayUTC(s.t1)} ${fmtTimeUTC(s.t1)}</td>
+        <td class="mono nowrap small">${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0)} –<br>${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1)}</td>
         <td class="r mono">${fmtInt(s.n)}</td>
         <td class="r mono">${s.n ? Math.round(100 * s.nFix / s.n) : 0}${' '}%</td>
         <td>${statusPill(s)}</td>
@@ -144,7 +144,7 @@ export function mountImport(root, ctx) {
     if (tr) {
       const ps = tr.points, t0 = ps.t[0], t1 = ps.t[ps.n - 1];
       const dropped = state.segments.reduce((s, x) => s + (x.status === 'use' ? x.dropped : 0), 0);
-      tiles.innerHTML = `<div class="tile"><span class="k">${esc(t('imp.tile.range'))}</span><span class="v" style="font-size:15px;white-space:normal;line-height:1.3">${fmtDayUTC(t0)} ${fmtTimeUTC(t0)} –<br>${fmtDayUTC(t1)} ${fmtTimeUTC(t1)}</span><span class="u">UTC · ${fmtDurationHM((t1 - t0) / 1000)}</span></div>
+      tiles.innerHTML = `<div class="tile"><span class="k">${esc(t('imp.tile.range'))}</span><span class="v" style="font-size:15px;white-space:normal;line-height:1.3">${fmtDateUTC(t0)} ${fmtTimeUTC(t0)} –<br>${fmtDateUTC(t1)} ${fmtTimeUTC(t1)}</span><span class="u">UTC · ${fmtDurationHM((t1 - t0) / 1000)}</span></div>
         <div class="tile"><span class="k">${esc(t('imp.tile.points'))}</span><span class="v">${fmtInt(ps.n)}</span><span class="u">${esc(t('imp.tile.pointsSub', { n: fmtInt(tr.collapsed) }))}</span></div>
         <div class="tile"><span class="k">${esc(t('imp.tile.dropped'))}</span><span class="v">${fmtInt(dropped)}</span><span class="u">${esc(t('imp.tile.droppedSub'))}</span></div>`;
     } else tiles.innerHTML = '';

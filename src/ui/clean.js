@@ -2,7 +2,7 @@
 
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast } from '../util/dom.js';
-import { fmtInt, fmtTimeUTC, fmtDayUTC, fmtDateTimeUTC, fmtDurationHM, icaoShort, pad2 } from '../util/format.js';
+import { fmtInt, fmtTimeUTC, fmtDayUTC, fmtDateUTC, fmtDateTimeUTC, fmtDurationHM, icaoShort, pad2 } from '../util/format.js';
 import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restoreLandings } from '../state.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
 
@@ -131,7 +131,7 @@ export function mountClean(root, ctx) {
       <div class="row"><span>${esc(t('cln.p.altMasked'))}</span><span class="val">${fmtInt(st.altMasked)}</span></div>
       <span class="muted small">${esc(t('cln.p.note'))}</span>`;
     // segments table
-    const rows = state.segments.map((s) => `<tr class="${s.status === 'use' ? '' : 'dim'}"><td class="mono">${s.id}</td><td class="mono">${esc(s.file)}${s.part ? ` <span class="tag">${s.part}/${s.parts}</span>` : ''}</td><td class="mono nowrap">${fmtDayUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="mono nowrap">${fmtDayUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="mono">${fmtDurationHM((s.t1 - s.t0) / 1000)}</td><td class="r mono">${fmtInt(s.n)}</td><td>${esc(t('imp.st.' + s.status, { id: s.dupOf || '' }))}</td><td class="r">${s.status === 'use' ? `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="off">${esc(t('imp.exclude'))}</button>` : `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="use">${esc(t('imp.use'))}</button>`}</td></tr>`).join('');
+    const rows = state.segments.map((s) => `<tr class="${s.status === 'use' ? '' : 'dim'}"><td class="mono">${s.id}</td><td class="mono">${esc(s.file)}${s.part ? ` <span class="tag">${s.part}/${s.parts}</span>` : ''}</td><td class="mono nowrap">${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="mono nowrap">${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="mono">${fmtDurationHM((s.t1 - s.t0) / 1000)}</td><td class="r mono">${fmtInt(s.n)}</td><td>${esc(t('imp.st.' + s.status, { id: s.dupOf || '' }))}</td><td class="r">${s.status === 'use' ? `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="off">${esc(t('imp.exclude'))}</button>` : `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="use">${esc(t('imp.use'))}</button>`}</td></tr>`).join('');
     el.querySelector('[data-segtable]').innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th>${esc(t('cln.col.dur'))}</th><th class="r">${esc(t('imp.col.points'))}</th><th>${esc(t('imp.col.status'))}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 

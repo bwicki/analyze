@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.7.1 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
+**Stand: Version 0.7.2 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle Kennungen geteilt), **Fotos** auf dem Track
@@ -63,8 +63,10 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    verwendet, Aufzeichnungen anderer Fahrten ausgeblendet.
 2. **Bereinigen** – Zeitleiste mit Segmenten, Neustarts und Nacht; Start/Landung erkannt; Schnitt mit Griffen
    oder Zeiten; Protokoll der Aufbereitung.
-3. **Auswerten** – Karte (Strasse/Topo/Satellit, Farbe nach Vario oder Höhe, Zeitmarker), Kennzahlen (ICAO oder
-   metrisch), Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ Marker auf der Karte.
+3. **Auswerten** – Karte (Layer Strasse/Topo/Satellit als Radiobuttons oben rechts in der Karte, Farbe nach Vario
+   oder Höhe, Zeitmarker; die Karte ist so hoch wie die Kennzahlen daneben), Kennzahlen (ICAO oder metrisch),
+   Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt
+   den Ausschnitt nach, damit der Marker auch in einer gezoomten Ansicht sichtbar bleibt.
    «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. Klick auf den Track (Karte) oder ins Profil hält den
    Zeitpunkt in beiden fest. Ortsnamen im Format `CH-Willisau`. Eine fälschlich erkannte **Zwischenlandung**
    (Richtungsumkehr, Stillstand) entfernt das × am Marker bzw. in der Kennzahlenliste/Bereinigen; die beiden

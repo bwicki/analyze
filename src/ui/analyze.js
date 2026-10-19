@@ -21,7 +21,6 @@ export function mountAnalyze(root, ctx) {
     <div class="row-wrap">
       <section class="card" style="flex:2 1 620px">
         <div class="card-head"><h2>${esc(t('ana.map'))}</h2><div class="row-wrap noprint" style="gap:8px;align-items:center">
-          <div class="seg" data-layer><button type="button" data-l="osm">${esc(t('ana.layer.osm'))}</button><button type="button" data-l="topo">${esc(t('ana.layer.topo'))}</button><button type="button" data-l="sat">${esc(t('ana.layer.sat'))}</button></div>
           <div class="seg" data-color><button type="button" data-c="vario">${esc(t('ana.color.vario'))}</button><button type="button" data-c="alt">${esc(t('ana.color.alt'))}</button></div>
           <select class="in sm" data-marker style="width:auto"><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="180">3 h</option></select>
         </div></div>
@@ -57,7 +56,6 @@ export function mountAnalyze(root, ctx) {
   const u = () => makeUnits(state.settings.units);
 
   const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
-  el.querySelectorAll('[data-layer] button').forEach((b) => b.addEventListener('click', () => { state.settings.mapLayer = b.dataset.l; ctx.saveSettings(); map && map.setLayer(b.dataset.l); segBtns('[data-layer]', 'l', b.dataset.l); }));
   el.querySelectorAll('[data-color] button').forEach((b) => b.addEventListener('click', () => { state.settings.colorBy = b.dataset.c; ctx.saveSettings(); render(); }));
   el.querySelectorAll('[data-xmode] button').forEach((b) => b.addEventListener('click', () => { xMode = b.dataset.x; renderProfileCard(); segBtns('[data-xmode]', 'x', xMode); }));
   const markerSel = el.querySelector('[data-marker]'); markerSel.value = String(state.settings.markerMin);
@@ -91,14 +89,18 @@ export function mountAnalyze(root, ctx) {
 
   function render() {
     display = buildDisplay();
-    segBtns('[data-layer]', 'l', state.settings.mapLayer); segBtns('[data-color]', 'c', state.settings.colorBy); segBtns('[data-xmode]', 'x', xMode);
+    segBtns('[data-color]', 'c', state.settings.colorBy); segBtns('[data-xmode]', 'x', xMode);
     renderTiles(); renderStats(); renderMap(); renderProfileCard(); renderLegend();
     if (state.settings.geocode) fetchPlaces(false);
   }
 
   function renderMap() {
     if (!display) return;
-    if (!map) { map = createMap(mapEl, { layer: state.settings.mapLayer }); if (!map) return; map.onHover((q) => { profile && profile.setHover(q); readout(q || pinned); }); map.onClick((q) => pin(q)); }
+    if (!map) {
+      map = createMap(mapEl, { layer: state.settings.mapLayer, layerLabels: { osm: t('ana.layer.osm'), topo: t('ana.layer.topo'), sat: t('ana.layer.sat') } }); if (!map) return;
+      map.onHover((q) => { profile && profile.setHover(q); readout(q || pinned); }); map.onClick((q) => pin(q));
+      map.onLayerChange((k) => { state.settings.mapLayer = k; ctx.saveSettings(); });
+    }
     const every = state.settings.markerMin >= 180 ? 1 : state.settings.markerMin >= 60 ? 3 : state.settings.markerMin >= 30 ? 6 : 12;
     map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate'), ignoreLabel: t('ana.ignoreLanding'), onIgnoreIntermediate: state.viewer ? null : (ms) => { ignoreLanding(ms); toast(t('ana.landingIgnored')); } });
     if (pinned) map.setPinned(pinned);

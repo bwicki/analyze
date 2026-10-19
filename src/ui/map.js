@@ -24,7 +24,22 @@ export function createMap(container, opts = {}) {
   const trackLayer = L.layerGroup().addTo(map), markerLayer = L.layerGroup().addTo(map);
   const hoverDot = L.circleMarker([0, 0], { radius: 6, color: '#14202e', weight: 1.5, fillColor: '#f6b03d', fillOpacity: 1 });
   const pinDot = L.circleMarker([0, 0], { radius: 8, color: '#1f5fbf', weight: 3, fillColor: '#fff', fillOpacity: 1 });
-  let pts = [], hoverCb = null, clickCb = null, lastHover = -1, bounds = null;
+  let pts = [], hoverCb = null, clickCb = null, layerCb = null, lastHover = -1, bounds = null, radioDiv = null;
+
+  // layer choice as radio buttons top right inside the map (labels from opts.layerLabels)
+  if (typeof L.control === 'function' && L.DomUtil && opts.layerLabels) {
+    const ctl = L.control({ position: 'topright' });
+    const uid = Math.random().toString(36).slice(2, 7);
+    ctl.onAdd = () => {
+      const div = L.DomUtil.create('div', 'leaflet-bar layer-radio');
+      div.innerHTML = Object.keys(LAYERS).map((k) => `<label><input type="radio" name="layer-${uid}" value="${k}"${k === current ? ' checked' : ''}> ${escHtml(opts.layerLabels[k] || LAYERS[k].name)}</label>`).join('');
+      if (L.DomEvent) { L.DomEvent.disableClickPropagation(div); L.DomEvent.disableScrollPropagation(div); }
+      div.addEventListener('change', (e) => { const inp = e.target; if (inp && inp.checked && layers[inp.value]) { setLayer(inp.value); layerCb && layerCb(inp.value); } });
+      radioDiv = div;
+      return div;
+    };
+    ctl.addTo(map);
+  }
 
   const nearest = (latlng, maxPx) => {
     const p = map.latLngToContainerPoint(latlng); let best = -1, bd = maxPx * maxPx;
@@ -48,7 +63,21 @@ export function createMap(container, opts = {}) {
   container.addEventListener('click', (e) => { const x = e.target.closest('[data-ignore]'); if (x && ignoreCb) { e.stopPropagation(); ignoreCb(+x.dataset.ignore); } });
   let ignoreCb = null;
 
-  function setLayer(k) { if (!layers[k] || k === current) return; map.removeLayer(layers[current]); current = k; layers[k].addTo(map); }
+  function setLayer(k) {
+    if (!layers[k]) return;
+    if (k !== current) { map.removeLayer(layers[current]); current = k; layers[k].addTo(map); }
+    if (radioDiv) radioDiv.querySelectorAll('input').forEach((i) => { i.checked = i.value === k; });
+  }
+  function onLayerChange(cb) { layerCb = cb; }
+  // the container grows with the neighbouring card: keep Leaflet's size in sync (centre stays, no refit)
+  if (typeof ResizeObserver !== 'undefined') {
+    let lastH = container.clientHeight;
+    const ro = new ResizeObserver(() => { const h = container.clientHeight; if (h === lastH) return; lastH = h; map.invalidateSize(); project(); });
+    ro.observe(container);
+    map.on('unload', () => ro.disconnect());
+  }
+  /** Pan the minimum amount so a marker stays in view (the user may have zoomed into a part of the flight). */
+  function keepVisible(ll, animate) { if (typeof map.panInside !== 'function') return; try { map.panInside(ll, { padding: [48, 48], animate }); } catch { /* no size yet */ } }
 
   /**
    * data: {pts (display points with .cls colour class), colors, night: [{from,to}], markers, takeoff, landing, labelEvery}
@@ -90,13 +119,14 @@ export function createMap(container, opts = {}) {
   }
   /** Whole flight in view (also after the container got its real size). */
   function fit() { if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] }); }
-  function setHover(q) { if (!q || !q.fix) { if (map.hasLayer(hoverDot)) map.removeLayer(hoverDot); return; } hoverDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(hoverDot)) hoverDot.addTo(map); }
-  function setPinned(q) { if (!q || !q.fix) { if (map.hasLayer(pinDot)) map.removeLayer(pinDot); return; } pinDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(pinDot)) pinDot.addTo(map); }
+  // hover (amber) and pinned (blue ring) markers follow the profile; the view pans so they stay visible
+  function setHover(q) { if (!q || !q.fix) { if (map.hasLayer(hoverDot)) map.removeLayer(hoverDot); return; } hoverDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(hoverDot)) hoverDot.addTo(map); keepVisible([q.lat, q.lon], false); }
+  function setPinned(q) { if (!q || !q.fix) { if (map.hasLayer(pinDot)) map.removeLayer(pinDot); return; } pinDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(pinDot)) pinDot.addTo(map); keepVisible([q.lat, q.lon], true); }
   function onHover(cb) { hoverCb = cb; }
   function onClick(cb) { clickCb = cb; }
   function invalidate() { map.invalidateSize(); fit(); project(); }
   function destroy() { map.remove(); }
-  return { map, setLayer, setTrack, setHover, setPinned, onHover, onClick, invalidate, fit, destroy, get layer() { return current; } };
+  return { map, setLayer, onLayerChange, setTrack, setHover, setPinned, onHover, onClick, invalidate, fit, destroy, get layer() { return current; } };
 }
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
