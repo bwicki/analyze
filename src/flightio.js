@@ -3,6 +3,7 @@
 
 import { state, recompute, resetAll, saveMeta, bus, setEventLog } from './state.js';
 import { normalizeEvents, summarizeEvents } from './events/log.js';
+import { loadPhotos } from './photos/store.js';
 import { exportData, summaryForExport } from './export/download.js';
 import { toGeoJson } from './export/formats.js';
 import { parseFiles } from './parser.js';
@@ -37,6 +38,7 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
   else rec = await api.flights.save(p.flight, p.geojson, p.events);
   state.flight = { id: rec.id, title: rec.title, url: rec.url, updatedAt: rec.updatedAt, public: rec.public };
   bus.emit('flight');
+  loadPhotos();
   return rec;
 }
 
@@ -59,4 +61,5 @@ export async function openFlight(rec, geojsonText, { viewer = false, eventRows =
     state.viewer = viewer ? { id: rec.id, title: rec.title, owner: rec.owner || null } : null;
     state.visited = { import: true, clean: true, analyze: true };
   } finally { state.busy = false; bus.emit('track'); bus.emit('flight'); }
+  loadPhotos();
 }

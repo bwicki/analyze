@@ -16,6 +16,8 @@
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code, team)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
+//   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
+//   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
 //   GET  /api/admin/setup · POST /api/admin/setup · POST /api/admin/login · POST /api/admin/logout · PUT /api/admin/pin
 //   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock|team · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
 
@@ -26,6 +28,7 @@ import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
 import { logAction } from './log.js';
 import { listProfiles, createProfile, deleteProfile } from './profiles.js';
+import { listOwn as listOwnPhotos, listPublic as listPublicPhotos, uploadPhoto, updatePhoto, deletePhoto, servePhoto } from './photos.js';
 
 const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...extra } });
 
@@ -65,6 +68,10 @@ export async function api(request, env, url, ctx) {
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
   if (viewEventsId && m === 'GET') return viewEvents(env, viewEventsId);
+  const viewPhotosId = seg(/^\/api\/view\/([^/]+)\/photos$/);
+  if (viewPhotosId && m === 'GET') return json(await listPublicPhotos(env, viewPhotosId), 200, { 'Cache-Control': 'public, max-age=60' });
+  const photoGet = /^\/api\/photos\/([^/]+)(\/thumb)?$/.exec(path);
+  if (photoGet && m === 'GET') return servePhoto(env, await codeFromRequest(env, request, url).catch(() => null), decodeURIComponent(photoGet[1]), !!photoGet[2]);
 
   if (path === '/api/profiles' && m === 'GET') return json(await listProfiles(env), 200, { 'Cache-Control': 'public, max-age=120' });
 
@@ -90,6 +97,12 @@ export async function api(request, env, url, ctx) {
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
     if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
+    const photosId = seg(/^\/api\/flights\/([^/]+)\/photos$/);
+    if (photosId && m === 'GET') return json(await listOwnPhotos(env, user, photosId));
+    if (photosId && m === 'POST') return json(await uploadPhoto(env, user, photosId, request));
+    const photoOne = /^\/api\/flights\/([^/]+)\/photos\/([^/]+)$/.exec(path);
+    if (photoOne && m === 'PUT') return json(await updatePhoto(env, user, decodeURIComponent(photoOne[1]), decodeURIComponent(photoOne[2]), await readJson(request), request));
+    if (photoOne && m === 'DELETE') return json(await deletePhoto(env, user, decodeURIComponent(photoOne[1]), decodeURIComponent(photoOne[2]), request));
     if (path === '/api/profiles' && m === 'POST') { if (rateLimited('profile:' + ip, 10)) throw new HttpError(429, 'too many profiles'); return json(await createProfile(env, user, await readJson(request), request)); }
     const profId = seg(/^\/api\/profiles\/([^/]+)$/);
     if (profId && m === 'DELETE') return json(await deleteProfile(env, { code: user.code }, profId, request));
@@ -143,13 +156,17 @@ export async function api(request, env, url, ctx) {
 // for small additions (CREATE TABLE IF NOT EXISTS cannot add columns to an existing table).
 const MIGRATIONS = [
   { test: 'SELECT team FROM codes LIMIT 1', apply: 'ALTER TABLE codes ADD COLUMN team INTEGER NOT NULL DEFAULT 0' },
+  { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE TABLE IF NOT EXISTS photos (id TEXT PRIMARY KEY, flight_id TEXT NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL DEFAULT \'\', taken_at INTEGER, exif_tz INTEGER, exif_lat REAL, exif_lon REAL, exif_alt REAL, caption TEXT NOT NULL DEFAULT \'\', image_key TEXT NOT NULL, thumb_key TEXT NOT NULL, bytes INTEGER NOT NULL DEFAULT 0, width INTEGER, height INTEGER, created_at INTEGER NOT NULL)' },
+  { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE INDEX IF NOT EXISTS photos_flight ON photos(flight_id, taken_at)', always: true },
 ];
 let migrated = null;
 function ensureSchema(env) {
   if (!migrated) migrated = (async () => {
     for (const mg of MIGRATIONS) {
-      try { await env.DB.prepare(mg.test).first(); }
-      catch { try { await env.DB.prepare(mg.apply).run(); console.log('migrated:', mg.apply); } catch (e) { console.error('migration failed', mg.apply, e); } }
+      let ok = false;
+      if (!mg.always) { try { await env.DB.prepare(mg.test).first(); ok = true; } catch { ok = false; } }
+      if (ok) continue;
+      try { await env.DB.prepare(mg.apply).run(); console.log('migrated:', mg.apply.slice(0, 60)); } catch (e) { console.error('migration failed', mg.apply.slice(0, 60), e); }
     }
   })().catch(() => { migrated = null; });
   return migrated;

@@ -60,6 +60,22 @@ CREATE TABLE IF NOT EXISTS tracker_profiles (
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS photos (
+  id            TEXT PRIMARY KEY,            -- 10 chars
+  flight_id     TEXT NOT NULL,               -- flights.id
+  code          TEXT NOT NULL,               -- owner
+  name          TEXT NOT NULL DEFAULT '',    -- original file name
+  taken_at      INTEGER,                     -- camera clock as recorded (EXIF DateTimeOriginal read as if UTC), NULL = unknown
+  exif_tz       INTEGER,                     -- minutes east of UTC when the camera wrote OffsetTime, else NULL (the flight's camera zone applies)
+  exif_lat      REAL, exif_lon REAL, exif_alt REAL,
+  caption       TEXT NOT NULL DEFAULT '',
+  image_key     TEXT NOT NULL,               -- R2 photos/<flight>/<id>.jpg (resized in the browser)
+  thumb_key     TEXT NOT NULL,               -- R2 photos/<flight>/<id>_t.jpg
+  bytes         INTEGER NOT NULL DEFAULT 0,  -- image + thumb
+  width         INTEGER, height INTEGER,
+  created_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS photos_flight ON photos(flight_id, taken_at);
 CREATE TABLE IF NOT EXISTS usage_log (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   t             INTEGER NOT NULL,            -- ms UTC

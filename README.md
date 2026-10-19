@@ -5,11 +5,12 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.6.0 = Phase 1 und 2 komplett:** Kennung (6 Buchstaben), eigenes Logo, Fahrtarchiv «Meine
-Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher Viewer, Supermaster,
-**Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei, **Profil-Assistent**
-für unbekannte Trackerformate (Profile für alle Kennungen geteilt). Dafür läuft ein kleiner Cloudflare Worker
-(`worker/`, D1 + R2) – Einrichtung in §6. Phase 3 (offen): ops-Übergabe, Fotos hinter dem Kurzlink.
+**Stand: Version 0.7.0 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
+Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
+Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
+**Profil-Assistent** für unbekannte Trackerformate (Profile für alle Kennungen geteilt), **Fotos** auf dem Track
+(EXIF-Zeit, Kamerazeitzone, Viewer/QR, Berichtsseite). Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2)
+– Einrichtung in §6. Offen in Phase 3: Stammdaten-Übergabe aus ops.wicki.aero.
 
 ---
 
@@ -28,6 +29,7 @@ für unbekannte Trackerformate (Profile für alle Kennungen geteilt). Dafür lä
 | `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
 | `src/events/log.js`, `src/ui/events.js` | Ereignislog: Normalisierung der Reporting-App-Zeilen, Verknüpfung mit dem Track, Karte/Profil/Tabelle |
 | `src/parse/assist.js`, `src/ui/assist.js`, `src/profiles-store.js` | Profil-Assistent: Dateianalyse, Spaltenvorschläge, Profil-JSON, Vorschau; geteilte und lokale Profile |
+| `src/photos/{exif,place,process,store}.js`, `src/ui/photos.js` | Fotos: EXIF-Leser (Zeit, Zone, GPS), Verkleinern im Browser, Platzierung auf dem Track, Kamerazeit-Vorschlag |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql` (D1), `src/` (API) |
 | `404.html` | Leitet Kurzlinks `/v/‹ID›` auf die App um (GitHub Pages) |
 | `tests/` | Automatische Tests (`node --test`), inkl. verdünnter GB26-Daten als Fixture und Worker-API mit Attrappen |
@@ -72,6 +74,13 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    als Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach Typ; Maus über eine Zeile zeigt den Punkt.
    Beim Speichern der Fahrt wird das Log mitgespeichert (Viewer und «Öffnen» zeigen es). Ballast-Restbestand aus
    den Ballast-Einträgen erscheint als gestrichelte Linie im Höhenprofil (rechte Skala).
+   **Fotos** (ab 0.7.0, braucht eine gespeicherte Fahrt): «Fotos hinzufügen» nimmt JPEGs von Kamera oder Handy, liest
+   die Aufnahmezeit (EXIF) und legt jedes Bild auf den Track (Position, Höhe); Bilder werden im Browser auf 2000 px
+   verkleinert (+ Vorschaubild) und unter der Kennung gespeichert. «Kamerazeit» = Zeitzone der Kamera-Uhr (Heimzeit,
+   Sommerzeit UTC+02:00; EXIF-Zonen neuerer Handys werden direkt verwendet), «Feinkorrektur» für vor-/nachgehende
+   Uhren, «Aus GPS-Fotos vorschlagen» bestimmt die Zone aus Fotos mit GPS-Position (Δ = Abstand zum Track).
+   Bildtext je Foto, Maus über ein Foto → Ort auf Karte/Profil, Klick → Grossansicht. Der Viewer hinter dem
+   Kurzlink/QR-Code zeigt die Fotos ebenfalls; der Bericht erhält eine Fotoseite (bis 24 Bilder).
 4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
    tragen Kurzlink und QR-Code in der Fusszeile.
 5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar. **Fahrt speichern** legt den
@@ -158,7 +167,10 @@ Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
 `GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
 `/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-Kennungen, 5 min Cache) · `GET /api/profiles`
-(öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `/api/admin/…` (Supermaster,
-Bearer-Token). Kennung als Header `X-Code`. Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON).
+(öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `GET|POST /api/flights/‹id›/photos`,
+`PUT|DELETE /api/flights/‹id›/photos/‹pid›`, `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;
+öffentlich bei öffentlicher Fahrt) · `/api/admin/…` (Supermaster, Bearer-Token). Kennung als Header `X-Code`.
+Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON); Foto = multipart `meta` + `image` + `thumb` (JPEG).
+Tabellen, die nach der ersten Migration dazukamen (`codes.team`, `photos`), legt der Worker beim ersten Aufruf selbst an.
 
 Lizenz: Alle Rechte vorbehalten – Nutzung nur mit ausdrücklicher Zustimmung und Quellenangabe (Wicki Partners Ballonteam).

@@ -77,6 +77,14 @@ export const api = {
     track: (id) => trackText(`/api/view/${id}/track`, { code: null }),
     events: (id) => request('GET', `/api/view/${id}/events`, { code: null }),
   },
+  photos: {
+    list: (flightId) => request('GET', `/api/flights/${flightId}/photos`),
+    listPublic: (flightId) => request('GET', `/api/view/${flightId}/photos`, { code: null }),
+    upload: (flightId, meta, image, thumb) => { const fd = new FormData(); fd.set('meta', JSON.stringify(meta)); fd.set('image', image, 'image.jpg'); fd.set('thumb', thumb, 'thumb.jpg'); return request('POST', `/api/flights/${flightId}/photos`, { body: fd }); },
+    update: (flightId, id, patch) => request('PUT', `/api/flights/${flightId}/photos/${id}`, { body: patch }),
+    remove: (flightId, id) => request('DELETE', `/api/flights/${flightId}/photos/${id}`),
+    url: (id, thumb = false) => `${base()}/api/photos/${id}${thumb ? '/thumb' : ''}${session.code ? `?code=${encodeURIComponent(session.code)}` : ''}`,
+  },
   profiles: {
     list: () => request('GET', '/api/profiles', { code: null }),
     create: (name, manufacturer, spec, isPublic = true) => request('POST', '/api/profiles', { body: { name, manufacturer, spec, public: isPublic } }),

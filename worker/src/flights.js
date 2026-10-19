@@ -5,6 +5,7 @@
 import { HttpError, randomCode, isFlightId } from './auth.js';
 import { logAction } from './log.js';
 import { counts } from './codes.js';
+import { removeFlightPhotos } from './photos.js';
 
 const TRACK_MAX = 25 * 1024 * 1024;                 // gzipped bytes per flight
 const QUOTA_DEFAULT_MB = 300;                       // per code
@@ -139,6 +140,7 @@ export async function deleteFlight(env, user, id, request) {
 }
 
 export async function removeFlightRow(env, row) {
+  await removeFlightPhotos(env, row.id).catch(() => {});
   await env.FILES.delete(row.track_key).catch(() => {});
   if (row.events_key) await env.FILES.delete(row.events_key).catch(() => {});
   await env.DB.prepare('DELETE FROM flights WHERE id = ?1').bind(row.id).run();

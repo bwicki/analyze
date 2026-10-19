@@ -13,6 +13,8 @@ import { renderProfile } from './profile.js';
 import { session, logoUrl, DEFAULT_LOGO } from '../session.js';
 import { qrSvg } from '../util/qr.js';
 import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
+import { photosForDisplay } from './photos.js';
+import { api } from '../api.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'pic', 'copilot', 'pax', 'startName', 'landName', 'remarks'];
@@ -125,6 +127,7 @@ export function mountReport(root, ctx) {
         ${state.segments.filter((s) => s.status === 'use').map((s) => `<tr><td class="v">${s.id}</td><td class="v">${esc(s.file)}</td><td class="v">${fmtDayUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="v">${fmtDayUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="v" style="text-align:right">${fmtInt(s.n)}</td></tr>`).join('')}</table>
       <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}</div>
       ${eventsSection()}
+      ${photosSection()}
       <div class="sigblock"><div class="sig"><div>${esc(t('rep.sigPic'))}</div><div>${esc(t('rep.sigDate'))}</div></div>
       ${state.flight && state.flight.public !== false ? `<div class="qrline">${qrSvg(state.flight.url, { size: 84 })}<span>${esc(t('rep.qrNote'))}<br><span class="mono">${esc(state.flight.url.replace(/^https?:\/\//, ''))}</span></span></div>` : ''}
       <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: state.evlog && state.evlog.linked && state.evlog.linked.length ? 3 : 2 }))}</span></div></div>`;
@@ -134,12 +137,21 @@ export function mountReport(root, ctx) {
     for (const q of pts) { q.vsS = vsS[q.i]; q.cls = varioClass(q.vsS); }
     const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin).map((x) => ({ ...x, dist: s.series.dist[x.i] }));
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
-    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, name: state.places.inter[l.t] || '' })), night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: eventsForDisplay(), ballast: ballastSeries() };
+    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, name: state.places.inter[l.t] || '' })), night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: [...eventsForDisplay(), ...photosForDisplay()], ballast: ballastSeries() };
     if (map) { map.destroy(); map = null; }
     mapEl = rep.querySelector('[data-repmap]');
     map = createMap(mapEl, { layer: 'osm' });
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
     renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
+  }
+
+  /** Photos page: thumbnails with time and position (when the flight has photos). */
+  function photosSection() {
+    const ph = (state.photosPlaced || []).filter((p) => !Number.isNaN(p.t)).slice(0, 24);
+    if (!ph.length) return '';
+    return `<div style="break-before:page"></div>
+      <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">${esc(t('ph.title'))} · ${ph.length}${(state.photosPlaced || []).length > ph.length ? ` ${esc(t('ph.ofTotal', { n: (state.photosPlaced || []).length }))}` : ''}</h2>
+      <div class="rep-photos">${ph.map((p) => `<figure><img src="${esc(api.photos.url(p.id, true))}" alt=""><figcaption><span class="mono">${fmtDayUTC(p.t)} ${fmtTimeUTC(p.t)} UTC</span>${p.onTrack ? ` · ${icaoShort(p.lat, p.lon)}` : ''}${p.caption ? `<br>${esc(p.caption)}` : ''}</figcaption></figure>`).join('')}</div>`;
   }
 
   /** Page 3: Ereignislog table (when linked). */
@@ -157,8 +169,8 @@ export function mountReport(root, ctx) {
       `;
   }
 
-  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport);
+  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport), off4 = bus.on('photos', renderReport);
   renderReport();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); off3(); map && map.destroy(); } };
+  return { unmount: () => { off(); off2(); off3(); off4(); map && map.destroy(); } };
 }

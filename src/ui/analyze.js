@@ -11,6 +11,7 @@ import { createMap, VARIO_COLORS, ALT_COLORS, varioClass, altClass } from './map
 import { renderProfile } from './profile.js';
 import { downloadKmz } from '../export/download.js';
 import { mountEventsCard, eventsForDisplay, ballastSeries } from './events.js';
+import { mountPhotosCard, photosForDisplay } from './photos.js';
 
 const DISPLAY_MAX = 3000;
 
@@ -43,6 +44,7 @@ export function mountAnalyze(root, ctx) {
       <div class="legend" data-legend></div>
     </section>
     <div data-eventscard style="display:contents"></div>
+    <div data-photoscard style="display:contents"></div>
   </main>`);
 
   const mapEl = el.querySelector('[data-map]');
@@ -50,7 +52,8 @@ export function mountAnalyze(root, ctx) {
   const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
   // click on the map or the profile pins a moment on both (hover stays transient)
   function pin(q) { pinned = q && q.fix ? q : null; map && map.setPinned(pinned); profile && profile.setPinned(pinned); readout(pinned); }
-  const shownEvents = () => eventsForDisplay().filter((e) => !evCard.hidden.has(e.type));
+  const phCard = mountPhotosCard(el.querySelector('[data-photoscard]'), { goto: (p) => ctx.goto(p), onSelect: (p) => { const q = p && p.onTrack ? { t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
+  const shownEvents = () => [...eventsForDisplay().filter((e) => !evCard.hidden.has(e.type)), ...photosForDisplay()];
   const u = () => makeUnits(state.settings.units);
 
   const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
@@ -202,11 +205,11 @@ export function mountAnalyze(root, ctx) {
   }
 
   const off = bus.on('track', render);
-  const off2 = bus.on('events', render), off3 = bus.on('events-filter', render);
+  const off2 = bus.on('events', render), off3 = bus.on('events-filter', render), off4 = bus.on('photos', render);
   render();
   root.appendChild(el);
   setTimeout(() => map && map.invalidate(), 50);
-  return { unmount: () => { off(); off2(); off3(); evCard.unmount(); map && map.destroy(); map = null; } };
+  return { unmount: () => { off(); off2(); off3(); off4(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; } };
 }
 
 export function analyzeStatus() {
