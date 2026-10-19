@@ -465,5 +465,11 @@
   "adm.team": "Team",
   "adm.teamOn": "Team-Zugang geben",
   "adm.teamOff": "Team-Zugang entziehen",
-  "adm.teamNote": "Team = darf das Ereignislog aus gb_flight_data verknüpfen."
+  "adm.teamNote": "Team = darf das Ereignislog aus gb_flight_data verknüpfen.",
+  "imp.timelessTitle": "Keine Zeitstempel: {name}",
+  "imp.timelessBody": "Die Datei enthält {n} Positionen, aber keine Uhrzeiten. Ohne Zeit gibt es weder Fahrtdauer noch Vario oder Fahrt über Grund – die Datei wird nicht verwendet.",
+  "imp.timelessAprs": "aprs.fi: Auf der Seite «Export» das Format CSV (oder JSON) wählen – dort ist jede Position mit Zeit versehen. Die KML/KMZ-Datei von aprs.fi enthält nur die Linie.",
+  "imp.timelessNext": "Bitte den Export mit Zeitstempeln verwenden (GPX mit <time>, KML mit gx:Track, CSV mit Zeitspalte).",
+  "imp.timelessToast": "Datei ohne Zeitstempel – siehe Hinweis in der Liste.",
+  "imp.unknownToast": "Format nicht erkannt – siehe Hinweis in der Liste."
 }

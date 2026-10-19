@@ -46,6 +46,16 @@ export const PROFILES = [
     },
     validity: { noFixWhenZero: true, minYear: 2015 },
   },
+  {
+    id: 'aprsfi-json', name: 'aprs.fi JSON-Export', manufacturer: 'aprs.fi', version: 1,
+    detect: { ext: ['json'], headMatches: /^\s*(\{\s*"[a-z_]+"\s*:\s*)?\[\s*\{[^}]*"time"\s*:[^}]*"lng"\s*:/ },
+    read: { kind: 'json' },
+    fields: {
+      time: { col: 'time', format: 'auto' }, lat: { col: 'lat' }, lon: { col: 'lng' },
+      alt: { col: 'altitude', unit: 'm' }, gs: { col: 'speed', unit: 'km/h' }, hdg: { col: 'course' },
+    },
+    validity: { noFixWhenZero: true, minYear: 2015 },
+  },
   { id: 'gpx', name: 'GPX 1.0/1.1', manufacturer: 'Standard', version: 1, detect: { ext: ['gpx'], headMatches: /<gpx[\s>]/i }, read: { kind: 'gpx' } },
   { id: 'kml', name: 'KML (Google Earth, Garmin inReach)', manufacturer: 'Standard', version: 1, detect: { ext: ['kml'], headMatches: /<kml[\s>]/i }, read: { kind: 'kml' } },
   { id: 'igc', name: 'IGC (FAI-Logger)', manufacturer: 'Standard', version: 1, detect: { ext: ['igc'], headMatches: /^A[A-Z0-9]{3}/m }, read: { kind: 'igc' } },

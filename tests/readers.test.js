@@ -63,3 +63,14 @@ test('timestamp cleaning, restart split, duplicate classification', () => {
   assert.equal(segs.find((s) => s.file === 'a.csv').status, 'dup');
   assert.equal(segs.find((s) => s.file === 'a.jsonl').status, 'use');
 });
+
+test('aprs.fi JSON export (array of rows) is recognised and read', async () => {
+  const { detectProfile } = await import('../src/parse/profiles.js');
+  const { readWithProfile } = await import('../src/parse/readers.js');
+  const text = JSON.stringify([{ time: '2026-10-16 12:07:51', lasttime: '2026-10-16 12:07:51', lat: 44.91367, lng: 9.71483, course: 24, speed: 12, altitude: 271.27, srccall: 'HB3XAD-6' }, { time: 1760616000, lat: 44.9125, lng: 9.71117, altitude: 409.96 }]);
+  const det = detectProfile('aprsfi_export.json', text.slice(0, 2000));
+  assert.equal(det.profile && det.profile.id, 'aprsfi-json');
+  const r = readWithProfile(text, det.profile);
+  assert.equal(r.points.n, 2); assert.equal(r.bad, 0);
+  assert.equal(r.points.t[0], Date.UTC(2026, 9, 16, 12, 7, 51)); assert.ok(Math.abs(r.points.gs[0] - 12 / 3.6) < 0.01); assert.equal(r.points.t[1], 1760616000 * 1000);
+});

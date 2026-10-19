@@ -465,5 +465,11 @@
   "adm.team": "Team",
   "adm.teamOn": "Grant team access",
   "adm.teamOff": "Revoke team access",
-  "adm.teamNote": "Team = may link the event log from gb_flight_data."
+  "adm.teamNote": "Team = may link the event log from gb_flight_data.",
+  "imp.timelessTitle": "No timestamps: {name}",
+  "imp.timelessBody": "The file holds {n} positions but no times. Without time there is no duration, vario or ground speed – the file is not used.",
+  "imp.timelessAprs": "aprs.fi: on the “Export” page choose the CSV (or JSON) format – every position carries its time there. The KML/KMZ from aprs.fi contains only the line.",
+  "imp.timelessNext": "Please use an export with timestamps (GPX with <time>, KML with gx:Track, CSV with a time column).",
+  "imp.timelessToast": "File without timestamps – see the note in the list.",
+  "imp.unknownToast": "Format not recognised – see the note in the list."
 }

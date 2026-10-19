@@ -118,6 +118,23 @@ export function readJsonl(text, profile) {
   return { points: b.finish(), bad, columns: columns || [] };
 }
 
+/** JSON array of row objects (aprs.fi JSON export: [{time, lat, lng, altitude, speed, course, …}] or {entries: […]}). */
+export function readJsonArray(text, profile) {
+  let doc; try { doc = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { return { points: new PointBuilder(1).finish(), bad: 1, columns: [] }; }
+  const rows = Array.isArray(doc) ? doc : Array.isArray(doc.entries) ? doc.entries : Array.isArray(doc.rows) ? doc.rows : Array.isArray(doc.data) ? doc.data : [];
+  const map = makeRowMapper(profile);
+  const b = new PointBuilder(Math.max(1024, rows.length));
+  let bad = 0, columns = null;
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') { bad++; continue; }
+    if (!columns) columns = Object.keys(row);
+    const p = map(row);
+    if (Number.isNaN(p.t)) { bad++; continue; }
+    b.push(p);
+  }
+  return { points: b.finish(), bad, columns: columns || [] };
+}
+
 /** GPX: trk/trkseg/trkpt with ele and time (no DOMParser in workers → regex scan). */
 export function readGpx(text) {
   const b = new PointBuilder(4096); let bad = 0;
@@ -242,6 +259,7 @@ export function readWithProfile(text, profile) {
   const kind = profile.read && profile.read.kind;
   if (kind === 'delimited') return readDelimited(text, profile);
   if (kind === 'jsonl') return readJsonl(text, profile);
+  if (kind === 'json') return readJsonArray(text, profile);
   if (kind === 'gpx') return readGpx(text);
   if (kind === 'kml') return readKml(text);
   if (kind === 'igc') return readIgc(text);

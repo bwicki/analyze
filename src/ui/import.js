@@ -60,12 +60,16 @@ export function mountImport(root, ctx) {
       for (const r of results) {
         if (r.error) { toast(`${r.name}: ${r.error}`, true); continue; }
         if (r.unknown) { if (!state.unknown.some((u) => u.name === r.name)) state.unknown.push(r); continue; }
+        // positions without any timestamps (aprs.fi KMZ, a bare KML LineString): nothing to analyse – say so
+        if (r.timeless) { if (!state.unknown.some((u) => u.name === r.name)) state.unknown.push({ name: r.name, size: r.size, timeless: true, points: r.points.n, aprs: /aprs/i.test(r.name) }); continue; }
         if (state.files.some((f) => f.name === r.name && f.size === r.size)) continue; // same file dropped twice
         state.files.push(r);
       }
       prog.textContent = '';
       recompute();
-      if (state.track) { toast(t('imp.done', { n: results.filter((r) => r.points).length })); }
+      if (state.track) toast(t('imp.done', { n: results.filter((r) => r.points && !r.timeless).length }));
+      else if (results.some((r) => r.timeless)) toast(t('imp.timelessToast'), true);
+      else if (results.some((r) => r.unknown)) toast(t('imp.unknownToast'), true);
     } catch (err) { toast(err.message, true); prog.textContent = ''; }
     state.busy = false; ctx.refreshBars();
   }
@@ -107,7 +111,10 @@ export function mountImport(root, ctx) {
       const sa = table.querySelector('[data-showall]'); if (sa) sa.addEventListener('click', () => { state.settings.hideOtherFlights = false; ctx.saveSettings(); el.querySelector('[data-opt="hideOther"]').checked = false; render(); });
     }
     // unknown files
-    unk.innerHTML = state.unknown.map((u) => `<div class="banner warn" style="margin-top:8px"><div class="body"><h3>${esc(t('imp.unknownTitle', { name: u.name }))}</h3>
+    unk.innerHTML = state.unknown.map((u) => u.timeless ? `<div class="banner warn" style="margin-top:8px"><div class="body"><h3>${esc(t('imp.timelessTitle', { name: u.name }))}</h3>
+      <div class="sub">${esc(t('imp.timelessBody', { n: fmtInt(u.points) }))}</div>
+      <div class="sub">${esc(u.aprs ? t('imp.timelessAprs') : t('imp.timelessNext'))}</div>
+      </div><button class="btn xs" type="button" data-act="dropunknown" data-name="${esc(u.name)}">${esc(t('common.remove'))}</button></div>` : `<div class="banner warn" style="margin-top:8px"><div class="body"><h3>${esc(t('imp.unknownTitle', { name: u.name }))}</h3>
       <div class="sub">${esc(t('imp.unknownBody', { eol: u.analysis.eol, delim: u.analysis.delimiter ? JSON.stringify(u.analysis.delimiter) : '–', cols: u.analysis.columns }))}</div>
       <div class="sub">${esc(t('imp.unknownNext'))}</div>
       ${u.analysis.headerRow ? `<div class="mono small" style="margin-top:6px;word-break:break-all">${esc(u.analysis.headerRow.slice(0, 20).join(' · '))}</div>` : ''}
