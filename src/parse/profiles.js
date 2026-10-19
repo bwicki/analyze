@@ -75,12 +75,13 @@ export function detectProfile(name, head, profiles = PROFILES) {
   for (const p of profiles) {
     const d = p.detect || {};
     if (d.headStartsWith && h.startsWith(d.headStartsWith)) return { profile: p };
-    if (d.headMatches && d.headMatches.test(h)) return { profile: p };
+    if (d.headContains && h.includes(d.headContains) && (!d.ext || d.ext.includes(ext))) return { profile: p };
+    if (d.headMatches && (d.headMatches instanceof RegExp ? d.headMatches : new RegExp(d.headMatches)).test(h)) return { profile: p };
   }
   // second pass: by extension only when the content is plausible text
   for (const p of profiles) {
     const d = p.detect || {};
-    if (d.ext && d.ext.includes(ext) && !d.headStartsWith && !d.headMatches) return { profile: p };
+    if (d.ext && d.ext.includes(ext) && !d.headStartsWith && !d.headMatches && !d.headContains) return { profile: p };
   }
   return { unknown: true, analysis: analyseHead(h) };
 }

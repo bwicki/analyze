@@ -77,6 +77,11 @@ export const api = {
     track: (id) => trackText(`/api/view/${id}/track`, { code: null }),
     events: (id) => request('GET', `/api/view/${id}/events`, { code: null }),
   },
+  profiles: {
+    list: () => request('GET', '/api/profiles', { code: null }),
+    create: (name, manufacturer, spec, isPublic = true) => request('POST', '/api/profiles', { body: { name, manufacturer, spec, public: isPublic } }),
+    remove: (id) => request('DELETE', `/api/profiles/${encodeURIComponent(id)}`),
+  },
   /** Ereignislog straight from bwicki/gb_flight_data (needs a Kennung; the Worker holds the token). */
   events: {
     repoFlights: () => request('GET', '/api/events/flights'),
@@ -99,5 +104,7 @@ export const api = {
     deleteCode: (code) => request('DELETE', `/api/admin/codes/${code}`, { admin: true, code: null }),
     deleteFlight: (id) => request('DELETE', `/api/admin/flights/${id}`, { admin: true, code: null }),
     cleanup: () => request('POST', '/api/admin/cleanup', { admin: true, code: null }),
+    profiles: () => request('GET', '/api/admin/profiles', { admin: true, code: null }),
+    deleteProfile: (id) => request('DELETE', `/api/admin/profiles/${encodeURIComponent(id)}`, { admin: true, code: null }),
   },
 };

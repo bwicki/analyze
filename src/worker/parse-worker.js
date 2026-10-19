@@ -18,7 +18,8 @@ async function parseOne(name, bytes, size, profiles, post) {
   const text = decode(bytes);
   const head = text.slice(0, 4000);
   const det = detectProfile(name, head, profiles);
-  if (det.unknown) return { name, size, unknown: true, analysis: det.analysis, head: text.slice(0, 1500) };
+  // unknown format: hand the text to the page so the profile assistant can work on it (≤ 30 MB)
+  if (det.unknown) return { name, size, unknown: true, analysis: det.analysis, head: text.slice(0, 1500), text: text.length <= 30e6 ? text : null };
   post({ type: 'progress', name, stage: 'parse', profile: det.profile.name });
   const t0 = Date.now();
   const r = readWithProfile(text, det.profile);

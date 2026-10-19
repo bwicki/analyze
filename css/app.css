@@ -247,3 +247,14 @@ table.tbl.events tr[data-sel]:hover td{background:#f4f8ff;cursor:default}
 .report table.stats td.lbl,.report table.stats td.v{white-space:nowrap}
 .report table.stats td.note{white-space:normal}
 .report table.stats{font-size:12px}
+
+/* ---- Profil-Assistent ---- */
+.modal.assist{max-width:1000px;max-height:calc(100vh - 40px);overflow:auto}
+.modal.assist .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.modal.assist .head h1{font-size:16px;font-weight:600}
+.steps-nav{display:flex;gap:4px;flex-wrap:wrap}
+.steps-nav .ph{cursor:default}
+pre.sample{margin:0;padding:10px 12px;background:#f9fafb;border:1px solid var(--border);border-radius:8px;font-family:var(--mono);font-size:12px;overflow:auto;max-height:140px;white-space:pre}
+table.tbl.map td{vertical-align:middle}
+table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margin-right:4px}
+.modal.assist .foot{display:flex;gap:10px;align-items:center}

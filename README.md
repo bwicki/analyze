@@ -5,11 +5,11 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.5.0 = Phase 1 komplett + Phase 2 bis auf den Profil-Assistenten:** Kennung (6 Buchstaben),
-eigenes Logo, Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code,
-öffentlicher Viewer, Supermaster-Ansicht, **Ereignislog** aus `bwicki/gb_flight_data` (über den Worker) oder als
-JSON/CSV-Datei – auf Karte, Höhenprofil, in der Tabelle und im Bericht (Seite 3). Dafür läuft ein kleiner Cloudflare
-Worker (`worker/`, D1 + R2) – Einrichtung in §6. Noch offen: 0.6.0 Profil-Assistent; Phase 3: ops-Übergabe, Fotos.
+**Stand: Version 0.6.0 = Phase 1 und 2 komplett:** Kennung (6 Buchstaben), eigenes Logo, Fahrtarchiv «Meine
+Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher Viewer, Supermaster,
+**Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei, **Profil-Assistent**
+für unbekannte Trackerformate (Profile für alle Kennungen geteilt). Dafür läuft ein kleiner Cloudflare Worker
+(`worker/`, D1 + R2) – Einrichtung in §6. Phase 3 (offen): ops-Übergabe, Fotos hinter dem Kurzlink.
 
 ---
 
@@ -27,6 +27,7 @@ Worker (`worker/`, D1 + R2) – Einrichtung in §6. Noch offen: 0.6.0 Profil-Ass
 | `src/ui/start.js`, `flights.js`, `admin.js` | Startseite (Kennung), Meine Fahrten, Supermaster |
 | `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
 | `src/events/log.js`, `src/ui/events.js` | Ereignislog: Normalisierung der Reporting-App-Zeilen, Verknüpfung mit dem Track, Karte/Profil/Tabelle |
+| `src/parse/assist.js`, `src/ui/assist.js`, `src/profiles-store.js` | Profil-Assistent: Dateianalyse, Spaltenvorschläge, Profil-JSON, Vorschau; geteilte und lokale Profile |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql` (D1), `src/` (API) |
 | `404.html` | Leitet Kurzlinks `/v/‹ID›` auf die App um (GitHub Pages) |
 | `tests/` | Automatische Tests (`node --test`), inkl. verdünnter GB26-Daten als Fixture und Worker-API mit Attrappen |
@@ -102,11 +103,20 @@ Der Workflow `.github/workflows/tests.yml` führt sie bei jedem Push aus.
 
 ---
 
-## 5. Neues Trackerprofil (bis der Assistent kommt)
+## 5. Neues Trackerprofil
 
-Ein Profil ist ein Eintrag in `src/parse/profiles.js`: Erkennung (Dateiendung, Kopfzeile), Lesen (Trennzeichen,
-Kopfzeile) und Zuordnung der Spalten zu den Normfeldern (Zeit, Breite, Länge, GPS-Höhe, Druckhöhe, Druck, Vario,
-Fahrt, Kurs, Runtime, Batterie) mit Einheit. Die beiden GB-Instrument-Profile dienen als Vorlage.
+**Profil-Assistent (ab 0.6.0):** Wird eine Datei nicht erkannt, erscheint unter Importieren der Hinweis «Format
+unbekannt» mit dem Knopf **Profil-Assistent öffnen**. Drei Schritte: (1) Datei lesen – Trennzeichen, Kopfzeile,
+Dezimalzeichen werden erkannt und sind änderbar; (2) Spalten zuordnen – Vorschläge je Normfeld aus Spaltennamen und
+Wertebereichen (Zeit als eine Spalte oder Datum + Zeit, Einheiten m/ft, kt/km/h/m/s, cm/s/ft/min, V/%), Vorschau
+mit Zeitraum, Fix-Punkten, Höhen und Trackskizze; (3) Benennen und speichern – mit Kennung wird das Profil über den
+Worker **für alle Kennungen** geteilt, ohne Kennung bleibt es im Browser. Danach wird das Format automatisch erkannt
+(geteilte Profile werden beim Start geladen). Eigene Profile lassen sich unter «Erkannte Trackerprofile» entfernen,
+der Supermaster sieht alle unter «Profile». Erkannt werden CSV/TSV, JSON Lines und JSON-Arrays; GPX/KML/IGC sind
+fest eingebaut.
+
+**Fest eingebaute Profile** stehen in `src/parse/profiles.js` (gleiches JSON-Format: Erkennung, Lesen, Felder mit
+Einheit); die beiden GB-Instrument-Profile dienen als Vorlage.
 
 ---
 
@@ -147,7 +157,8 @@ Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine
 **API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
 `GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
-`/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, 5 min Cache) · `/api/admin/…` (Supermaster,
+`/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-Kennungen, 5 min Cache) · `GET /api/profiles`
+(öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `/api/admin/…` (Supermaster,
 Bearer-Token). Kennung als Header `X-Code`. Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON).
 
 Lizenz: Alle Rechte vorbehalten – Nutzung nur mit ausdrücklicher Zustimmung und Quellenangabe (Wicki Partners Ballonteam).

@@ -8,6 +8,8 @@ import { api, ApiError } from '../api.js';
 import { session, setAdmin, hasServer } from '../session.js';
 import { config } from '../config.js';
 
+const start_code = () => t('start.code');
+
 export function mountAdmin(root, ctx) {
   const el = html(`<main class="page"><div data-body></div></main>`);
   const body = el.querySelector('[data-body]');
@@ -49,7 +51,7 @@ export function mountAdmin(root, ctx) {
 
   async function dashboard() {
     body.innerHTML = `<div class="row-wrap" style="align-items:center;gap:10px">
-        <div class="seg"><button type="button" data-tab="codes">${esc(t('adm.codes'))}</button><button type="button" data-tab="flights">${esc(t('adm.flights'))}</button><button type="button" data-tab="log">${esc(t('adm.log'))}</button></div>
+        <div class="seg"><button type="button" data-tab="codes">${esc(t('adm.codes'))}</button><button type="button" data-tab="flights">${esc(t('adm.flights'))}</button><button type="button" data-tab="profiles">${esc(t('adm.profiles'))}</button><button type="button" data-tab="log">${esc(t('adm.log'))}</button></div>
         <span class="muted small" data-stats></span>
         <span style="margin-left:auto" class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-act="pin">${esc(t('adm.changePin'))}</button><button class="btn sm" type="button" data-act="logout">${esc(t('fl.logout'))} (${esc(session.adminName || '')})</button></span>
       </div>
@@ -72,6 +74,10 @@ export function mountAdmin(root, ctx) {
         const rows = await api.admin.flights();
         c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('fl.col.date'))}</th><th>${esc(t('fl.col.title'))}</th><th>${esc(t('start.code'))}</th><th class="r">${esc(t('fl.points'))}</th><th class="r">${esc(t('adm.size'))}</th><th>${esc(t('adm.updated'))}</th><th>${esc(t('fl.col.viewer'))}</th><th></th></tr></thead><tbody>
           ${rows.map((f) => `<tr><td class="mono">${f.startTs ? fmtDateUTC(f.startTs) : '–'}</td><td>${esc(f.title || '–')}</td><td class="mono">${esc(f.code)}</td><td class="r mono">${fmtInt(f.points)}</td><td class="r mono">${fmtBytes(f.bytes)}</td><td class="mono">${fmtDateTimeUTC(f.updatedAt)}</td><td><a class="mono small" target="_blank" rel="noopener" href="${esc((config.appUrl || location.origin) + '/v/' + f.id)}">/v/${esc(f.id)}</a>${f.public ? '' : ` <span class="tag">${esc(t('fl.private'))}</span>`}</td><td><button class="btn xs" type="button" data-act="delFlight" data-id="${f.id}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="8" class="muted">–</td></tr>`}</tbody></table>`;
+      } else if (tab === 'profiles') {
+        const rows = await api.admin.profiles();
+        c.innerHTML = `<table class="tbl"><thead><tr><th>ID</th><th>${esc(t('as.name'))}</th><th>${esc(t('as.manufacturer'))}</th><th>${esc(t('as.col.column'))}</th><th>${esc(start_code())}</th><th>${esc(t('adm.created'))}</th><th></th></tr></thead><tbody>
+          ${rows.map((p) => `<tr><td class="mono">${esc(p.id)}</td><td>${esc(p.name)}</td><td>${esc(p.manufacturer || '–')}</td><td class="mono small">${esc(p.spec && p.spec.read ? p.spec.read.kind + (p.spec.detect && p.spec.detect.headStartsWith ? ' · ' + p.spec.detect.headStartsWith.slice(0, 40) : '') : '–')}</td><td class="mono">${esc(p.createdBy)}</td><td class="mono">${fmtDateUTC(p.createdAt)}</td><td><button class="btn xs" type="button" data-act="delProfile" data-id="${esc(p.id)}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="7" class="muted">–</td></tr>`}</tbody></table>`;
       } else {
         const rows = await api.admin.log(300);
         c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('adm.time'))}</th><th>${esc(t('adm.who'))}</th><th>${esc(t('adm.action'))}</th><th>${esc(t('adm.detail'))}</th><th>IP</th></tr></thead><tbody>
@@ -90,6 +96,10 @@ export function mountAdmin(root, ctx) {
     delCode: async (b) => {
       const ok = await confirmDialog({ title: t('adm.delCodeTitle'), text: tx('adm.delCodeText', { code: b.dataset.code }), okLabel: t('common.remove'), cancelLabel: t('common.cancel'), danger: true });
       if (ok) { try { await api.admin.deleteCode(b.dataset.code); show(); } catch { toast(t('start.errNetwork'), true); } }
+    },
+    delProfile: async (b) => {
+      const ok = await confirmDialog({ title: t('as.removeTitle'), text: esc(b.dataset.id), okLabel: t('common.remove'), cancelLabel: t('common.cancel'), danger: true });
+      if (ok) { try { await api.admin.deleteProfile(b.dataset.id); show(); } catch { toast(t('start.errNetwork'), true); } }
     },
     delFlight: async (b) => {
       const ok = await confirmDialog({ title: t('fl.deleteTitle'), text: tx('fl.deleteText', { title: b.dataset.id }), okLabel: t('common.remove'), cancelLabel: t('common.cancel'), danger: true });

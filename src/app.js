@@ -18,6 +18,7 @@ import { DETECT_DEFAULTS } from './process/detect.js';
 import { session, hasAccess, hasServer, setMe, clearSession } from './session.js';
 import { api, ApiError } from './api.js';
 import { openFlight } from './flightio.js';
+import { refreshSharedProfiles } from './profiles-store.js';
 
 const root = document.getElementById('app');
 const slots = { header: null, action: null, view: null, footer: null };
@@ -167,6 +168,7 @@ async function boot() {
   bus.on('track', () => { renderHeaderBar(); renderAction(); });
   bus.on('flight', () => { renderHeaderBar(); });
   window.addEventListener('hashchange', () => { const p = phaseFromHash(); if (p && p !== state.phase) gotoPhase(p); });
+  refreshSharedProfiles();
   if (await loadViewer()) return;
   const wanted = phaseFromHash();
   gotoPhase(wanted || (hasServer() && !hasAccess() ? 'start' : 'import'));

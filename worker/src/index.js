@@ -14,7 +14,8 @@
 //   GET|PUT|DELETE /api/flights/<id>         one flight (owner); GET /api/flights/<id>/track → gzip GeoJSON
 //   GET  /api/flights/<id>/events · /api/view/<id>/events   stored event log (JSON array)
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
-//   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code)
+//   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code, team)
+//   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET  /api/admin/setup · POST /api/admin/setup · POST /api/admin/login · POST /api/admin/logout · PUT /api/admin/pin
 //   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock|team · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
 
@@ -24,6 +25,7 @@ import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTr
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
 import { logAction } from './log.js';
+import { listProfiles, createProfile, deleteProfile } from './profiles.js';
 
 const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...extra } });
 
@@ -64,13 +66,15 @@ export async function api(request, env, url, ctx) {
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
   if (viewEventsId && m === 'GET') return viewEvents(env, viewEventsId);
 
+  if (path === '/api/profiles' && m === 'GET') return json(await listProfiles(env), 200, { 'Cache-Control': 'public, max-age=120' });
+
   if (path === '/api/codes' && m === 'POST') {
     if (rateLimited('create:' + ip, 5)) throw new HttpError(429, 'too many new codes – try again later');
     return json(await createCode(env, await readJson(request), request));
   }
 
   // ---- code user ---------------------------------------------------------------------------------
-  if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events')) {
+  if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
     const user = await codeFromRequest(env, request, url);
     if (!user) {
       if (rateLimited('guess:' + ip, 30)) throw new HttpError(429, 'too many attempts');
@@ -86,6 +90,9 @@ export async function api(request, env, url, ctx) {
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
     if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
+    if (path === '/api/profiles' && m === 'POST') { if (rateLimited('profile:' + ip, 10)) throw new HttpError(429, 'too many profiles'); return json(await createProfile(env, user, await readJson(request), request)); }
+    const profId = seg(/^\/api\/profiles\/([^/]+)$/);
+    if (profId && m === 'DELETE') return json(await deleteProfile(env, { code: user.code }, profId, request));
     // Ereignislog straight from the repo: only Kennungen the Supermaster flagged as team (decision 19.10.2026)
     if (path.startsWith('/api/events') && !user.team) throw new HttpError(403, 'code not enabled for the event log');
     if (path === '/api/events/flights' && m === 'GET') return json(await listRepoFlights(env, ctx));
@@ -113,6 +120,9 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/admin/codes' && m === 'GET') return json(await adminCodes(env));
     if (path === '/api/admin/flights' && m === 'GET') return json(await adminFlights(env, url.searchParams.get('limit')));
     if (path === '/api/admin/log' && m === 'GET') return json(await adminLog(env, url.searchParams.get('limit')));
+    if (path === '/api/admin/profiles' && m === 'GET') return json(await listProfiles(env, { all: true }));
+    const admProf = seg(/^\/api\/admin\/profiles\/([^/]+)$/);
+    if (admProf && m === 'DELETE') return json(await deleteProfile(env, { admin: true, name: admin.name }, admProf, request));
     const blockCode = seg(/^\/api\/admin\/codes\/([^/]+)\/block$/);
     if (blockCode && m === 'POST') return json(await setBlocked(env, admin, blockCode, true, request));
     const unblockCode = seg(/^\/api\/admin\/codes\/([^/]+)\/unblock$/);

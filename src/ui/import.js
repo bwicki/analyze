@@ -5,6 +5,9 @@ import { esc, html, onAct, toast, confirmDialog } from '../util/dom.js';
 import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtTimeUTC, fmtDurationHM, fmtDayUTC } from '../util/format.js';
 import { state, bus, recompute, resetAll } from '../state.js';
 import { parseFiles } from '../parser.js';
+import { openAssistant } from './assist.js';
+import { removeProfile, sharedProfiles, localProfiles } from '../profiles-store.js';
+import { session } from '../session.js';
 
 const ACCEPT = '.csv,.jsonl,.json,.geojson,.txt,.gpx,.kml,.kmz,.igc,.zip,.log,.nmea';
 
@@ -56,7 +59,7 @@ export function mountImport(root, ctx) {
   async function addFiles(list) {
     state.busy = true; prog.textContent = t('imp.reading', { n: list.length }); ctx.refreshBars();
     try {
-      const results = await parseFiles(list, (m) => { prog.textContent = m.stage === 'parse' ? t('imp.parsing', { name: m.name, profile: m.profile }) : t('imp.readingFile', { name: m.name }); });
+      const results = await parseFiles(list, (m) => { prog.textContent = m.stage === 'parse' ? t('imp.parsing', { name: m.name, profile: m.profile }) : t('imp.readingFile', { name: m.name }); }, state.userProfiles);
       for (const r of results) {
         if (r.error) { toast(`${r.name}: ${r.error}`, true); continue; }
         if (r.unknown) { if (!state.unknown.some((u) => u.name === r.name)) state.unknown.push(r); continue; }
@@ -79,6 +82,14 @@ export function mountImport(root, ctx) {
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: b.dataset.to !== 'off' && b.dataset.to !== 'use' }); },
     dropfile: (b) => { state.files = state.files.filter((f) => f.name !== b.dataset.name); recompute(); },
     dropunknown: (b) => { state.unknown = state.unknown.filter((f) => f.name !== b.dataset.name); render(); },
+    assist: async (b) => {
+      const u = state.unknown.find((f) => f.name === b.dataset.name); if (!u || !u.text) return;
+      const profile = await openAssistant(u);
+      if (!profile) return;
+      state.unknown = state.unknown.filter((f) => f.name !== u.name);
+      await addFiles([new File([u.text], u.name, { type: 'text/plain' })]);
+    },
+    dropprofile: async (b) => { try { await removeProfile(b.dataset.id, { code: session.code }); toast(t('as.removed')); render(); } catch { toast(t('start.errNetwork'), true); } },
   });
 
   function statusPill(s) {
@@ -116,12 +127,18 @@ export function mountImport(root, ctx) {
       <div class="sub">${esc(u.aprs ? t('imp.timelessAprs') : t('imp.timelessNext'))}</div>
       </div><button class="btn xs" type="button" data-act="dropunknown" data-name="${esc(u.name)}">${esc(t('common.remove'))}</button></div>` : `<div class="banner warn" style="margin-top:8px"><div class="body"><h3>${esc(t('imp.unknownTitle', { name: u.name }))}</h3>
       <div class="sub">${esc(t('imp.unknownBody', { eol: u.analysis.eol, delim: u.analysis.delimiter ? JSON.stringify(u.analysis.delimiter) : '–', cols: u.analysis.columns }))}</div>
-      <div class="sub">${esc(t('imp.unknownNext'))}</div>
+      <div class="sub">${esc(u.text ? t('imp.unknownAssist') : t('imp.unknownNext'))}</div>
       ${u.analysis.headerRow ? `<div class="mono small" style="margin-top:6px;word-break:break-all">${esc(u.analysis.headerRow.slice(0, 20).join(' · '))}</div>` : ''}
-      </div><button class="btn xs" type="button" data-act="dropunknown" data-name="${esc(u.name)}">${esc(t('common.remove'))}</button></div>`).join('');
+      </div><div class="col" style="gap:6px">${u.text ? `<button class="btn sm primary" type="button" data-act="assist" data-name="${esc(u.name)}">${esc(t('imp.assistBtn'))}</button>` : ''}<button class="btn xs" type="button" data-act="dropunknown" data-name="${esc(u.name)}">${esc(t('common.remove'))}</button></div></div>`).join('');
     // profiles
     const seen = new Map(); for (const f of state.files) if (f.profile) seen.set(f.profile.id, f.profile.name);
-    profs.innerHTML = [...seen.values()].map((n) => `<span class="pill sm"><span class="dot g"></span>${esc(n)}</span>`).join('') + state.unknown.map((u) => `<span class="pill sm"><span class="dot y"></span>${esc(t('imp.unknownPill', { name: u.name }))}</span>`).join('') || `<span class="muted small">${esc(t('imp.noProfiles'))}</span>`;
+    const mine = [...sharedProfiles().filter((p) => p.createdBy && p.createdBy === session.code).map((p) => ({ id: p.id, name: p.name, where: 'shared' })), ...localProfiles().map((p) => ({ id: p.id, name: p.name, where: 'local' }))];
+    const others = sharedProfiles().filter((p) => !(p.createdBy && p.createdBy === session.code)).map((p) => ({ id: p.id, name: p.name }));
+    profs.innerHTML = ([...seen.values()].map((n) => `<span class="pill sm"><span class="dot g"></span>${esc(n)}</span>`).join('')
+      + state.unknown.map((u) => `<span class="pill sm"><span class="dot y"></span>${esc(t('imp.unknownPill', { name: u.name }))}</span>`).join('')
+      + mine.map((p) => `<span class="pill sm" title="${esc(p.where === 'shared' ? t('as.pillShared') : t('as.pillLocal'))}"><span class="dot b"></span>${esc(p.name)}${seen.has(p.id) ? '' : ''} <button type="button" class="tt-x inline" data-act="dropprofile" data-id="${esc(p.id)}" title="${esc(t('common.remove'))}">×</button></span>`).join('')
+      + others.map((p) => `<span class="pill sm" title="${esc(t('as.pillShared'))}"><span class="dot x"></span>${esc(p.name)}</span>`).join(''))
+      || `<span class="muted small">${esc(t('imp.noProfiles'))}</span>`;
     // tiles
     const tr = state.track;
     if (tr) {
@@ -133,10 +150,10 @@ export function mountImport(root, ctx) {
     } else tiles.innerHTML = '';
   }
 
-  const off = bus.on('track', render);
+  const off = bus.on('track', render), off2 = bus.on('profiles', render);
   render();
   root.appendChild(el);
-  return { unmount: off };
+  return { unmount: () => { off(); off2(); } };
 }
 
 /** Status line for the action bar. */

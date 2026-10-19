@@ -8,7 +8,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.5.2';
+export const VERSION = '0.6.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -46,6 +46,7 @@ export const state = {
   ignoredLandings: [],  // times (ms) of auto-detected intermediate landings the user removed (false touchdowns)
   hover: null,      // index on the track under the cursor (map ↔ profile)
   evlog: null,      // Ereignislog: {source: {kind: 'repo'|'file'|'saved', flight, name}, rows (raw), events (normalised), linked}
+  userProfiles: [], // tracker profiles from the assistant (shared via the Worker + local), ahead of the built-in ones
   flight: null,     // {id, title, url, updatedAt, public} once the current analysis is saved under the Kennung
   viewer: null,     // {id, title, owner:{code, displayName, logo}} when opened through a short link (read-only)
 };

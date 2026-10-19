@@ -7,7 +7,7 @@ import { normalizeCode, isCode, isFlightId, randomCode, hashPin, verifyPin } fro
 
 // ---- fake D1: a handful of SQL shapes mapped onto JS arrays ------------------------------------------
 function fakeD1() {
-  const T = { codes: [], flights: [], admins: [], tokens: [], usage_log: [] };
+  const T = { codes: [], flights: [], admins: [], tokens: [], usage_log: [], profiles: [] };
   const run = (sql, args) => {
     const s = sql.replace(/\s+/g, ' ').trim();
     const a = (i) => args[i - 1];
@@ -45,6 +45,11 @@ function fakeD1() {
     if (/^SELECT token, name, expires_at FROM tokens/.test(s)) return T.tokens.filter((x) => x.token === a(1));
     if (/^DELETE FROM tokens WHERE token/.test(s)) { T.tokens = T.tokens.filter((x) => x.token !== a(1)); return []; }
     if (/^DELETE FROM tokens WHERE expires_at/.test(s)) { T.tokens = T.tokens.filter((x) => x.expires_at >= a(1)); return []; }
+    if (/^SELECT \* FROM tracker_profiles WHERE public = 1/.test(s)) return T.profiles.filter((p) => p.public);
+    if (/^SELECT \* FROM tracker_profiles ORDER BY/.test(s)) return T.profiles.slice();
+    if (/^SELECT (\*|id) FROM tracker_profiles WHERE id/.test(s)) return T.profiles.filter((p) => p.id === a(1));
+    if (/^INSERT INTO tracker_profiles/.test(s)) { T.profiles.push({ id: a(1), name: a(2), manufacturer: a(3), version: 1, spec: a(4), created_by: a(5), public: a(6), created_at: a(7), updated_at: a(7) }); return []; }
+    if (/^DELETE FROM tracker_profiles/.test(s)) { T.profiles = T.profiles.filter((p) => p.id !== a(1)); return []; }
     if (/^INSERT INTO usage_log/.test(s)) { T.usage_log.push({ t: a(1), who: a(2), action: a(3), detail: a(4), ip: a(5) }); return []; }
     if (/^SELECT t, who, action, detail, ip FROM usage_log/.test(s)) return T.usage_log.slice().reverse().slice(0, a(1));
     if (/^DELETE FROM usage_log/.test(s)) { T.usage_log = T.usage_log.filter((x) => x.t >= a(1)); return []; }
@@ -153,6 +158,30 @@ test('code: create, me, save flight, list, view, update, delete', async () => {
   assert.equal((await call(e, 'DELETE', `/api/flights/${saved.id}`, { headers: H })).status, 200);
   assert.equal((await (await call(e, 'GET', '/api/flights', { headers: H })).json()).length, 0);
   assert.equal(e.FILES.objs.size, 1);                       // only the logo is left
+});
+
+test('shared tracker profiles: public list, create with a code, validation, delete by owner/admin', async () => {
+  const e = env();
+  assert.deepEqual(await (await call(e, 'GET', '/api/profiles')).json(), []);
+  const c = await (await call(e, 'POST', '/api/codes', { body: { displayName: 'X' } })).json();
+  const H = { 'X-Code': c.code };
+  const spec = { id: 'garmin-test-delimited', detect: { ext: ['txt'], headStartsWith: 'time,lat,lon' }, read: { kind: 'delimited', delimiter: ',', header: true, decimal: '.' }, fields: { time: { col: 'time', format: 'auto' }, lat: { col: 'lat' }, lon: { col: 'lon' } }, validity: { noFixWhenZero: true, minYear: 2015 } };
+  assert.equal((await call(e, 'POST', '/api/profiles', { body: { name: 'G', spec } })).status, 401);
+  assert.equal((await call(e, 'POST', '/api/profiles', { body: { name: 'G', spec: { ...spec, detect: { headMatches: '.*' } } }, headers: H })).status, 400);
+  assert.equal((await call(e, 'POST', '/api/profiles', { body: { name: 'G', spec: { ...spec, fields: { lat: { col: 'lat' } } } }, headers: H })).status, 400);
+  const p = await (await call(e, 'POST', '/api/profiles', { body: { name: 'Garmin Test', manufacturer: 'Garmin', spec }, headers: H })).json();
+  assert.equal(p.id, 'garmin-test-delimited'); assert.equal(p.spec.name, 'Garmin Test'); assert.equal(p.public, true);
+  const p2 = await (await call(e, 'POST', '/api/profiles', { body: { name: 'Garmin Test', spec }, headers: H })).json();
+  assert.notEqual(p2.id, p.id);                                   // same id → suffix
+  assert.equal((await (await call(e, 'GET', '/api/profiles')).json()).length, 2);
+  const c2 = await (await call(e, 'POST', '/api/codes', { body: {} })).json();
+  assert.equal((await call(e, 'DELETE', `/api/profiles/${p.id}`, { headers: { 'X-Code': c2.code } })).status, 403);
+  assert.equal((await call(e, 'DELETE', `/api/profiles/${p.id}`, { headers: H })).status, 200);
+  await call(e, 'POST', '/api/admin/setup', { body: { name: 'bwicki', pin: '123456' } });
+  const { token } = await (await call(e, 'POST', '/api/admin/login', { body: { name: 'bwicki', pin: '123456' } })).json();
+  assert.equal((await (await call(e, 'GET', '/api/admin/profiles', { headers: { Authorization: `Bearer ${token}` } })).json()).length, 1);
+  assert.equal((await call(e, 'DELETE', `/api/admin/profiles/${p2.id}`, { headers: { Authorization: `Bearer ${token}` } })).status, 200);
+  assert.deepEqual(await (await call(e, 'GET', '/api/profiles')).json(), []);
 });
 
 test('admin: setup once, login, lists, block, delete', async () => {
