@@ -5,7 +5,8 @@
 --   * Users have a 6-letter code (Kennung) and nothing else – whoever knows the code can read,
 --     save and delete that code's flights. No PIN for users.
 --   * The Supermaster (admins table) logs in with a name and a PIN; only he sees all codes,
---     flights, tracker profiles and the usage log.
+--     flights, tracker profiles and the usage log, and grants the "team" flag (Ereignislog access).
+-- Existing databases (created before 0.5.1): run once  ALTER TABLE codes ADD COLUMN team INTEGER NOT NULL DEFAULT 0;
 CREATE TABLE IF NOT EXISTS codes (
   code          TEXT PRIMARY KEY,            -- 6 chars, alphabet without I/O/0/1, e.g. KQZMWB
   display_name  TEXT NOT NULL DEFAULT '',
@@ -16,7 +17,8 @@ CREATE TABLE IF NOT EXISTS codes (
   prefs         TEXT NOT NULL DEFAULT '{}',  -- JSON: default balloon, PIC, … (phase 2b)
   created_at    INTEGER NOT NULL,
   last_seen     INTEGER,
-  blocked       INTEGER NOT NULL DEFAULT 0
+  blocked       INTEGER NOT NULL DEFAULT 0,
+  team          INTEGER NOT NULL DEFAULT 0   -- 1 = may read the Ereignislog from gb_flight_data (set by the Supermaster)
 );
 CREATE TABLE IF NOT EXISTS flights (
   id            TEXT PRIMARY KEY,            -- 8 chars, same alphabet; also the short link /v/<id>

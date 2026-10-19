@@ -51,7 +51,7 @@ export async function codeFromRequest(env, request, url) {
   const raw = request.headers.get('X-Code') || (url && url.searchParams.get('code')) || '';
   const code = normalizeCode(raw);
   if (!isCode(code)) return null;
-  const row = await env.DB.prepare('SELECT code, display_name, logo_key, logo_type, lang, units, prefs, created_at, last_seen, blocked FROM codes WHERE code = ?1').bind(code).first();
+  const row = await env.DB.prepare('SELECT code, display_name, logo_key, logo_type, lang, units, prefs, created_at, last_seen, blocked, team FROM codes WHERE code = ?1').bind(code).first();
   if (!row) return null;
   if (row.blocked) throw new HttpError(403, 'code blocked');
   return row;

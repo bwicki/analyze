@@ -16,13 +16,13 @@
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code)
 //   GET  /api/admin/setup · POST /api/admin/setup · POST /api/admin/login · POST /api/admin/logout · PUT /api/admin/pin
-//   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
+//   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock|team · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
 
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
 import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup } from './flights.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
-import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
+import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
 import { logAction } from './log.js';
 
 const json = (data, status = 200, extra = {}) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', ...extra } });
@@ -86,7 +86,8 @@ export async function api(request, env, url, ctx) {
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
     if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
-    // Ereignislog straight from the repo (team data – any valid Kennung; the token stays in the Worker)
+    // Ereignislog straight from the repo: only Kennungen the Supermaster flagged as team (decision 19.10.2026)
+    if (path.startsWith('/api/events') && !user.team) throw new HttpError(403, 'code not enabled for the event log');
     if (path === '/api/events/flights' && m === 'GET') return json(await listRepoFlights(env, ctx));
     const mediaFile = seg(/^\/api\/events\/media\/([^/]+)$/);
     if (mediaFile && m === 'GET') return getRepoMedia(env, mediaFile, ctx);
@@ -116,6 +117,8 @@ export async function api(request, env, url, ctx) {
     if (blockCode && m === 'POST') return json(await setBlocked(env, admin, blockCode, true, request));
     const unblockCode = seg(/^\/api\/admin\/codes\/([^/]+)\/unblock$/);
     if (unblockCode && m === 'POST') return json(await setBlocked(env, admin, unblockCode, false, request));
+    const teamCode = seg(/^\/api\/admin\/codes\/([^/]+)\/team$/);
+    if (teamCode && m === 'POST') return json(await setTeam(env, admin, teamCode, !!(await readJson(request)).team, request));
     const delCode = seg(/^\/api\/admin\/codes\/([^/]+)$/);
     if (delCode && m === 'DELETE') return json(await adminDeleteCode(env, admin, delCode, request));
     const delFlight = seg(/^\/api\/admin\/flights\/([^/]+)$/);

@@ -52,6 +52,14 @@ export async function adminCodes(env) {
   return (r.results || []).map((row) => ({ ...meView(row, { n: row.n, bytes: row.bytes }), blocked: !!row.blocked }));
 }
 
+export async function setTeam(env, admin, codeRaw, team, request) {
+  const code = normalizeCode(codeRaw);
+  if (!isCode(code)) throw new HttpError(404, 'not found');
+  await env.DB.prepare('UPDATE codes SET team = ?2 WHERE code = ?1').bind(code, team ? 1 : 0).run();
+  await logAction(env, `admin:${admin.name}`, team ? 'code.team' : 'code.unteam', code, request);
+  return { ok: true, team: !!team };
+}
+
 export async function adminFlights(env, limit = 500) {
   const r = await env.DB.prepare('SELECT * FROM flights ORDER BY updated_at DESC LIMIT ?1').bind(Math.min(2000, Number(limit) || 500)).all();
   return (r.results || []).map((row) => flightView(row, { withOwner: true }));

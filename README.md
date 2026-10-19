@@ -62,11 +62,15 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    oder Zeiten; Protokoll der Aufbereitung.
 3. **Auswerten** – Karte (Strasse/Topo/Satellit, Farbe nach Vario oder Höhe, Zeitmarker), Kennzahlen (ICAO oder
    metrisch), Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ Marker auf der Karte.
-   «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. **Ereignislog:** «Aus gb_flight_data verknüpfen»
-   (abgeschlossene Fahrten der Reporting-App, passende nach Zeitraum markiert; braucht Kennung und Worker-Token) oder
+   «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. Klick auf den Track (Karte) oder ins Profil hält den
+   Zeitpunkt in beiden fest. Ortsnamen im Format `CH-Willisau`. Eine fälschlich erkannte **Zwischenlandung**
+   (Richtungsumkehr, Stillstand) entfernt das × am Marker bzw. in der Kennzahlenliste/Bereinigen; die beiden
+   Abschnitte werden zusammengefügt (wiederherstellbar). **Ereignislog:** «Aus gb_flight_data verknüpfen»
+   (abgeschlossene Fahrten der Reporting-App, passende nach Zeitraum markiert; braucht Kennung mit Team-Freigabe und Worker-Token) oder
    «Datei (JSON/CSV)» (Export der Reporting-App). Ereignisse erscheinen als farbige Marker auf Karte und Profil,
    als Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach Typ; Maus über eine Zeile zeigt den Punkt.
-   Beim Speichern der Fahrt wird das Log mitgespeichert (Viewer und «Öffnen» zeigen es).
+   Beim Speichern der Fahrt wird das Log mitgespeichert (Viewer und «Öffnen» zeigen es). Ballast-Restbestand aus
+   den Ballast-Einträgen erscheint als gestrichelte Linie im Höhenprofil (rechte Skala).
 4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
    tragen Kurzlink und QR-Code in der Fusszeile.
 5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar. **Fahrt speichern** legt den
@@ -79,7 +83,7 @@ einzige Geheimnis – wer sie kennt, sieht und ändert die Fahrten darunter. «O
 Logo (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst Ballonteam-Logo), Vorgaben (Standard-Ballon, PIC).
 **Viewer:** Der Kurzlink zeigt Auswerten und Bericht ohne Kennung, ohne Bearbeiten.
 **Supermaster** (☰ → Supermaster oder `#admin`): einmalig Name + PIN einrichten; sieht alle Kennungen (sperren,
-löschen), alle Fahrten und das Nutzungsprotokoll.
+löschen, **Team-Freigabe** für das Ereignislog aus gb_flight_data), alle Fahrten und das Nutzungsprotokoll.
 
 Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen), Kennung wechseln.
 
@@ -133,7 +137,8 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    Fine-grained tokens → Generate*: Repository access nur `bwicki/gb_flight_data`, Permission **Contents: Read-only**,
    Ablauf z. B. 1 Jahr. Token als GitHub-Secret `GITHUB_DATA_TOKEN` im Repo `bwicki/analyze` hinterlegen und
    «Deploy worker» einmal laufen lassen – der Workflow legt es als Worker-Secret ab (`wrangler secret put`); der
-   Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs.
+   Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs. Danach im Supermaster bei den
+   Kennungen des Ballonteams «Team-Zugang geben» – nur diese sehen den Knopf «Aus gb_flight_data verknüpfen».
 
 Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
 730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro Kennung: 300 MB

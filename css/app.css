@@ -207,7 +207,9 @@ footer.app{padding:10px 28px;font-size:12px;color:var(--muted);border-top:1px so
   main.page{padding:0;gap:10px}
   .card{border:0;padding:0;break-inside:avoid}
   .map{height:420px;border:1px solid #ccc}
-  .report{border:0;padding:0;max-width:none}
+  .report{border:0;padding:0;max-width:none;font-size:12px}
+  .report table.stats{font-size:11px}
+  .report .sig{margin-top:30px}
   @page{size:A4;margin:14mm}
 }
 
@@ -233,3 +235,15 @@ table.tbl.flights td:nth-child(2),table.tbl.flights td:nth-child(4){white-space:
 .pill.fchip.off{opacity:.45;text-decoration:line-through}
 table.tbl.events td{vertical-align:top}
 table.tbl.events tr[data-sel]:hover td{background:#f4f8ff;cursor:default}
+
+/* ---- 0.5.1 feedback: tiles with inline units, pin, × on intermediate landings, print ---- */
+.tile .v small{font-size:13px;font-weight:500;color:var(--muted);font-family:var(--sans);margin-left:6px}
+.tt-x{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;border:1px solid var(--border-strong);background:#fff;color:var(--red);font-size:14px;line-height:1;cursor:pointer;padding:0;margin-left:6px;vertical-align:middle;font-weight:700}
+.tt-x:hover{background:var(--red);color:#fff;border-color:var(--red)}
+.leaflet-tooltip.tt-inter{pointer-events:auto;padding-right:6px}
+.leaflet-tooltip.tt-inter .tt-x{position:relative;top:-1px}
+.val .inter{white-space:nowrap}
+.report .sigblock{break-inside:avoid;page-break-inside:avoid;margin-top:24px}
+.report table.stats td.lbl,.report table.stats td.v{white-space:nowrap}
+.report table.stats td.note{white-space:normal}
+.report table.stats{font-size:12px}

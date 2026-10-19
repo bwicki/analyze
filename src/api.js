@@ -95,6 +95,7 @@ export const api = {
     flights: () => request('GET', '/api/admin/flights?limit=500', { admin: true, code: null }),
     log: (limit = 200) => request('GET', `/api/admin/log?limit=${limit}`, { admin: true, code: null }),
     block: (code, blocked) => request('POST', `/api/admin/codes/${code}/${blocked ? 'block' : 'unblock'}`, { admin: true, code: null }),
+    team: (code, team) => request('POST', `/api/admin/codes/${code}/team`, { body: { team }, admin: true, code: null }),
     deleteCode: (code) => request('DELETE', `/api/admin/codes/${code}`, { admin: true, code: null }),
     deleteFlight: (id) => request('DELETE', `/api/admin/flights/${id}`, { admin: true, code: null }),
     cleanup: () => request('POST', '/api/admin/cleanup', { admin: true, code: null }),

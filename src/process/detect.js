@@ -78,12 +78,33 @@ export function detectEvents(track, series, opts = {}) {
     let p = i; while (p > 0 && !ps.fix[p]) p--;
     return { type: e.type, idx: i, t: t[i], lat: ps.fix[p] ? ps.lat[p] : NaN, lon: ps.fix[p] ? ps.lon[p] : NaN, alt: series.alt[i] };
   });
-  // recompute states from final events
-  states.fill(0);
+  return { events, states: statesFromEvents(events, n), mGs, mVs };
+}
+
+/** Airborne flags per point from the event list (1 = between a take-off and the next landing). */
+export function statesFromEvents(events, n) {
+  const states = new Uint8Array(n);
   let on = false, from = 0;
   for (const e of events) { if (e.type === 'takeoff') { on = true; from = e.idx; } else if (on) { states.fill(1, from, e.idx + 1); on = false; } }
   if (on) states.fill(1, from, n);
-  return { events, states, mGs, mVs };
+  return states;
+}
+
+/**
+ * Drop intermediate landings the user marked as false (a direction reversal or a zero-speed phase
+ * looks like a touchdown): the landing and the take-off that follows it are removed, so the two
+ * legs merge. ignored: landing times (ms); matches within 1 s.
+ */
+export function dropIgnoredLandings(events, ignored = []) {
+  if (!ignored.length) return events;
+  const out = []; let skipNextTakeoff = false;
+  for (const e of events) {
+    if (e.type === 'landing' && ignored.some((x) => Math.abs(x - e.t) < 1000)) { skipNextTakeoff = true; continue; }
+    if (e.type === 'takeoff' && skipNextTakeoff) { skipNextTakeoff = false; continue; }
+    skipNextTakeoff = false;
+    out.push(e);
+  }
+  return out;
 }
 
 /** Trim proposal: reserve before the first take-off and after the last landing (ms). */

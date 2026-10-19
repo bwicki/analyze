@@ -3,7 +3,7 @@
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast } from '../util/dom.js';
 import { fmtInt, fmtTimeUTC, fmtDayUTC, fmtDateTimeUTC, fmtDurationHM, icaoShort, pad2 } from '../util/format.js';
-import { state, bus, setTrim, setManualLanding, recompute } from '../state.js';
+import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restoreLandings } from '../state.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
 
 const W = 1180, H = 150, L = 20, R = 20;
@@ -45,6 +45,8 @@ export function mountClean(root, ctx) {
     landing: () => { const v = prompt(t('cln.landingPrompt'), fmtUtcInput(state.stats.landing ? state.stats.landing.t : state.trim.to)); if (v === null) return; const ms = parseUtc(v); if (Number.isNaN(ms)) { toast(t('cln.badTime'), true); return; } setManualLanding(ms); },
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: false }); },
     redetect: () => recompute({ reclassify: false }),
+    ignore: (b) => { ignoreLanding(+b.dataset.t); toast(t('ana.landingIgnored')); },
+    restore: () => restoreLandings(),
   });
 
   function render() {
@@ -104,7 +106,7 @@ export function mountClean(root, ctx) {
       <div class="row"><span class="k2">${esc(t('cln.position'))}</span><span class="val small">${st.takeoff ? icaoShort(st.takeoff.lat, st.takeoff.lon) : '–'}</span></div>
       <div class="row"><span>${esc(t('cln.landing'))}</span><span class="val">${st.landing ? fmtDateTimeUTC(st.landing.t, true) : '–'}${st.landing && st.landing.manual ? ' ✎' : ''}</span></div>
       <div class="row"><span class="k2">${esc(t('cln.position'))}</span><span class="val small">${st.landing ? icaoShort(st.landing.lat, st.landing.lon) : '–'}</span></div>
-      <div class="row"><span>${esc(t('cln.intermediate'))}</span><span class="val">${st.intermediate.length ? st.intermediate.map((l) => fmtTimeUTC(l.t)).join(', ') : esc(t('cln.none'))}</span></div>
+      <div class="row"><span>${esc(t('cln.intermediate'))}</span><span class="val">${st.intermediate.length ? st.intermediate.map((l) => `<span class="inter">${fmtTimeUTC(l.t)} <button type="button" class="tt-x inline" data-act="ignore" data-t="${l.t}" title="${esc(t('ana.ignoreLanding'))}">×</button></span>`).join('<br>') : esc(t('cln.none'))}${state.ignoredLandings.length ? `<br><span class="sub">${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))} · <a href="#" data-act="restore">${esc(t('ana.restoreLandings'))}</a></span>` : ''}</span></div>
       ${!st.landing ? `<div class="banner warn"><div class="body"><div class="sub">${esc(t('cln.noLanding'))}</div></div></div>` : ''}
       <div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-act="landing">${esc(t('cln.setLanding'))}</button><button class="btn sm" type="button" data-act="redetect">${esc(t('cln.redetect'))}</button></div>
       <details class="exp"><summary>${esc(t('cln.rules'))}</summary><div>

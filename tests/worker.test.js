@@ -19,12 +19,13 @@ function fakeD1() {
     if (/^SELECT COUNT\(\*\) AS n, COALESCE\(SUM\(track_bytes\), 0\) AS bytes FROM flights WHERE code/.test(s)) { const fs = T.flights.filter((f) => f.code === a(1)); return [{ n: fs.length, bytes: fs.reduce((x, f) => x + f.track_bytes, 0) }]; }
     if (/^SELECT code FROM codes WHERE code/.test(s)) return T.codes.filter((c) => c.code === a(1)).map((c) => ({ code: c.code }));
     if (/^SELECT (\*|code, display_name[^F]*|logo_key, logo_type, blocked|logo_key) FROM codes WHERE code/.test(s)) return T.codes.filter((c) => c.code === a(1));
-    if (/^INSERT INTO codes/.test(s)) { T.codes.push({ code: a(1), display_name: a(2), lang: a(3), units: a(4), prefs: a(5), created_at: a(6), last_seen: a(6), logo_key: null, logo_type: null, blocked: 0 }); return []; }
+    if (/^INSERT INTO codes/.test(s)) { T.codes.push({ code: a(1), display_name: a(2), lang: a(3), units: a(4), prefs: a(5), created_at: a(6), last_seen: a(6), logo_key: null, logo_type: null, blocked: 0, team: 0 }); return []; }
     if (/^UPDATE codes SET last_seen/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); if (c) c.last_seen = a(2); return []; }
     if (/^UPDATE codes SET display_name/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); Object.assign(c, { display_name: a(2), lang: a(3), units: a(4), prefs: a(5) }); return []; }
     if (/^UPDATE codes SET logo_key = \?2/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); Object.assign(c, { logo_key: a(2), logo_type: a(3) }); return []; }
     if (/^UPDATE codes SET logo_key = NULL/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); Object.assign(c, { logo_key: null, logo_type: null }); return []; }
     if (/^UPDATE codes SET blocked/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); c.blocked = a(2); return []; }
+    if (/^UPDATE codes SET team/.test(s)) { const c = T.codes.find((x) => x.code === a(1)); c.team = a(2); return []; }
     if (/^DELETE FROM codes/.test(s)) { T.codes = T.codes.filter((c) => c.code !== a(1)); return []; }
     if (/^SELECT c\.\*, \(SELECT COUNT/.test(s)) return T.codes.map((c) => ({ ...c, n: T.flights.filter((f) => f.code === c.code).length, bytes: 0 }));
     if (/^SELECT \* FROM flights WHERE code/.test(s)) return T.flights.filter((f) => f.code === a(1));
@@ -122,7 +123,9 @@ test('code: create, me, save flight, list, view, update, delete', async () => {
   const none = new FormData(); none.set('meta', '{}'); none.set('events', '');
   assert.equal((await (await call(e, 'PUT', `/api/flights/${saved.id}`, { body: none, headers: H })).json()).hasEvents, false);
   assert.deepEqual(await (await call(e, 'GET', `/api/flights/${saved.id}/events`, { headers: H })).json(), []);
-  // repo event log needs the token
+  // repo event log: team flag first (403), then the token (503)
+  assert.equal((await call(e, 'GET', '/api/events/flights', { headers: H })).status, 403);
+  e.DB.T.codes.find((x) => x.code === c.code).team = 1;
   assert.equal((await call(e, 'GET', '/api/events/flights', { headers: H })).status, 503);
   // own track + public viewer
   const tr = await call(e, 'GET', `/api/flights/${saved.id}/track`, { headers: H });
@@ -169,6 +172,8 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'POST', `/api/admin/codes/${c.code}/block`, { headers: A })).status, 200);
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 403);
   assert.equal((await call(e, 'POST', `/api/admin/codes/${c.code}/unblock`, { headers: A })).status, 200);
+  assert.equal((await (await call(e, 'POST', `/api/admin/codes/${c.code}/team`, { headers: A, body: { team: true } })).json()).team, true);
+  assert.equal((await (await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).json()).team, true);
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 200);
   const stats = await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json();
   assert.equal(stats.codes, 1); assert.equal(stats.retentionDays, 730);

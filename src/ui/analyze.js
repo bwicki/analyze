@@ -4,13 +4,13 @@ import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast, copyText } from '../util/dom.js';
 import { fmtInt, fmtNum, fmtTimeUTC, fmtDateTimeUTC, fmtDurationHM, fmtDurationClock, fmtBearing, icaoShort, fmtLocalByLon, fmtDayUTC } from '../util/format.js';
 import { makeUnits } from '../util/units.js';
-import { state, bus } from '../state.js';
+import { state, bus, ignoreLanding } from '../state.js';
 import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, VARIO_COLORS, ALT_COLORS, varioClass, altClass } from './map.js';
 import { renderProfile } from './profile.js';
 import { downloadKmz } from '../export/download.js';
-import { mountEventsCard, eventsForDisplay } from './events.js';
+import { mountEventsCard, eventsForDisplay, ballastSeries } from './events.js';
 
 const DISPLAY_MAX = 3000;
 
@@ -46,8 +46,10 @@ export function mountAnalyze(root, ctx) {
   </main>`);
 
   const mapEl = el.querySelector('[data-map]');
-  let map = null, profile = null, display = null, xMode = 'time';
-  const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q); } });
+  let map = null, profile = null, display = null, xMode = 'time', pinned = null;
+  const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
+  // click on the map or the profile pins a moment on both (hover stays transient)
+  function pin(q) { pinned = q && q.fix ? q : null; map && map.setPinned(pinned); profile && profile.setPinned(pinned); readout(pinned); }
   const shownEvents = () => eventsForDisplay().filter((e) => !evCard.hidden.has(e.type));
   const u = () => makeUnits(state.settings.units);
 
@@ -62,6 +64,7 @@ export function mountAnalyze(root, ctx) {
     copy: async () => { const txt = statsText(); if (await copyText(txt)) toast(t('common.copied')); },
     units: (b) => { state.settings.units = b.dataset.u; ctx.saveSettings(); render(); },
     geocode: () => fetchPlaces(true),
+    ignore: (b) => { ignoreLanding(+b.dataset.t); toast(t('ana.landingIgnored')); },
   });
 
   function buildDisplay() {
@@ -80,7 +83,7 @@ export function mountAnalyze(root, ctx) {
     const st = s.stats;
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
     const altMax = st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null;
-    return { pts, markers, step, colors: colorBy === 'alt' ? ALT_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon })), altMax, night: st.night.intervals, events: shownEvents() };
+    return { pts, markers, step, colors: colorBy === 'alt' ? ALT_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, t: l.t, name: state.places.inter[l.t] || '' })), altMax, night: st.night.intervals, events: shownEvents(), ballast: ballastSeries() };
   }
 
   function render() {
@@ -92,9 +95,10 @@ export function mountAnalyze(root, ctx) {
 
   function renderMap() {
     if (!display) return;
-    if (!map) { map = createMap(mapEl, { layer: state.settings.mapLayer }); if (!map) return; map.onHover((q) => { profile && profile.setHover(q); readout(q); }); }
+    if (!map) { map = createMap(mapEl, { layer: state.settings.mapLayer }); if (!map) return; map.onHover((q) => { profile && profile.setHover(q); readout(q || pinned); }); map.onClick((q) => pin(q)); }
     const every = state.settings.markerMin >= 180 ? 1 : state.settings.markerMin >= 60 ? 3 : state.settings.markerMin >= 30 ? 6 : 12;
-    map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate') });
+    map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate'), ignoreLabel: t('ana.ignoreLanding'), onIgnoreIntermediate: state.viewer ? null : (ms) => { ignoreLanding(ms); toast(t('ana.landingIgnored')); } });
+    if (pinned) map.setPinned(pinned);
     const st = state.stats;
     const gm = (p) => (p && !Number.isNaN(p.lat) ? `https://www.google.com/maps?q=${p.lat.toFixed(6)},${p.lon.toFixed(6)}` : '#');
     el.querySelector('[data-gm-start]').href = gm(st.takeoff); el.querySelector('[data-gm-land]').href = gm(st.landing);
@@ -103,7 +107,7 @@ export function mountAnalyze(root, ctx) {
   function renderProfileCard() {
     if (!display) return;
     const un = u();
-    profile = renderProfile(el.querySelector('[data-profile]'), { ...display, xMode, units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), aria: t('ana.profile') }, onHover: (q) => { map && map.setHover(q); readout(q); } });
+    profile = renderProfile(el.querySelector('[data-profile]'), { ...display, xMode, units: un, pinned, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') }, onHover: (q) => { map && map.setHover(q); readout(q || pinned); }, onClick: (q) => pin(q) });
   }
 
   function readout(q) {
@@ -120,17 +124,20 @@ export function mountAnalyze(root, ctx) {
 
   function renderTiles() {
     const st = state.stats, un = u();
-    el.querySelector('[data-tiles]').innerHTML = `
-      <div class="tile"><span class="k">${esc(t('st.duration'))}</span><span class="v">${fmtDurationClock(st.durationSec)}</span><span class="u">h:min · ${st.landings} ${esc(t(st.landings === 1 ? 'st.landing1' : 'st.landingN'))}</span></div>
-      <div class="tile"><span class="k">${esc(t('st.distance'))}</span><span class="v">${un.dist(st.distanceM).replace(/ km$/, '')}</span><span class="u">km · ${un.dist(st.straightM)} ${esc(t('st.straightShort'))}</span></div>
-      <div class="tile"><span class="k">${esc(t('st.altMax'))}</span><span class="v">${st.altMax ? un.alt(st.altMax.v).replace(/ (ft|m)$/, '') : '–'}</span><span class="u">${un.altUnit} · ${st.altMax ? fmtTimeUTC(st.altMax.t) + ' UTC' : ''}</span></div>
-      <div class="tile"><span class="k">${esc(t('st.vs'))}</span><span class="v" style="font-size:20px">${st.vsMax ? un.vs(st.vsMax.v).replace(/ m\/s$/, '') : '–'} / ${st.vsMin ? un.vs(st.vsMin.v).replace(/ m\/s$/, '') : '–'}</span><span class="u">m/s · ${esc(t('st.vsSub'))}</span></div>
-      <div class="tile"><span class="k">${esc(t('st.gs'))}</span><span class="v">${st.gsMax ? fmtNum(un.speedValue(st.gsMax.v), 0) : '–'} / ${fmtNum(un.speedValue(st.gsMean), 0)}</span><span class="u">${un.speedUnit} ${esc(t('st.gsSub'))}</span></div>
-      <div class="tile"><span class="k">${esc(t('st.night'))}</span><span class="v">${fmtDurationClock(st.night.totalSec)}</span><span class="u">h:min · ${st.night.intervals.length} ${esc(t(st.night.intervals.length === 1 ? 'st.night1' : 'st.nightN'))}</span></div>`;
+    const tile = (k, v, unit, sub) => `<div class="tile"><span class="k">${esc(k)}</span><span class="v">${v}<small>${esc(unit)}</small></span><span class="u">${sub}</span></div>`;
+    const noUnit = (str) => String(str).replace(/[\s\u00a0]*(km\/h|m\/s|km|ft|kt|m)$/, '');
+    el.querySelector('[data-tiles]').innerHTML = [
+      tile(t('st.duration'), fmtDurationClock(st.durationSec), 'h:min', `${st.landings} ${esc(t(st.landings === 1 ? 'st.landing1' : 'st.landingN'))}`),
+      tile(t('st.distance'), noUnit(un.dist(st.distanceM)), 'km', `${un.dist(st.straightM)} ${esc(t('st.straightShort'))}`),
+      tile(t('st.altMax'), st.altMax ? noUnit(un.alt(st.altMax.v)) : '–', un.altUnit, st.altMax ? fmtTimeUTC(st.altMax.t) + ' UTC' : ''),
+      tile(t('st.vs'), `<span style="font-size:20px">${st.vsMax ? noUnit(un.vs(st.vsMax.v)) : '–'} / ${st.vsMin ? noUnit(un.vs(st.vsMin.v)) : '–'}</span>`, 'm/s', esc(t('st.vsSub'))),
+      tile(t('st.gs'), `${st.gsMax ? fmtNum(un.speedValue(st.gsMax.v), 0) : '–'} / ${fmtNum(un.speedValue(st.gsMean), 0)}`, un.speedUnit, esc(t('st.gsSub'))),
+      tile(t('st.night'), fmtDurationClock(st.night.totalSec), 'h:min', `${st.night.intervals.length} ${esc(t(st.night.intervals.length === 1 ? 'st.night1' : 'st.nightN'))}`),
+    ].join('');
   }
 
   function placeLine(kind, p) {
-    const name = state.places[kind];
+    const name = kind === 'inter' ? state.places.inter[p.t] : state.places[kind];
     return `${name ? esc(name) + ' · ' : ''}${icaoShort(p.lat, p.lon)}`;
   }
 
@@ -141,7 +148,7 @@ export function mountAnalyze(root, ctx) {
     el.querySelector('[data-stats]').innerHTML = `<div class="card-head"><h2>${esc(t('ana.stats'))}</h2><div class="row-wrap noprint" style="gap:6px"><div class="seg"><button type="button" data-act="units" data-u="icao" class="${s.units !== 'metric' ? 'on' : ''}">ft · kt</button><button type="button" data-act="units" data-u="metric" class="${s.units === 'metric' ? 'on' : ''}">m · km/h</button></div><button class="btn chip" type="button" data-act="copy">${esc(t('ana.copy'))}</button></div></div>
       ${row(t('st.takeoff'), st.takeoff ? fmtDateTimeUTC(st.takeoff.t) : '–', st.takeoff ? `${fmtLocalByLon(st.takeoff.t, st.takeoff.lon)} · ${placeLine('takeoff', st.takeoff)}` : '')}
       ${row(t('st.landingAt'), st.landing ? fmtDateTimeUTC(st.landing.t) : '–', st.landing ? `${fmtLocalByLon(st.landing.t, st.landing.lon)} · ${placeLine('landing', st.landing)}` : '')}
-      ${row(t('st.landings'), `${st.landings}`, st.intermediate.length ? esc(t('st.intermediateList', { list: st.intermediate.map((l) => `${fmtTimeUTC(l.t)} (${fmtDurationHM(l.groundSec || 0)})`).join(', ') })) : esc(t('st.noIntermediate')))}
+      ${row(t('st.landings'), `${st.landings}`, st.intermediate.length ? st.intermediate.map((l) => `<span class="inter">${fmtTimeUTC(l.t)} UTC · ${esc(state.places.inter[l.t] || icaoShort(l.lat, l.lon))} (${fmtDurationHM(l.groundSec || 0)})${state.viewer ? '' : ` <button type="button" class="tt-x inline noprint" data-act="ignore" data-t="${l.t}" title="${esc(t('ana.ignoreLanding'))}">×</button>`}</span>`).join('<br>') + (state.ignoredLandings.length ? `<br><span class="muted">${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}</span>` : '') : esc(t('st.noIntermediate')) + (state.ignoredLandings.length ? ` · ${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}` : ''))}
       ${row(t('st.duration'), `<span class="big">${fmtDurationHM(st.durationSec)}</span>`, st.intermediate.length ? esc(t('st.airtime', { v: fmtDurationHM(st.airSec) })) : '')}
       ${row(t('st.distanceLine'), `${un.dist(st.distanceM)} · ${un.dist(st.straightM)} · ${fmtBearing(st.bearingDeg)}`)}
       ${row(t('st.altMaxGps'), st.altMax ? un.alt(st.altMax.v, true) : '–', st.altMax ? `${fmtDateTimeUTC(st.altMax.t)}` : '')}
@@ -173,22 +180,25 @@ export function mountAnalyze(root, ctx) {
 
   // ---- reverse geocoding (OpenStreetMap Nominatim, two requests per flight, cached per position)
   const geoCache = new Map();
+  // Place names as 'CH-Willisau' (country code first) for take-off, landing and intermediate landings.
   async function fetchPlaces(force) {
     const st = state.stats; if (!st) return;
-    const jobs = [['takeoff', st.takeoff], ['landing', st.landing]].filter(([k, p]) => p && !Number.isNaN(p.lat) && (force || !state.places[k]));
+    const getP = (k, p) => (k === 'inter' ? state.places.inter[p.t] : state.places[k]);
+    const setP = (k, p, v) => { if (k === 'inter') state.places.inter[p.t] = v; else state.places[k] = v; };
+    const jobs = [['takeoff', st.takeoff], ['landing', st.landing], ...st.intermediate.map((l) => ['inter', l])].filter(([k, p]) => p && !Number.isNaN(p.lat) && (force || !getP(k, p)));
     for (const [k, p] of jobs) {
       const key = `${p.lat.toFixed(3)},${p.lon.toFixed(3)}`;
-      if (geoCache.has(key)) { state.places[k] = geoCache.get(key); continue; }
+      if (geoCache.has(key)) { setP(k, p, geoCache.get(key)); continue; }
       try {
         const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&accept-language=${document.documentElement.lang || 'de'}`, { headers: { Accept: 'application/json' } });
         if (!res.ok) throw new Error(String(res.status));
         const j = await res.json(); const a = j.address || {};
         const town = a.city || a.town || a.village || a.municipality || a.county || j.name || '';
-        const name = town ? `${town}${a.country_code ? ' (' + a.country_code.toUpperCase() + ')' : ''}` : '';
-        geoCache.set(key, name); state.places[k] = name;
+        const name = town ? `${a.country_code ? a.country_code.toUpperCase() + '-' : ''}${town}` : '';
+        geoCache.set(key, name); setP(k, p, name);
       } catch { geoCache.set(key, ''); }
     }
-    if (jobs.length) { renderStats(); bus.emit('places'); }
+    if (jobs.length) { renderStats(); renderMap(); bus.emit('places'); }
   }
 
   const off = bus.on('track', render);

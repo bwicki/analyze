@@ -21,7 +21,7 @@ export function flightTitle() {
 export function buildFlightPayload() {
   const d = exportData(0); if (!d) return null;
   const stats = summaryForExport();
-  const extra = { startPlace: state.places.takeoff || '', landPlace: state.places.landing || '', restarts: state.stats.restarts, altMeanM: Math.round(state.stats.altMean), gsMeanMs: +state.stats.gsMean.toFixed(2),
+  const extra = { startPlace: state.places.takeoff || '', landPlace: state.places.landing || '', interPlaces: { ...state.places.inter }, ignoredLandings: [...state.ignoredLandings], restarts: state.stats.restarts, altMeanM: Math.round(state.stats.altMean), gsMeanMs: +state.stats.gsMean.toFixed(2),
     accVertMax: state.stats.accVertMax ? +state.stats.accVertMax.v.toFixed(3) : null, trackers: [...new Set(state.files.filter((f) => f.profile).map((f) => f.profile.name))], files: state.segments.filter((s) => s.status === 'use').length };
   if (state.evlog) { const sm = summarizeEvents(state.evlog.events); extra.events = { n: sm.n, counts: sm.counts, source: state.evlog.source.kind === 'repo' ? `gb_flight_data/${state.evlog.source.flight}` : state.evlog.source.name || '', ballastStart: sm.ballastStart, ballastEnd: sm.ballastEnd, dropped: sm.dropped }; }
   const geojson = toGeoJson({ ...d, name: flightTitle(), stats: { ...stats, ...extra }, full: true });
@@ -49,9 +49,10 @@ export async function openFlight(rec, geojsonText, { viewer = false, eventRows =
     const file = new File([geojsonText], name, { type: 'application/geo+json' });
     const results = await parseFiles([file]);
     state.files = results.filter((r) => r.points);
-    Object.assign(state.meta, { title: '', event: '', purpose: 'private', balloon: '', type: '', gas: '', pic: '', copilot: '', pax: '', startName: '', landName: '', remarks: '', nvfr: '' }, rec.meta || {});
+    Object.assign(state.meta, { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', startName: '', landName: '', remarks: '', nvfr: '' }, rec.meta || {});
     if (!viewer) saveMeta();
-    state.places = { takeoff: (rec.stats && rec.stats.startPlace) || null, landing: (rec.stats && rec.stats.landPlace) || null };
+    state.places = { takeoff: (rec.stats && rec.stats.startPlace) || null, landing: (rec.stats && rec.stats.landPlace) || null, inter: (rec.stats && rec.stats.interPlaces) || {} };
+    state.ignoredLandings = Array.isArray(rec.stats && rec.stats.ignoredLandings) ? rec.stats.ignoredLandings.slice() : [];
     recompute({ reclassify: true });
     if (eventRows && eventRows.length) { const src = (rec.stats && rec.stats.events && rec.stats.events.source) || ''; setEventLog({ source: { kind: 'saved', flight: src.replace(/^gb_flight_data\//, ''), name: src }, rows: eventRows, events: normalizeEvents(eventRows) }); }
     state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, updatedAt: rec.updatedAt, public: rec.public };

@@ -10,7 +10,7 @@ const parseJson = (s, fb = {}) => { try { const v = JSON.parse(s); return v && t
 /** Public shape of a codes row. */
 export function meView(row, counts = null) {
   return {
-    code: row.code, displayName: row.display_name || '', logo: !!row.logo_key, logoType: row.logo_type || null,
+    code: row.code, displayName: row.display_name || '', logo: !!row.logo_key, logoType: row.logo_type || null, team: !!row.team,
     lang: row.lang || 'de', units: row.units || 'icao', prefs: parseJson(row.prefs), createdAt: row.created_at, lastSeen: row.last_seen || null,
     ...(counts ? { flights: counts.n || 0, bytes: counts.bytes || 0 } : {}),
   };

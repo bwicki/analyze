@@ -65,9 +65,9 @@ export function mountAdmin(root, ctx) {
     try {
       if (tab === 'codes') {
         const rows = await api.admin.codes();
-        c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('start.code'))}</th><th>${esc(t('start.displayName'))}</th><th class="r">${esc(t('adm.flights'))}</th><th class="r">${esc(t('adm.size'))}</th><th>${esc(t('adm.created'))}</th><th>${esc(t('adm.lastSeen'))}</th><th>Logo</th><th></th></tr></thead><tbody>
-          ${rows.map((r) => `<tr class="${r.blocked ? 'dim' : ''}"><td class="mono">${esc(r.code)}${r.blocked ? ` <span class="tag">${esc(t('adm.blocked'))}</span>` : ''}</td><td>${esc(r.displayName || '–')}</td><td class="r mono">${r.flights}</td><td class="r mono">${fmtBytes(r.bytes)}</td><td class="mono">${fmtDateUTC(r.createdAt)}</td><td class="mono">${r.lastSeen ? fmtDateTimeUTC(r.lastSeen) : '–'}</td><td>${r.logo ? '✓' : '–'}</td>
-            <td class="nowrap"><button class="btn xs" type="button" data-act="block" data-code="${r.code}" data-blocked="${r.blocked ? 1 : 0}">${esc(r.blocked ? t('adm.unblock') : t('adm.block'))}</button> <button class="btn xs" type="button" data-act="delCode" data-code="${r.code}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="8" class="muted">–</td></tr>`}</tbody></table>`;
+        c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('start.code'))}</th><th>${esc(t('start.displayName'))}</th><th class="r">${esc(t('adm.flights'))}</th><th class="r">${esc(t('adm.size'))}</th><th>${esc(t('adm.created'))}</th><th>${esc(t('adm.lastSeen'))}</th><th>Logo</th><th>${esc(t('adm.team'))}</th><th></th></tr></thead><tbody>
+          ${rows.map((r) => `<tr class="${r.blocked ? 'dim' : ''}"><td class="mono">${esc(r.code)}${r.blocked ? ` <span class="tag">${esc(t('adm.blocked'))}</span>` : ''}</td><td>${esc(r.displayName || '–')}</td><td class="r mono">${r.flights}</td><td class="r mono">${fmtBytes(r.bytes)}</td><td class="mono">${fmtDateUTC(r.createdAt)}</td><td class="mono">${r.lastSeen ? fmtDateTimeUTC(r.lastSeen) : '–'}</td><td>${r.logo ? '✓' : '–'}</td><td>${r.team ? '✓' : '–'}</td>
+            <td class="nowrap"><button class="btn xs" type="button" data-act="team" data-code="${r.code}" data-team="${r.team ? 1 : 0}">${esc(r.team ? t('adm.teamOff') : t('adm.teamOn'))}</button> <button class="btn xs" type="button" data-act="block" data-code="${r.code}" data-blocked="${r.blocked ? 1 : 0}">${esc(r.blocked ? t('adm.unblock') : t('adm.block'))}</button> <button class="btn xs" type="button" data-act="delCode" data-code="${r.code}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="9" class="muted">–</td></tr>`}</tbody></table><div class="muted small">${esc(t('adm.teamNote'))}</div>`;
       } else if (tab === 'flights') {
         const rows = await api.admin.flights();
         c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('fl.col.date'))}</th><th>${esc(t('fl.col.title'))}</th><th>${esc(t('start.code'))}</th><th class="r">${esc(t('fl.points'))}</th><th class="r">${esc(t('adm.size'))}</th><th>${esc(t('adm.updated'))}</th><th>${esc(t('fl.col.viewer'))}</th><th></th></tr></thead><tbody>
@@ -86,6 +86,7 @@ export function mountAdmin(root, ctx) {
   onAct(el, {
     logout: async () => { await api.admin.logout(); setAdmin(null, null); start(); },
     block: async (b) => { try { await api.admin.block(b.dataset.code, b.dataset.blocked !== '1'); show(); } catch { toast(t('start.errNetwork'), true); } },
+    team: async (b) => { try { await api.admin.team(b.dataset.code, b.dataset.team !== '1'); show(); } catch { toast(t('start.errNetwork'), true); } },
     delCode: async (b) => {
       const ok = await confirmDialog({ title: t('adm.delCodeTitle'), text: tx('adm.delCodeText', { code: b.dataset.code }), okLabel: t('common.remove'), cancelLabel: t('common.cancel'), danger: true });
       if (ok) { try { await api.admin.deleteCode(b.dataset.code); show(); } catch { toast(t('start.errNetwork'), true); } }

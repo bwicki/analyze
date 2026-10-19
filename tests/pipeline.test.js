@@ -56,3 +56,12 @@ test('timestamp outliers and no-fix rows are handled', () => {
   // segments are time-sorted
   const t = segs[0].points.t; for (let i = 1; i < t.length; i++) assert.ok(t[i] >= t[i - 1]);
 });
+
+test('false intermediate landing can be removed: landing + following take-off merge the legs', async () => {
+  const { dropIgnoredLandings, statesFromEvents } = await import('../src/process/detect.js');
+  const ev = [{ type: 'takeoff', t: 1000, idx: 1 }, { type: 'landing', t: 5000, idx: 5 }, { type: 'takeoff', t: 6000, idx: 6 }, { type: 'landing', t: 9000, idx: 9 }];
+  const out = dropIgnoredLandings(ev, [5000]);
+  assert.deepEqual(out.map((e) => e.type + e.t), ['takeoff1000', 'landing9000']);
+  assert.deepEqual(Array.from(statesFromEvents(out, 11)), [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
+  assert.equal(dropIgnoredLandings(ev, [4000]).length, 4);     // no match → untouched
+});

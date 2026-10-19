@@ -3,12 +3,12 @@
 
 import { buildSegments, classifySegments, mergeSegments, DEFAULTS as SEG_DEFAULTS } from './process/segments.js';
 import { deriveSeries } from './process/series.js';
-import { detectEvents, proposeTrim, DETECT_DEFAULTS } from './process/detect.js';
+import { detectEvents, proposeTrim, DETECT_DEFAULTS, dropIgnoredLandings, statesFromEvents } from './process/detect.js';
 import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -37,12 +37,13 @@ export const state = {
   phase: 'import',
   visited: { import: true },
   settings: { ...DEFAULT_SETTINGS, ...load(LS_SETTINGS, {}), detect: { ...DETECT_DEFAULTS, ...(load(LS_SETTINGS, {}).detect || {}) } },
-  meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', gas: '', pic: '', copilot: '', pax: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
+  meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
   files: [],        // parser results (one per file / zip entry)
   unknown: [],      // files without profile
   busy: false, progress: '',
   segments: [], track: null, series: null, events: [], states: null, trim: null, stats: null,
-  places: { takeoff: null, landing: null }, // reverse-geocoded names
+  places: { takeoff: null, landing: null, inter: {} }, // reverse-geocoded names ('CH-Willisau'); inter keyed by landing time
+  ignoredLandings: [],  // times (ms) of auto-detected intermediate landings the user removed (false touchdowns)
   hover: null,      // index on the track under the cursor (map ↔ profile)
   evlog: null,      // Ereignislog: {source: {kind: 'repo'|'file'|'saved', flight, name}, rows (raw), events (normalised), linked}
   flight: null,     // {id, title, url, updatedAt, public} once the current analysis is saved under the Kennung
@@ -72,7 +73,7 @@ export function recompute({ reclassify = true } = {}) {
   if (!s.track) { s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; bus.emit('track'); return; }
   s.series = deriveSeries(s.track, { gapSec: s.settings.gapSec });
   const d = detectEvents(s.track, s.series, s.settings.detect);
-  s.events = d.events; s.states = d.states;
+  s.events = dropIgnoredLandings(d.events, s.ignoredLandings); s.states = statesFromEvents(s.events, s.track.points.n);
   const auto = proposeTrim(s.track, s.events, s.settings.detect);
   const t0 = s.track.points.t[0], t1 = s.track.points.t[s.track.points.n - 1];
   if (!s.trim || s.trim.auto || s.trim.from < t0 || s.trim.to > t1) s.trim = auto;
@@ -106,6 +107,22 @@ export function setTrim(from, to, auto = false) {
   bus.emit('track');
 }
 
+/** Remove a false intermediate landing (and the take-off after it); restore with restoreLandings(). */
+export function ignoreLanding(ms) {
+  const s = state; if (!s.track) return;
+  if (!s.ignoredLandings.some((x) => Math.abs(x - ms) < 1000)) s.ignoredLandings.push(ms);
+  const d = detectEvents(s.track, s.series, s.settings.detect);
+  s.events = dropIgnoredLandings(d.events, s.ignoredLandings); s.states = statesFromEvents(s.events, s.track.points.n);
+  s.trim = s.trim && !s.trim.auto ? s.trim : proposeTrim(s.track, s.events, s.settings.detect);
+  s.stats = computeStats(s.track, s.series, s.events, s.trim, { nightLimitDeg: s.settings.nightLimitDeg });
+  relinkEvents();
+  bus.emit('track');
+}
+export function restoreLandings() {
+  state.ignoredLandings = [];
+  recompute({ reclassify: false });
+}
+
 /** Override the detected landing (manual) – replaces the last landing with the given time. */
 export function setManualLanding(ms) {
   const s = state; if (!s.track) return;
@@ -123,7 +140,7 @@ export function setManualLanding(ms) {
 
 export function resetAll() {
   const s = state;
-  s.files = []; s.unknown = []; s.segments = []; s.track = null; s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; s.places = { takeoff: null, landing: null }; s.hover = null;
+  s.files = []; s.unknown = []; s.segments = []; s.track = null; s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; s.places = { takeoff: null, landing: null, inter: {} }; s.hover = null; s.ignoredLandings = [];
   s.flight = null; s.viewer = null; s.evlog = null;
   s.visited = { import: true };
   bus.emit('track');

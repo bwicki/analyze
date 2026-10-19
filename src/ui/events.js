@@ -17,6 +17,12 @@ export function eventsForDisplay() {
   return lg.linked.filter((e) => e.inTrim && !Number.isNaN(e.lat)).map((e) => ({ t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, color: EVENT_COLORS[e.type], label: `${fmtTimeUTC(e.t)} UTC · ${typeLabel(e.type)}${e.text ? ' · ' + e.text.slice(0, 80) : ''}`, type: e.type, id: e.id }));
 }
 
+/** Ballast remaining over time (Ballast events with an absolute figure, on the track). */
+export function ballastSeries() {
+  const lg = state.evlog; if (!lg || !lg.linked) return [];
+  return lg.linked.filter((e) => e.type === 'Ballast' && !Number.isNaN(e.ballastAbs) && e.onTrack && e.inTrim).map((e) => ({ t: e.t, dist: e.dist, kg: e.ballastAbs }));
+}
+
 /** o: {onSelect(event|null)} – mounts into container, returns {unmount}. */
 export function mountEventsCard(container, o = {}) {
   const el = html(`<section class="card" data-events>
@@ -45,7 +51,7 @@ export function mountEventsCard(container, o = {}) {
   function renderTools() {
     const v = !!state.viewer, lg = state.evlog;
     tools.innerHTML = v ? '' : [
-      hasServer() && session.code ? `<button class="btn chip" type="button" data-act="repo">${esc(t('ev.fromRepo'))}</button>` : '',
+      hasServer() && session.code && session.me && session.me.team ? `<button class="btn chip" type="button" data-act="repo">${esc(t('ev.fromRepo'))}</button>` : '',
       `<button class="btn chip" type="button" data-act="file">${esc(t('ev.fromFile'))}</button>`,
       lg ? `<button class="btn chip" type="button" data-act="clear">${esc(t('common.remove'))}</button>` : '',
     ].join('');
@@ -85,7 +91,7 @@ export function mountEventsCard(container, o = {}) {
     const st = state.stats;
     let list;
     try { list = await api.events.repoFlights(); }
-    catch (ex) { toast(ex instanceof ApiError && ex.status === 503 ? t('ev.notConfigured') : ex instanceof ApiError && ex.status === 502 ? t('ev.githubError') : t('start.errNetwork'), true); return; }
+    catch (ex) { toast(ex instanceof ApiError && ex.status === 503 ? t('ev.notConfigured') : ex instanceof ApiError && ex.status === 502 ? t('ev.githubError') : ex instanceof ApiError && ex.status === 403 ? t('ev.notTeam') : t('start.errNetwork'), true); return; }
     const t0 = st ? st.trim.from : 0, t1 = st ? st.trim.to : 0;
     const scored = list.map((f) => ({ ...f, score: st ? scoreFlightMatch(f, t0, t1) : 0 })).sort((a, b) => b.score - a.score || String(b.first || '').localeCompare(String(a.first || '')));
     const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">

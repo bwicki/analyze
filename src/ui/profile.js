@@ -56,29 +56,51 @@ export function renderProfile(container, data) {
   vline(data.landing, '#c0392b', data.labels.landing, 'end');
   if (data.altMax) { const q = data.altMax; const x = X(xq(q)); out.push(`<circle cx="${x.toFixed(1)}" cy="${Y(q.alt).toFixed(1)}" r="3.5" fill="#14202e"/><text x="${(x + (x > W - 160 ? -6 : 6)).toFixed(1)}" y="${(Y(q.alt) - 5).toFixed(1)}" font-size="11" fill="#14202e" font-weight="600" text-anchor="${x > W - 160 ? 'end' : 'start'}">${esc(data.labels.max)} ${u.alt(q.alt)} · ${fmtTimeUTC(q.t)}</text>`); }
   for (const e of data.events || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<line x1="${X(ex).toFixed(1)}" y1="${(H - PB)}" x2="${X(ex).toFixed(1)}" y2="${(H - PB - 10)}" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/><circle cx="${X(ex).toFixed(1)}" cy="${Y(e.alt).toFixed(1)}" r="4" fill="#fff" stroke="${e.color || '#1f5fbf'}" stroke-width="2"><title>${esc(e.label || '')}</title></circle>`); }
+  // ballast remaining (kg) from the event log: step line on a right-hand scale
+  const bl = (data.ballast || []).filter((b) => !Number.isNaN(data.xMode === 'dist' ? b.dist : b.t) && !Number.isNaN(b.kg));
+  if (bl.length) {
+    const bMax = niceCeil(Math.max(...bl.map((b) => b.kg)) * 1.1);
+    const BY = (kg) => PT + (1 - kg / bMax) * (H - PT - PB);
+    let bd = '';
+    bl.forEach((b, i) => { const bx = X(data.xMode === 'dist' ? b.dist : b.t).toFixed(1), by = BY(b.kg).toFixed(1); bd += i === 0 ? `M${bx} ${by}` : ` H${bx} V${by}`; });
+    bd += ` H${X(x1).toFixed(1)}`;
+    out.push(`<path d="${bd}" stroke="#d98c00" stroke-width="2" stroke-dasharray="5 3" fill="none"/>`);
+    for (const b of bl) out.push(`<circle cx="${X(data.xMode === 'dist' ? b.dist : b.t).toFixed(1)}" cy="${BY(b.kg).toFixed(1)}" r="3" fill="#d98c00"><title>${fmtInt(b.kg)} kg · ${fmtTimeUTC(b.t)} UTC</title></circle>`);
+    for (const v of [0, bMax / 2, bMax]) out.push(`<text x="${W - PR + 2}" y="${(BY(v) + 4).toFixed(1)}" font-size="10" fill="#d98c00" font-family="IBM Plex Mono, monospace">${fmtInt(v)}</text>`);
+    out.push(`<text x="${W - PR}" y="${PT - 3}" text-anchor="end" font-size="10" fill="#d98c00">${esc(data.labels.ballast || 'Ballast')} kg</text>`);
+  }
   // ground speed trace
   out.push(`<line x1="${PL}" y1="${H + 2}" x2="${W - PR}" y2="${H + 2}" stroke="#e4e8ee"/>`);
   for (const v of [0, gTop / 2, gTop]) { const y = H + 8 + (1 - v / gTop) * (GH - 16); out.push(`<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="#eef1f5"/><text x="${PL - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${fmtInt(v)}</text>`); }
   let gd = '', gp = null;
   for (const q of pts) { if (Number.isNaN(q.gs)) { gp = null; continue; } gd += `${gp && !q.gap ? ' L' : ' M'}${X(xs(q)).toFixed(1)} ${GY(q.gs).toFixed(1)}`; gp = q; }
   out.push(`<path d="${gd.trim()}" stroke="#5b6b7f" stroke-width="1.3" fill="none"/><text x="${W - PR}" y="${H + 16}" text-anchor="end" font-size="10" fill="#5b6b7f">${esc(data.labels.gs)} ${u.speedUnit}</text>`);
-  // hover group (filled by setHover)
-  out.push(`<g data-hover></g>`);
+  // pinned + hover groups (filled by setPinned / setHover)
+  out.push(`<g data-pinned></g><g data-hover></g>`);
   const total = H + GH;
   container.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${total}" role="img" aria-label="${esc(data.labels.aria)}" font-family="IBM Plex Sans, sans-serif">${out.join('')}</svg>`;
-  const svg = container.querySelector('svg'), hg = svg.querySelector('[data-hover]');
+  const svg = container.querySelector('svg'), hg = svg.querySelector('[data-hover]'), pg = svg.querySelector('[data-pinned]');
   const xsArr = pts.map((q) => xs(q));
   const nearest = (clientX) => { const r = svg.getBoundingClientRect(); const px = (clientX - r.left) / r.width * W; const v = x0 + (px - PL) / (W - PL - PR) * xspan; let lo = 0, hi = xsArr.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (xsArr[m] < v) lo = m + 1; else hi = m; } return pts[lo]; };
   svg.addEventListener('mousemove', (e) => { const q = nearest(e.clientX); setHover(q); data.onHover && data.onHover(q); });
   svg.addEventListener('mouseleave', () => { setHover(null); data.onHover && data.onHover(null); });
+  svg.addEventListener('click', (e) => { const q = nearest(e.clientX); data.onClick && data.onClick(q); });
   svg.addEventListener('touchstart', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
   svg.addEventListener('touchmove', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
+  svg.addEventListener('touchend', (e) => { const x = e.changedTouches && e.changedTouches[0]; if (x) { const q = nearest(x.clientX); data.onClick && data.onClick(q); } }, { passive: true });
   function setHover(q) {
     if (!q || Number.isNaN(q.alt) || Number.isNaN(xs(q))) { hg.innerHTML = ''; return; }
     const x = X(xs(q)), y = Y(q.alt);
     hg.innerHTML = `<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}" y2="${H + GH - 8}" stroke="#14202e" stroke-width="1"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="#f6b03d" stroke="#14202e" stroke-width="1.5"/>`;
   }
-  return { setHover };
+  /** Persistent marker set by a click on the map or the profile. */
+  function setPinned(q) {
+    if (!q || Number.isNaN(q.alt) || Number.isNaN(xs(q))) { pg.innerHTML = ''; return; }
+    const x = X(xs(q)), y = Y(q.alt);
+    pg.innerHTML = `<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}" y2="${H + GH - 8}" stroke="#1f5fbf" stroke-width="2"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="6" fill="#fff" stroke="#1f5fbf" stroke-width="2.5"/><text x="${(x + (x > W - 120 ? -8 : 8)).toFixed(1)}" y="${PT + 12}" font-size="11" font-weight="600" fill="#1f5fbf" text-anchor="${x > W - 120 ? 'end' : 'start'}" font-family="IBM Plex Mono, monospace">${fmtTimeUTC(q.t)}</text>`;
+  }
+  if (data.pinned) setPinned(data.pinned);
+  return { setHover, setPinned };
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }

@@ -23,16 +23,30 @@ export function createMap(container, opts = {}) {
   layers[current].addTo(map);
   const trackLayer = L.layerGroup().addTo(map), markerLayer = L.layerGroup().addTo(map);
   const hoverDot = L.circleMarker([0, 0], { radius: 6, color: '#14202e', weight: 1.5, fillColor: '#f6b03d', fillOpacity: 1 });
-  let pts = [], hoverCb = null, lastHover = -1;
+  const pinDot = L.circleMarker([0, 0], { radius: 8, color: '#1f5fbf', weight: 3, fillColor: '#fff', fillOpacity: 1 });
+  let pts = [], hoverCb = null, clickCb = null, lastHover = -1, bounds = null;
 
+  const nearest = (latlng, maxPx) => {
+    const p = map.latLngToContainerPoint(latlng); let best = -1, bd = maxPx * maxPx;
+    for (let i = 0; i < pts.length; i++) { const q = pts[i]; if (!q.fix || q._px === undefined) continue; const dx = q._px.x - p.x, dy = q._px.y - p.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+    return best;
+  };
   map.on('mousemove', (e) => {
     if (!pts.length || !hoverCb) return;
-    const p = map.latLngToContainerPoint(e.latlng); let best = -1, bd = 14 * 14;
-    for (let i = 0; i < pts.length; i++) { const q = pts[i]; if (!q.fix || q._px === undefined) continue; const dx = q._px.x - p.x, dy = q._px.y - p.y, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+    const best = nearest(e.latlng, 14);
     if (best !== lastHover) { lastHover = best; hoverCb(best >= 0 ? pts[best] : null); }
+  });
+  // click on (or near) the track pins the point – the profile shows the same moment (and vice versa)
+  map.on('click', (e) => {
+    if (!pts.length || !clickCb) return;
+    const best = nearest(e.latlng, 24);
+    clickCb(best >= 0 ? pts[best] : null);
   });
   map.on('moveend zoomend', () => project());
   function project() { for (const q of pts) if (q.fix) q._px = map.latLngToContainerPoint([q.lat, q.lon]); }
+  // × on an intermediate-landing label removes that landing (false touchdown)
+  container.addEventListener('click', (e) => { const x = e.target.closest('[data-ignore]'); if (x && ignoreCb) { e.stopPropagation(); ignoreCb(+x.dataset.ignore); } });
+  let ignoreCb = null;
 
   function setLayer(k) { if (!layers[k] || k === current) return; map.removeLayer(layers[current]); current = k; layers[k].addTo(map); }
 
@@ -60,21 +74,31 @@ export function createMap(container, opts = {}) {
       const c = L.circleMarker([m.lat, m.lon], { radius: major ? 4.5 : 3, color: '#14202e', weight: 1.5, fillColor: '#fff', fillOpacity: 1 }).addTo(markerLayer);
       c.bindTooltip(`${fmtTimeUTC(m.t)}`, { permanent: major, direction: 'right', className: 'tm', offset: [6, 0] });
     });
-    const big = (p, color, label) => { if (!p || Number.isNaN(p.lat)) return; L.circleMarker([p.lat, p.lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(markerLayer).bindTooltip(label, { permanent: true, direction: 'bottom', offset: [0, 8] }); };
+    const big = (p, color, label, html = false) => { if (!p || Number.isNaN(p.lat)) return; L.circleMarker([p.lat, p.lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(markerLayer).bindTooltip(label, { permanent: true, direction: 'bottom', offset: [0, 8], interactive: html, className: html ? 'tt-inter' : '' }); };
     big(data.takeoff, '#1f8a4c', data.takeoffLabel);
-    for (const l of data.intermediate || []) big(l, '#d98c00', data.intermediateLabel);
+    ignoreCb = data.onIgnoreIntermediate || null;
+    for (const l of data.intermediate || []) {
+      const lab = ignoreCb && l.t ? `${escHtml(data.intermediateLabel)}${l.name ? ' · ' + escHtml(l.name) : ''}<button type="button" class="tt-x" data-ignore="${l.t}" title="${escHtml(data.ignoreLabel || '')}">×</button>` : `${data.intermediateLabel}${l.name ? ' · ' + l.name : ''}`;
+      big(l, '#d98c00', lab, !!(ignoreCb && l.t));
+    }
     big(data.landing, '#c0392b', data.landingLabel);
     for (const e of data.events || []) L.circleMarker([e.lat, e.lon], { radius: 5, color: e.color || '#1f5fbf', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(markerLayer).bindTooltip(e.label);
     const fixed = pts.filter((q) => q.fix);
-    if (fixed.length) map.fitBounds(L.latLngBounds(fixed.map((q) => [q.lat, q.lon])), { padding: [24, 24] });
+    bounds = fixed.length ? L.latLngBounds(fixed.map((q) => [q.lat, q.lon])) : null;
+    fit();
     setTimeout(project, 50);
   }
+  /** Whole flight in view (also after the container got its real size). */
+  function fit() { if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] }); }
   function setHover(q) { if (!q || !q.fix) { if (map.hasLayer(hoverDot)) map.removeLayer(hoverDot); return; } hoverDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(hoverDot)) hoverDot.addTo(map); }
+  function setPinned(q) { if (!q || !q.fix) { if (map.hasLayer(pinDot)) map.removeLayer(pinDot); return; } pinDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(pinDot)) pinDot.addTo(map); }
   function onHover(cb) { hoverCb = cb; }
-  function invalidate() { map.invalidateSize(); project(); }
+  function onClick(cb) { clickCb = cb; }
+  function invalidate() { map.invalidateSize(); fit(); project(); }
   function destroy() { map.remove(); }
-  return { map, setLayer, setTrack, setHover, onHover, invalidate, destroy, get layer() { return current; } };
+  return { map, setLayer, setTrack, setHover, setPinned, onHover, onClick, invalidate, fit, destroy, get layer() { return current; } };
 }
+function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 function darken(hex) {
   const n = parseInt(hex.slice(1), 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
