@@ -9,8 +9,11 @@ const IMAGE_MAX = 8 * 1024 * 1024, THUMB_MAX = 400 * 1024, PER_FLIGHT = 300;
 const QUOTA_DEFAULT_MB = 300;
 const isPhotoId = (s) => /^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{10}$/.test(s);
 
+/** cameraTime = camera clock from EXIF (zone applied by the client); manualTime = UTC entered by hand, wins when set. */
 export function photoView(row) {
-  return { id: row.id, flightId: row.flight_id, name: row.name, cameraTime: row.taken_at, exifTz: row.exif_tz, manual: !!row.manual, exifLat: row.exif_lat, exifLon: row.exif_lon, exifAlt: row.exif_alt, caption: row.caption || '', bytes: row.bytes, width: row.width, height: row.height, createdAt: row.created_at };
+  const legacy = !!row.manual && row.manual_at == null;          // 0.7.1 rows kept the hand-entered UTC in taken_at
+  const manualTime = row.manual_at != null ? row.manual_at : (legacy ? row.taken_at : null);
+  return { id: row.id, flightId: row.flight_id, name: row.name, cameraTime: legacy ? null : row.taken_at, exifTz: row.exif_tz, manualTime, manual: manualTime != null, exifLat: row.exif_lat, exifLon: row.exif_lon, exifAlt: row.exif_alt, caption: row.caption || '', bytes: row.bytes, width: row.width, height: row.height, createdAt: row.created_at };
 }
 
 async function ownFlight(env, user, id) {
@@ -72,11 +75,13 @@ export async function updatePhoto(env, user, flightId, photoId, body, request) {
   const row = await env.DB.prepare('SELECT * FROM photos WHERE id = ?1 AND flight_id = ?2').bind(photoId, flightId).first();
   if (!row) throw new HttpError(404, 'not found');
   const caption = body.caption !== undefined ? String(body.caption || '').slice(0, 300) : row.caption;
-  // cameraTime: camera clock (zone applied by the client) – or, with manual = true, a UTC time entered by hand
-  // for photos without EXIF time; cameraTime: null clears the time again (manual is reset too).
-  const takenAt = body.cameraTime !== undefined ? (Number.isFinite(body.cameraTime) ? body.cameraTime : null) : row.taken_at;
-  const manual = body.cameraTime !== undefined ? (takenAt === null ? 0 : (body.manual ? 1 : 0)) : (body.manual !== undefined ? (body.manual ? 1 : 0) : (row.manual || 0));
-  await env.DB.prepare('UPDATE photos SET caption = ?2, taken_at = ?3, manual = ?4 WHERE id = ?1').bind(photoId, caption, takenAt, manual).run();
+  // manualTime: UTC entered by hand (null removes it – the EXIF clock in taken_at applies again);
+  // cameraTime: the camera clock itself (rarely changed). 0.7.1 rows (manual = 1, manual_at NULL) are normalised here.
+  const legacy = !!row.manual && row.manual_at == null;
+  let takenAt = legacy ? null : row.taken_at, manualAt = legacy ? row.taken_at : row.manual_at;
+  if (body.cameraTime !== undefined) takenAt = Number.isFinite(body.cameraTime) ? body.cameraTime : null;
+  if (body.manualTime !== undefined) manualAt = Number.isFinite(body.manualTime) ? body.manualTime : null;
+  await env.DB.prepare('UPDATE photos SET caption = ?2, taken_at = ?3, manual = ?4, manual_at = ?5 WHERE id = ?1').bind(photoId, caption, takenAt, manualAt == null ? 0 : 1, manualAt == null ? null : manualAt).run();
   const out = await env.DB.prepare('SELECT * FROM photos WHERE id = ?1').bind(photoId).first();
   return photoView(out);
 }

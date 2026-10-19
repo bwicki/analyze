@@ -14,7 +14,7 @@ function fakeD1() {
     let m;
     if (/^SELECT team FROM codes LIMIT 1/.test(s)) return [];
     if (/^SELECT id FROM photos LIMIT 1/.test(s)) return [];
-    if (/^SELECT manual FROM photos LIMIT 1/.test(s)) throw new Error('no such column: manual');   // forces the ALTER once
+    if (/^SELECT manual(_at)? FROM photos LIMIT 1/.test(s)) throw new Error('no such column');   // forces the ALTERs once
     if (/^ALTER TABLE photos ADD COLUMN manual/.test(s)) return [];
     if (/^CREATE (TABLE|INDEX)/.test(s)) return [];
     if (/^SELECT COUNT\(\*\) AS n FROM admins/.test(s)) return [{ n: T.admins.length }];
@@ -58,8 +58,8 @@ function fakeD1() {
     if (/^SELECT \* FROM photos WHERE id = \?1 AND flight_id/.test(s)) return T.photos.filter((p) => p.id === a(1) && p.flight_id === a(2));
     if (/^SELECT \* FROM photos WHERE id = \?1$/.test(s)) return T.photos.filter((p) => p.id === a(1));
     if (/^SELECT p\.\*, f\.public AS fpublic/.test(s)) return T.photos.filter((p) => p.id === a(1)).map((p) => { const f = T.flights.find((x) => x.id === p.flight_id); const c = T.codes.find((x) => x.code === f.code); return { ...p, fpublic: f.public, blocked: c.blocked }; });
-    if (/^INSERT INTO photos/.test(s)) { T.photos.push({ id: a(1), flight_id: a(2), code: a(3), name: a(4), taken_at: a(5), exif_tz: a(6), exif_lat: a(7), exif_lon: a(8), exif_alt: a(9), caption: a(10), image_key: a(11), thumb_key: a(12), bytes: a(13), width: a(14), height: a(15), created_at: a(16), manual: 0 }); return []; }
-    if (/^UPDATE photos SET caption/.test(s)) { const p = T.photos.find((x) => x.id === a(1)); Object.assign(p, { caption: a(2), taken_at: a(3), manual: a(4) }); return []; }
+    if (/^INSERT INTO photos/.test(s)) { T.photos.push({ id: a(1), flight_id: a(2), code: a(3), name: a(4), taken_at: a(5), exif_tz: a(6), exif_lat: a(7), exif_lon: a(8), exif_alt: a(9), caption: a(10), image_key: a(11), thumb_key: a(12), bytes: a(13), width: a(14), height: a(15), created_at: a(16), manual: 0, manual_at: null }); return []; }
+    if (/^UPDATE photos SET caption/.test(s)) { const p = T.photos.find((x) => x.id === a(1)); Object.assign(p, { caption: a(2), taken_at: a(3), manual: a(4), manual_at: a(5) }); return []; }
     if (/^DELETE FROM photos WHERE id/.test(s)) { T.photos = T.photos.filter((p) => p.id !== a(1)); return []; }
     if (/^DELETE FROM photos WHERE flight_id/.test(s)) { T.photos = T.photos.filter((p) => p.flight_id !== a(1)); return []; }
     if (/^UPDATE flights SET updated_at/.test(s)) { const f = T.flights.find((x) => x.id === a(1)); if (f) f.updated_at = a(2); return []; }
@@ -199,11 +199,17 @@ test('photos: upload (JPEG + thumb), list owner/public, caption, serve, delete, 
   assert.equal(img.status, 200); assert.equal(img.headers.get('Content-Type'), 'image/jpeg');
   const upd = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { caption: 'Start in Gladbeck' }, headers: H })).json();
   assert.equal(upd.caption, 'Start in Gladbeck'); assert.equal(upd.manual, false); assert.equal(upd.cameraTime, Date.UTC(2026, 7, 29, 1, 0));
-  // manual time (0.7.1): UTC entered by hand; clearing resets manual as well
-  const man = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { cameraTime: Date.UTC(2026, 7, 29, 3, 30), manual: true }, headers: H })).json();
-  assert.equal(man.manual, true); assert.equal(man.cameraTime, Date.UTC(2026, 7, 29, 3, 30)); assert.equal(man.caption, 'Start in Gladbeck');
-  const clr = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { cameraTime: null }, headers: H })).json();
-  assert.equal(clr.manual, false); assert.equal(clr.cameraTime, null);
+  // manual time (0.7.3): UTC entered by hand, the EXIF clock stays; null removes it and the EXIF clock applies again
+  const man = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { manualTime: Date.UTC(2026, 7, 29, 3, 30) }, headers: H })).json();
+  assert.equal(man.manual, true); assert.equal(man.manualTime, Date.UTC(2026, 7, 29, 3, 30)); assert.equal(man.cameraTime, Date.UTC(2026, 7, 29, 1, 0)); assert.equal(man.caption, 'Start in Gladbeck');
+  const clr = await (await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { manualTime: null }, headers: H })).json();
+  assert.equal(clr.manual, false); assert.equal(clr.manualTime, null); assert.equal(clr.cameraTime, Date.UTC(2026, 7, 29, 1, 0));
+  // 0.7.1 row (manual = 1, hand time kept in taken_at) reads as manualTime without a camera clock
+  const old = e.DB.T.photos.find((x) => x.id === p.id); old.manual = 1; old.manual_at = null; old.taken_at = Date.UTC(2026, 7, 29, 5, 0);
+  const lg = (await (await call(e, 'GET', `/api/flights/${fl.id}/photos`, { headers: H })).json())[0];
+  assert.equal(lg.manualTime, Date.UTC(2026, 7, 29, 5, 0)); assert.equal(lg.cameraTime, null); assert.equal(lg.manual, true);
+  await call(e, 'PUT', `/api/flights/${fl.id}/photos/${p.id}`, { body: { manualTime: null }, headers: H });
+  assert.equal(old.manual, 0); assert.equal(old.taken_at, null); assert.equal(old.manual_at, null);
   // private flight → viewer and image 404 for strangers, owner still sees it
   await call(e, 'PUT', `/api/flights/${fl.id}`, { body: { public: false }, headers: H });
   assert.equal((await call(e, 'GET', `/api/view/${fl.id}/photos`)).status, 404);

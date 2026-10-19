@@ -6,11 +6,12 @@ import { haversine } from '../util/geo.js';
 
 /**
  * UTC ms of a photo: cameraTime is the camera clock read as UTC; exifTz wins over the flight's zone.
- * A manually entered time (p.manual, photos without EXIF) is UTC already – no zone, no fine offset.
+ * A time entered by hand (p.manualTime, UTC) wins over everything – no zone, no fine offset.
  */
 export function photoUtc(p, { tzMinutes = 0, offsetSec = 0 } = {}) {
+  if (Number.isFinite(p.manualTime)) return p.manualTime;
   if (!Number.isFinite(p.cameraTime)) return NaN;
-  if (p.manual) return p.cameraTime;
+  if (p.manual) return p.cameraTime;                                   // 0.7.1 records (hand time in cameraTime)
   const tz = Number.isFinite(p.exifTz) ? p.exifTz : tzMinutes;
   return p.cameraTime - tz * 60000 + offsetSec * 1000;
 }
@@ -39,7 +40,7 @@ export function placePhotos(photos, track, series, trim, opts = {}) {
  * photos' positions best agree with the track. Returns {tzMinutes, offsetSec, meanDistM} or null.
  */
 export function suggestCameraZone(photos, track, series) {
-  const withGps = photos.filter((p) => Number.isFinite(p.exifLat) && Number.isFinite(p.cameraTime) && !Number.isFinite(p.exifTz) && !p.manual);
+  const withGps = photos.filter((p) => Number.isFinite(p.exifLat) && Number.isFinite(p.cameraTime) && !Number.isFinite(p.exifTz) && !p.manual && !Number.isFinite(p.manualTime));
   if (withGps.length < 2 || !track) return null;
   let best = null;
   for (let tz = -12 * 60; tz <= 14 * 60; tz += 30) {

@@ -52,7 +52,7 @@ test('placing photos on the GB26 track: zone/offset, track position, Δ to EXIF 
   const sug = suggestCameraZone(two, track, series);
   assert.ok(sug && sug.tzMinutes === 120 && sug.meanDistM < 300, JSON.stringify(sug));
   // manual time (photo without EXIF): UTC as entered – zone and fine offset do not apply; never feeds the suggestion
-  const M = { id: 'M', cameraTime: track.points.t[j], manual: true, exifTz: null, exifLat: track.points.lat[j], exifLon: track.points.lon[j] };
+  const M = { id: 'M', cameraTime: Date.UTC(2026, 7, 29, 12, 0, 0), manualTime: track.points.t[j], manual: true, exifTz: null, exifLat: track.points.lat[j], exifLon: track.points.lon[j] };
   assert.equal(photoUtc(M, { tzMinutes: 120, offsetSec: 90 }), track.points.t[j]);
   const pm = placePhotos([M, { id: 'N', cameraTime: null, manual: false }], track, series, null, { tzMinutes: 120, offsetSec: 90 });
   assert.ok(pm[0].id === 'M' && pm[0].onTrack && pm[0].distM < 50, JSON.stringify(pm[0]));

@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS photos (
   name          TEXT NOT NULL DEFAULT '',    -- original file name
   taken_at      INTEGER,                     -- camera clock as recorded (EXIF DateTimeOriginal read as if UTC), NULL = unknown; UTC when manual = 1
   exif_tz       INTEGER,                     -- minutes east of UTC when the camera wrote OffsetTime, else NULL (the flight's camera zone applies)
-  manual        INTEGER NOT NULL DEFAULT 0,  -- 1 = taken_at was entered by hand (UTC, no zone/offset applied) – photos without EXIF time (0.7.1)
+  manual        INTEGER NOT NULL DEFAULT 0,  -- 1 = a hand-entered time applies (0.7.1: taken_at held it; since 0.7.3 see manual_at)
+  manual_at     INTEGER,                     -- UTC ms entered by hand (overrides the camera clock; NULL = none) – the EXIF time in taken_at stays (0.7.3)
   exif_lat      REAL, exif_lon REAL, exif_alt REAL,
   caption       TEXT NOT NULL DEFAULT '',
   image_key     TEXT NOT NULL,               -- R2 photos/<flight>/<id>.jpg (resized in the browser)

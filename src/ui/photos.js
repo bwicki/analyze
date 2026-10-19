@@ -1,6 +1,7 @@
 // Fotos card (phase 3): upload JPEGs to the saved flight (EXIF time → track position), camera zone
 // and fine offset, thumbnails with time/place/caption, lightbox; markers on map and profile via photosForDisplay().
-// Photos without EXIF time get a UTC field and "take the pinned point" (0.7.1) – stored as manual time.
+// Any photo can get a time by hand (UTC field or "take the pinned point"): photos without EXIF time show the field
+// at once, others behind «Zeit von Hand …»; the hand time wins, «×» removes it and the EXIF time applies again (0.7.3).
 
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast, confirmDialog } from '../util/dom.js';
@@ -10,7 +11,7 @@ import { api } from '../api.js';
 import { session, hasServer } from '../session.js';
 import { prepareUpload } from '../photos/process.js';
 import { setPhotos, setCameraSettings, cameraTz, cameraOffsetSec, loadPhotos } from '../photos/store.js';
-import { suggestCameraZone } from '../photos/place.js';
+import { suggestCameraZone, photoUtc } from '../photos/place.js';
 
 export const PHOTO_COLOR = '#0f766e';
 
@@ -36,6 +37,7 @@ export function mountPhotosCard(container, o = {}) {
   el.appendChild(fileIn);
   const tools = el.querySelector('[data-tools]'), grid = el.querySelector('[data-grid]'), count = el.querySelector('[data-count]'), hint = el.querySelector('[data-hint]'), settings = el.querySelector('[data-settings]'), prog = el.querySelector('[data-progress]');
   const canEdit = () => !!state.flight && !state.viewer && hasServer() && !!session.code;
+  const openManual = new Set();          // photo ids whose hand-time field is unfolded although an EXIF time exists
 
   function render() {
     const placed = state.photosPlaced || [];
@@ -62,16 +64,20 @@ export function mountPhotosCard(container, o = {}) {
     const tr = state.track && state.track.points.n ? state.track.points : null;
     const range = tr ? ` min="${toInput(tr.t[0] - 3600000)}" max="${toInput(tr.t[tr.n - 1] + 3600000)}"` : '';
     grid.innerHTML = placed.map((p) => {
-      const when = Number.isNaN(p.t) ? `<span class="err">${esc(t('ph.noTime'))}</span>` : `${fmtDayUTC(p.t)} ${fmtTimeUTC(p.t)} UTC${p.manual ? ` <span class="muted" title="${esc(t('ph.manualTitle'))}">· ${esc(t('ph.manual'))}</span>` : ''}`;
+      const exifUtc = p.manual && Number.isFinite(p.cameraTime) ? photoUtc({ ...p, manualTime: null, manual: false }, { tzMinutes: cameraTz(), offsetSec: cameraOffsetSec() }) : NaN;
+      const manualTag = p.manual ? ` <span class="muted" title="${esc(Number.isFinite(exifUtc) ? t('ph.exifKept', { t: `${fmtDayUTC(exifUtc)} ${fmtTimeUTC(exifUtc)} UTC` }) : t('ph.manualTitle'))}">· ${esc(t('ph.manual'))}</span>` : '';
+      const when = Number.isNaN(p.t) ? `<span class="err">${esc(t('ph.noTime'))}</span>` : `${fmtDayUTC(p.t)} ${fmtTimeUTC(p.t)} UTC${manualTag}`;
       const where = p.onTrack ? icaoShort(p.lat, p.lon) : (Number.isNaN(p.t) ? '' : `<span class="muted">${esc(t('ph.offTrack'))}</span>`);
       const delta = !Number.isNaN(p.distM) ? ` · Δ ${p.distM > 2000 ? `<span class="err">${fmtInt(p.distM / 1000)} km</span>` : `${fmtInt(p.distM)} m`}` : '';
-      // photos without EXIF time (or already placed by hand): UTC field + "take the pinned point" + clear
-      const manual = canEdit() && (Number.isNaN(p.t) || p.manual) ? `<span class="manual-time">
+      // hand time: UTC field + "take the pinned point" + clear – unfolded for photos without EXIF time or already
+      // placed by hand, otherwise behind a small «Zeit von Hand …» link (the EXIF time is kept for «×»)
+      const unfolded = Number.isNaN(p.t) || p.manual || openManual.has(p.id);
+      const manual = !canEdit() ? '' : unfolded ? `<span class="manual-time">
             <span class="muted small">${esc(t('ph.manualLabel'))}</span>
             <input class="in sm" type="datetime-local" step="1" data-man="${esc(p.id)}" value="${toInput(p.manual ? p.t : NaN)}"${range} title="${esc(t('ph.manualTitle'))}">
             <span class="row-wrap" style="gap:4px"><button type="button" class="btn sm" data-act="fromPin" data-id="${esc(p.id)}" title="${esc(t('ph.fromPinTitle'))}">${esc(t('ph.fromPin'))}</button>
-            ${p.manual ? `<button type="button" class="btn sm" data-act="clearTime" data-id="${esc(p.id)}" title="${esc(t('ph.clearTime'))}">×</button>` : ''}</span>
-          </span>` : '';
+            ${p.manual ? `<button type="button" class="btn sm" data-act="clearTime" data-id="${esc(p.id)}" title="${esc(Number.isFinite(exifUtc) ? t('ph.clearTimeExif') : t('ph.clearTime'))}">×</button>` : (openManual.has(p.id) ? `<button type="button" class="btn sm" data-act="foldTime" data-id="${esc(p.id)}" title="${esc(t('common.cancel'))}">×</button>` : '')}</span>
+          </span>` : `<a href="#" class="small" data-act="editTime" data-id="${esc(p.id)}" title="${esc(t('ph.editTimeTitle'))}">${esc(t('ph.editTime'))}</a>`;
       return `<figure class="photo ${p.inTrim && p.onTrack ? '' : 'dim'}" data-id="${esc(p.id)}">
         <img src="${esc(api.photos.url(p.id, true))}" alt="" loading="lazy" data-act="open" data-id="${esc(p.id)}">
         <figcaption><span class="mono small">${when}</span><span class="small">${where}${delta}</span>${manual}
@@ -87,10 +93,11 @@ export function mountPhotosCard(container, o = {}) {
     grid.querySelectorAll('[data-man]').forEach((inp) => inp.addEventListener('change', () => { const ms = fromInput(inp.value); if (Number.isFinite(ms)) setManualTime(inp.dataset.man, ms); }));
   }
 
-  /** Store a hand-entered UTC time (ms) for a photo; null clears it again. */
+  /** Store a hand-entered UTC time (ms) for a photo; null removes it (the EXIF time, if any, applies again). */
   async function setManualTime(id, ms) {
     try {
-      const rec = await api.photos.update(state.flight.id, id, ms === null ? { cameraTime: null } : { cameraTime: Math.round(ms), manual: true });
+      const rec = await api.photos.update(state.flight.id, id, { manualTime: ms === null ? null : Math.round(ms) });
+      openManual.delete(id);
       setPhotos(state.photos.map((x) => (x.id === rec.id ? rec : x)));
       if (ms !== null) { const pl = (state.photosPlaced || []).find((x) => x.id === id); toast(pl && pl.onTrack ? t('ph.placed', { pos: icaoShort(pl.lat, pl.lon) }) : t('ph.placedOff')); }
     } catch { toast(t('start.errNetwork'), true); }
@@ -150,6 +157,8 @@ export function mountPhotosCard(container, o = {}) {
       setManualTime(b.dataset.id, q.t);
     },
     clearTime: (b) => setManualTime(b.dataset.id, null),
+    editTime: (b) => { openManual.add(b.dataset.id); render(); },
+    foldTime: (b) => { openManual.delete(b.dataset.id); render(); },
   });
   grid.addEventListener('mouseover', (e) => { const fig = e.target.closest('figure.photo'); if (!fig || !o.onSelect) return; o.onSelect((state.photosPlaced || []).find((p) => p.id === fig.dataset.id) || null); });
   grid.addEventListener('mouseleave', () => o.onSelect && o.onSelect(null));
