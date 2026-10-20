@@ -18,6 +18,9 @@ export const GS_LIMITS_KT = [10, 20, 30, 40];
 const KT = 0.514444;
 export function gsClass(ms) { if (Number.isNaN(ms)) return 2; const kt = ms / KT; let c = 0; while (c < GS_LIMITS_KT.length && kt >= GS_LIMITS_KT[c]) c++; return c; }
 export const NIGHT_HALO = '#14202e';
+const EXPAND_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+/** Marker markup of an extreme value (same glyph in the 2D map, the 3D view and the figures). */
+export const extremeHtml = (x) => `<span style="color:${x.color}">${x.symbol}</span>`;
 
 export function createMap(container, opts = {}) {
   if (typeof L === 'undefined') { container.innerHTML = '<div class="muted" style="padding:20px">Leaflet not loaded</div>'; return null; }
@@ -74,14 +77,16 @@ export function createMap(container, opts = {}) {
     if (radioDiv) radioDiv.querySelectorAll('input').forEach((i) => { i.checked = i.value === k; });
   }
   function onLayerChange(cb) { layerCb = cb; }
-  // «fit» control under the zoom buttons: the whole flight exactly in view (also the default)
+  // «fit» control under the zoom buttons: the whole flight exactly in view (also the default);
+  // 0.9.1: a second button opens the map large in the viewer (opts.onExpand)
   if (typeof L.control === 'function' && L.DomUtil && !opts.noControls) {
     const fc = L.control({ position: 'topleft' });
     fc.onAdd = () => {
       const div = L.DomUtil.create('div', 'leaflet-bar fit-ctrl');
-      div.innerHTML = `<a href="#" role="button" title="${escHtml(opts.fitLabel || 'Fit')}" aria-label="${escHtml(opts.fitLabel || 'Fit')}">⤢</a>`;
+      div.innerHTML = `<a href="#" role="button" data-fit title="${escHtml(opts.fitLabel || 'Fit')}" aria-label="${escHtml(opts.fitLabel || 'Fit')}">⤢</a>${opts.onExpand ? `<a href="#" role="button" class="xp" data-expand title="${escHtml(opts.expandLabel || 'Expand')}" aria-label="${escHtml(opts.expandLabel || 'Expand')}">${EXPAND_SVG}</a>` : ''}`;
       if (L.DomEvent) { L.DomEvent.disableClickPropagation(div); L.DomEvent.disableScrollPropagation(div); }
-      div.querySelector('a').addEventListener('click', (e) => { e.preventDefault(); userMoved = false; fit(); });
+      div.querySelector('[data-fit]').addEventListener('click', (e) => { e.preventDefault(); userMoved = false; fit(); });
+      const xp = div.querySelector('[data-expand]'); if (xp) xp.addEventListener('click', (e) => { e.preventDefault(); opts.onExpand(); });
       return div;
     };
     fc.addTo(map);
@@ -136,7 +141,11 @@ export function createMap(container, opts = {}) {
     big(data.landing, '#c0392b', data.landingLabel);
     for (const e of data.events || []) L.circleMarker([e.lat, e.lon], { radius: 5, color: e.color || '#1f5fbf', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(markerLayer).bindTooltip(e.label);
     // extremes (0.9.0): altitude max ◆, ground-speed max ▶, strongest climb ▲ and sink ▼ as symbols with a tooltip
-    for (const x of data.extremes || []) { if (Number.isNaN(x.lat)) continue; L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'xmark', html: `<span style="color:${x.color}">${x.symbol}</span>`, iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: true, keyboard: false }).addTo(markerLayer).bindTooltip(x.label || '', { direction: 'top', offset: [0, -8] }); }
+    for (const x of data.extremes || []) {
+      if (Number.isNaN(x.lat)) continue;
+      const mk = L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'xmark', html: extremeHtml(x), iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: true, keyboard: false }).addTo(markerLayer).bindTooltip(x.label || '', { direction: 'top', offset: [0, -8] });
+      if (data.onExtreme && mk.on) mk.on('click', (e) => { if (L.DomEvent) L.DomEvent.stopPropagation(e); data.onExtreme(x); });   // 0.9.1: click on the symbol opens the detail viewer
+    }
     const fixed = pts.filter((q) => q.fix);
     bounds = fixed.length ? L.latLngBounds(fixed.map((q) => [q.lat, q.lon])) : null;
     fit();

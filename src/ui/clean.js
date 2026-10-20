@@ -9,6 +9,7 @@ import { mergeLine } from '../process/mergeinfo.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
 import { makeUnits } from '../util/units.js';
 import { terrainForDisplay } from '../terrain/store.js';
+import { openViewer, fitBox, expandBtn } from './viewer.js';
 
 // timeline geometry (SVG units): state bar, segment bar, altitude mini-profile, axis, handle labels
 const W = 1180, H = 200, L = 48, R = 20;
@@ -33,8 +34,8 @@ export function mountClean(root, ctx) {
     <div data-banner></div>
     <section class="card">
       <h2>${esc(t('cln.timeline'))}</h2>
-      <div data-timeline></div>
-      <div class="legend"><span class="pill sm"><span class="dot b"></span>${esc(t('cln.leg.air'))}</span><span class="pill sm"><span class="dot x"></span>${esc(t('cln.leg.ground'))}</span><span class="pill sm"><span class="dot g"></span>${esc(t('cln.leg.cutStart'))}</span><span class="pill sm"><span class="dot r"></span>${esc(t('cln.leg.cutEnd'))}</span><span class="pill sm"><span class="dot alt"></span>${esc(t('cln.leg.alt'))}</span><span>${esc(t('cln.leg.hint'))}</span></div>
+      <div class="gfx" data-gfx="timeline"><div data-timeline></div>${expandBtn('data-what="timeline"')}</div>
+      <div class="legend"><span class="pill sm"><span class="dot b"></span>${esc(t('cln.leg.air'))}</span><span class="pill sm"><span class="dot x"></span>${esc(t('cln.leg.ground'))}</span><span class="pill sm"><span class="dot g"></span>${esc(t('cln.leg.cutStart'))}</span><span class="pill sm"><span class="dot r"></span>${esc(t('cln.leg.cutEnd'))}</span><span class="pill sm"><span class="dot alt"></span>${esc(t('cln.leg.alt'))}</span><span>${esc(t('cln.leg.hint'))} ${esc(t('vw.graphicHint'))}</span></div>
     </section>
     <div class="g3" style="align-items:start">
       <section class="card" data-detect></section>
@@ -53,6 +54,16 @@ export function mountClean(root, ctx) {
   </main>`);
   const tl = el.querySelector('[data-timeline]');
   const inFrom = el.querySelector('[data-from]'), inTo = el.querySelector('[data-to]');
+  let bigTl = null;   // the timeline in the viewer while open (0.9.1): {box}
+  /** Timeline large in the viewer – the same SVG with working handles; both copies follow every change. */
+  function openTimeline() {
+    if (!state.track || bigTl) return;
+    const v = openViewer({ title: esc(t('cln.timeline')), sub: cleanStatus().replace(/<[^>]+>/g, '') });   // tx() output is escaped already
+    bigTl = { box: fitBox(v, W / H) };
+    v.onClose(() => { bigTl = null; });
+    render();
+  }
+  el.querySelector('[data-gfx="timeline"]').addEventListener('dblclick', (e) => { if (!e.target.closest('button, .handle')) openTimeline(); });
 
   onAct(el, {
     apply: () => { const a = parseUtc(inFrom.value), b = parseUtc(inTo.value); if (Number.isNaN(a) || Number.isNaN(b)) { toast(t('cln.badTime'), true); return; } setTrim(a, b, false); },
@@ -63,6 +74,7 @@ export function mountClean(root, ctx) {
     redetect: () => recompute({ reclassify: false }),
     ignore: (b) => { ignoreLanding(+b.dataset.t); toast(t('ana.landingIgnored')); },
     restore: () => restoreLandings(),
+    expand: () => openTimeline(),
   });
 
   /**
@@ -188,8 +200,9 @@ export function mountClean(root, ctx) {
     const anchor = (x) => (x < L + 50 ? 'start' : x > W - R - 50 ? 'end' : 'middle');   // labels near the edges stay inside
     for (const e of st.takeoff ? [st.takeoff] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="13" text-anchor="${anchor(X(e.t))}" font-size="11" fill="#1f8a4c">${esc(t('cln.takeoffShort'))} ${fmtTimeUTC(e.t)}${e.cut ? ' ✂' : ''}</text>`;
     for (const e of st.landing ? [st.landing] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="13" text-anchor="${anchor(X(e.t))}" font-size="11" fill="#c0392b">${esc(t('cln.landingShort'))} ${fmtTimeUTC(e.t)}${e.manual ? ' ✎' : e.cut ? ' ✂' : ''}</text>`;
-    tl.innerHTML = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('cln.timeline'))}" font-family="IBM Plex Sans, sans-serif">${night}${profile}${bars}${seglabels}${marks}<line x1="${L}" y1="${PB}" x2="${W - R}" y2="${PB}" stroke="#d9dee6"/>${ticks}${evs}${handles}</svg>`;
-    bindHandles(tl.querySelector('svg'), X, t0, span);
+    const svgHtml = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('cln.timeline'))}" font-family="IBM Plex Sans, sans-serif">${night}${profile}${bars}${seglabels}${marks}<line x1="${L}" y1="${PB}" x2="${W - R}" y2="${PB}" stroke="#d9dee6"/>${ticks}${evs}${handles}</svg>`;
+    const mount = (c) => { c.innerHTML = svgHtml; bindHandles(c.querySelector('svg'), X, t0, span, c); };
+    mount(tl); if (bigTl) mount(bigTl.box);
     inFrom.value = fmtUtcInput(state.trim.from); inTo.value = fmtUtcInput(state.trim.to);
 
     // banner
@@ -235,7 +248,7 @@ export function mountClean(root, ctx) {
     el.querySelector('[data-segtable]').innerHTML = `<table class="tbl"><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th>${esc(t('cln.col.dur'))}</th><th class="r">${esc(t('imp.col.points'))}</th><th>${esc(t('imp.col.status'))}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
-  function bindHandles(svg, X, t0, span) {
+  function bindHandles(svg, X, t0, span, container = tl) {
     let drag = null;
     const toMs = (clientX) => { const r = svg.getBoundingClientRect(); const x = (clientX - r.left) / r.width * W; return t0 + Math.max(0, Math.min(1, (x - L) / (W - L - R))) * span; };
     // live preview while dragging: move the handle group and the shaded cut-off range, update its label
@@ -254,7 +267,7 @@ export function mountClean(root, ctx) {
       const h = e.target.closest && e.target.closest('.handle'); if (!h || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
       e.preventDefault(); const d = (e.key === 'ArrowLeft' ? -1 : 1) * (e.altKey || e.ctrlKey ? 600 : e.shiftKey ? 60 : 10) * 1000;
       if (h.dataset.h === 'from') setTrim(state.trim.from + d, state.trim.to, false); else setTrim(state.trim.from, state.trim.to + d, false);
-      setTimeout(() => { const g = tl.querySelector(`.handle[data-h="${h.dataset.h}"]`); if (g) g.focus(); }, 0);
+      setTimeout(() => { const g = container.querySelector(`.handle[data-h="${h.dataset.h}"]`); if (g) g.focus(); }, 0);
     });
   }
 

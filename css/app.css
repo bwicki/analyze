@@ -251,7 +251,7 @@ footer.app{padding:10px 28px;font-size:12px;color:var(--muted);border-top:1px so
 @media (min-width:761px) and (max-width:1100px){ .tiles{grid-template-columns:repeat(3,minmax(0,1fr))} }
 
 @media print{
-  header.top,.actionbar,footer.app,.noprint,.toast,.modal-bg{display:none !important}
+  header.top,.actionbar,footer.app,.noprint,.toast,.modal-bg,.viewer-bg{display:none !important}
   html,body{background:#fff}
   main.page{padding:0;gap:10px}
   .card{border:0;padding:0;break-inside:avoid}
@@ -360,7 +360,50 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .accent-row input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer}
 .accent-row .swatch{display:inline-block;width:120px;height:3px;border-radius:2px}
 
-/* extremes on map and profile, locate buttons in the figures (0.9.0) */
-.xmark{display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;pointer-events:auto}
-.loc{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;margin-left:2px}
+/* extremes on map and profile, symbol buttons in the figures (0.9.0 / 0.9.1: same glyph, same size everywhere) */
+.xmark{display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;pointer-events:auto;cursor:pointer}
+.xmark3d{width:20px;height:20px;margin:0;cursor:pointer}
+.loc{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:16px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;margin-left:2px;color:var(--text)}
 .loc:hover{border-color:var(--border-strong);background:var(--hair)}
+.loc.list{font-size:12px}
+.loc.list svg{width:14px;height:14px}
+
+/* ---- 0.9.1: full-screen viewer for every graphic; expand buttons; detail / record viewers ---- */
+.gfx{position:relative;min-width:0;isolation:isolate}
+.gfx>.xpand{position:absolute;top:8px;right:8px;z-index:1001}
+.gfx.click{cursor:zoom-in}
+.xpand{width:32px;height:32px;border-radius:8px;border:1px solid var(--border-strong);background:rgba(255,255,255,.94);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 1px 4px rgba(20,32,46,.14)}
+.xpand:hover{background:var(--text);color:#fff;border-color:var(--text)}
+.leaflet-bar.fit-ctrl a.xp{font-size:0}
+.leaflet-bar.fit-ctrl a.xp svg{vertical-align:middle;margin-top:7px}
+.maplibregl-ctrl-group button.xp3d{display:flex;align-items:center;justify-content:center}
+body.viewer-open{overflow:hidden}
+.viewer-bg{position:fixed;inset:0;z-index:130;background:rgba(20,32,46,.62);display:flex;align-items:center;justify-content:center;padding:18px}
+.viewer{width:100%;height:100%;max-width:1900px;background:var(--surface);border-radius:14px;box-shadow:0 24px 70px rgba(0,0,0,.4);display:flex;flex-direction:column;overflow:hidden;animation:welcome-in .18s ease-out}
+.viewer .vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px 10px 18px;border-bottom:1px solid var(--border);flex:none}
+.viewer .vtitle{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 0}
+.viewer .vtitle h1{font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.viewer .vtitle h1 .mono{font-weight:500}
+.viewer .vtools{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.viewer .vx{width:40px;height:40px;border-radius:10px;border:1px solid var(--border-strong);background:var(--surface);color:var(--text);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;flex:none}
+.viewer .vx:hover,.viewer .vx:focus-visible{background:var(--text);color:#fff;border-color:var(--text)}
+.viewer .vbody{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 14px;overflow:auto}
+.viewer.fill .vbody{padding:0;align-items:stretch}
+.viewer .vbody>.map{flex:1 1 auto;min-height:0;height:100%;width:100%;border:0;border-radius:0}
+.viewer .vbody>.map.map3d{height:100%}
+.viewer .vfit{width:100%;max-width:100%;margin:auto 0}
+.viewer .vfit .readout{margin-bottom:8px}
+.viewer .vbody .timeline{cursor:default}
+.vstack{flex:1;min-height:0;width:100%;display:flex;flex-direction:column;gap:10px;align-items:center;align-self:stretch}
+.vstack .map{flex:1 1 auto;min-height:220px;width:100%}
+.vstack .vprof{flex:none;width:100%;display:flex;flex-direction:column;gap:8px;min-width:0}
+.vstack .vprof .readout{font-size:13px;gap:12px;min-height:34px;padding:5px 12px}
+@media (max-width:900px){.viewer-bg{padding:8px}.viewer{border-radius:10px}.vstack .map{min-height:40vh}.viewer .vhead{flex-wrap:wrap;padding:8px 10px 8px 14px}.viewer .vtitle h1{white-space:normal;font-size:15px}.viewer .vtools{flex:1 1 100%;order:3;justify-content:flex-start}}
+.viewer .vbody>.vtable{width:100%;align-self:stretch;overflow:auto;flex:1;min-height:0}
+table.tbl.rec{font-family:var(--mono);font-size:12px;width:auto;min-width:100%}
+table.tbl.rec th{position:sticky;top:0;background:var(--surface);z-index:1;white-space:nowrap}
+table.tbl.rec td{padding:3px 9px;white-space:nowrap;border-bottom:1px solid var(--hair)}
+table.tbl.rec td.r{text-align:right}
+table.tbl.rec tr.hl td{background:#fff4e0;font-weight:600;border-top:1px solid var(--amber);border-bottom:1px solid var(--amber)}
+table.tbl.rec tr.nofix td{color:var(--muted)}
+.viewer img.big{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;border:1px solid var(--border);margin:auto}

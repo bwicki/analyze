@@ -11,6 +11,7 @@ import { saveCurrentFlight, flightTitle } from '../flightio.js';
 import { config } from '../config.js';
 import { api } from '../api.js';
 import { qrSvg } from '../util/qr.js';
+import { openViewer } from './viewer.js';
 
 const FORMATS = ['gpx', 'geojson', 'kmz', 'csv'];
 
@@ -61,6 +62,7 @@ export function mountExport(root, ctx) {
   const DL = { gpx: () => downloadGpx(step), geojson: () => downloadGeoJson(step), kmz: () => downloadKmz(step || 1), csv: () => downloadCsv(step) };
   onAct(el, {
     kmz: () => downloadKmz(step || 1),
+    bigPreview: (img) => { const v = openViewer({ title: esc(t('vw.preview')), sub: esc(flightTitle()) }); const big = document.createElement('img'); big.className = 'big'; big.alt = ''; big.src = img.src; v.body.appendChild(big); },   // 0.9.1
     downloadSelected: async (b) => {
       b.disabled = true;
       try {
@@ -148,7 +150,7 @@ export function mountExport(root, ctx) {
       <div class="row-wrap" style="gap:14px;align-items:center"><div class="qr" data-qr></div><div class="col" style="gap:6px;flex:1"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(t('exp.openViewer'))} ↗</a>
         ${state.viewer ? '' : `<button class="btn sm" type="button" data-act="toggleVisibility">${esc(f.public ? t('exp.makePrivate') : t('exp.makePublic'))}</button>`}
         <span class="muted small">${esc(f.public ? t('exp.isPublic') : t('exp.isPrivate'))}</span></div></div>
-      ${f.public && config.apiBase ? `<div class="msgpreview" data-msgpreview><div class="muted small">${esc(t('exp.msgPreview'))}</div>${state.previewBusy ? `<div class="msgpreview-busy muted small">${esc(t('exp.msgPreviewBusy'))}</div>` : `<img alt="" src="${esc(`${config.apiBase}/api/view/${f.id}/preview.jpg?v=${f.previewAt || f.updatedAt || 0}`)}" loading="lazy">`}<div class="muted small">${esc(t('exp.msgPreviewSub'))}</div></div>` : ''}`;
+      ${f.public && config.apiBase ? `<div class="msgpreview" data-msgpreview><div class="muted small">${esc(t('exp.msgPreview'))}</div>${state.previewBusy ? `<div class="msgpreview-busy muted small">${esc(t('exp.msgPreviewBusy'))}</div>` : `<img alt="" src="${esc(`${config.apiBase}/api/view/${f.id}/preview.jpg?v=${f.previewAt || f.updatedAt || 0}`)}" loading="lazy" data-act="bigPreview" style="cursor:zoom-in" title="${esc(t('vw.expand'))}">`}<div class="muted small">${esc(t('exp.msgPreviewSub'))}</div></div>` : ''}`;
     box.querySelector('[data-qr]').innerHTML = qrSvg(url, { size: 132 });
   }
   const off = bus.on('track', render), off2 = bus.on('flight', () => { renderSave(); renderShare(); });

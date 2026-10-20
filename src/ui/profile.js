@@ -56,7 +56,7 @@ export function renderProfile(container, data) {
   out.push(`<text x="${PL - 6}" y="${PT - 3}" text-anchor="end" font-size="10" fill="#5b6b7f">${u.altUnit}</text>`);
   // x ticks
   if (data.xMode === 'time') {
-    const hours = xspan / 3600000; const stepH = hours > 60 ? 6 : hours > 30 ? 3 : hours > 12 ? 2 : hours > 4 ? 1 : 0.5;
+    const hours = xspan / 3600000; const stepH = hours > 60 ? 6 : hours > 30 ? 3 : hours > 12 ? 2 : hours > 4 ? 1 : hours > 1.5 ? 0.5 : hours > 0.6 ? 1 / 6 : hours > 0.25 ? 1 / 12 : 1 / 30;   // down to 2-min ticks for the detail viewer (0.9.1)
     const first = Math.ceil(x0 / (stepH * 3600000)) * stepH * 3600000;
     for (let m = first; m <= x1; m += stepH * 3600000) { const d = new Date(m); const lab = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 ? fmtDayUTC(m) : fmtTimeUTC(m); const x = X(m); out.push(`<line x1="${x.toFixed(1)}" y1="${H - PB}" x2="${x.toFixed(1)}" y2="${H - PB + 5}" stroke="#9aa7b6"/><text x="${x.toFixed(1)}" y="${H - PB + 18}" text-anchor="middle" font-size="11" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${lab}</text>`); }
   } else {
@@ -77,7 +77,7 @@ export function renderProfile(container, data) {
   const vline = (q, color, label, anchor) => { if (!q) return; const x = X(xq(q)); out.push(`<line x1="${x.toFixed(1)}" y1="${PT}" x2="${x.toFixed(1)}" y2="${H - PB}" stroke="${color}" stroke-dasharray="3 3"/><text x="${(x + (anchor === 'end' ? -4 : 4)).toFixed(1)}" y="${H - PB - 6}" font-size="11" fill="${color}" font-weight="600" text-anchor="${anchor}">${esc(label)} ${fmtTimeUTC(q.t)}</text>`); };
   vline(data.takeoff, '#1f8a4c', data.labels.takeoff, 'start');
   vline(data.landing, '#c0392b', data.labels.landing, 'end');
-  for (const e of data.extremes || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<text x="${X(ex).toFixed(1)}" y="${(Y(e.alt) + 5).toFixed(1)}" text-anchor="middle" font-size="14" fill="${e.color}" paint-order="stroke" stroke="#fff" stroke-width="3"><title>${esc(e.label || '')}</title>${e.symbol}</text>`); }
+  for (const e of data.extremes || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<text x="${X(ex).toFixed(1)}" y="${(Y(e.alt) + 5).toFixed(1)}" text-anchor="middle" font-size="14" fill="${e.color}" paint-order="stroke" stroke="#fff" stroke-width="3" data-x="${esc(e.kind)}" style="cursor:pointer"><title>${esc(e.label || '')}</title>${e.symbol}</text>`); }
   if (data.altMax) { const q = data.altMax; const x = X(xq(q)); out.push(`<circle cx="${x.toFixed(1)}" cy="${Y(q.alt).toFixed(1)}" r="3.5" fill="#14202e"/><text x="${(x + (x > W - 160 ? -6 : 6)).toFixed(1)}" y="${(Y(q.alt) - 5).toFixed(1)}" font-size="11" fill="#14202e" font-weight="600" text-anchor="${x > W - 160 ? 'end' : 'start'}">${esc(data.labels.max)} ${u.alt(q.alt)} · ${fmtTimeUTC(q.t)}</text>`); }
   for (const e of data.events || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<line x1="${X(ex).toFixed(1)}" y1="${(H - PB)}" x2="${X(ex).toFixed(1)}" y2="${(H - PB - 10)}" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/><circle cx="${X(ex).toFixed(1)}" cy="${Y(e.alt).toFixed(1)}" r="4" fill="#fff" stroke="${e.color || '#1f5fbf'}" stroke-width="2"><title>${esc(e.label || '')}</title></circle>`); }
   // ballast remaining (kg) from the event log: step line on a right-hand scale
@@ -100,7 +100,7 @@ export function renderProfile(container, data) {
   for (const q of pts) { if (Number.isNaN(q.gs)) { gp = null; continue; } gd += `${gp && !q.gap ? ' L' : ' M'}${X(xs(q)).toFixed(1)} ${GY(q.gs).toFixed(1)}`; gp = q; }
   out.push(`<path d="${gd.trim()}" stroke="#5b6b7f" stroke-width="1.3" fill="none"/><text x="${W - PR}" y="${H + 16}" text-anchor="end" font-size="10" fill="#5b6b7f">${esc(data.labels.gs)} ${u.speedUnit}</text>`);
   // pinned + hover groups (filled by setPinned / setHover)
-  out.push(`<g data-pinned></g><g data-hover></g>`);
+  out.push(`<g data-pinned pointer-events="none"></g><g data-hover pointer-events="none"></g>`);   // never in the way of a click on a symbol
   const total = H + GH;
   container.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${total}" role="img" aria-label="${esc(data.labels.aria)}" font-family="IBM Plex Sans, sans-serif">${out.join('')}</svg>`;
   const svg = container.querySelector('svg'), hg = svg.querySelector('[data-hover]'), pg = svg.querySelector('[data-pinned]');
@@ -108,7 +108,11 @@ export function renderProfile(container, data) {
   const nearest = (clientX) => { const r = svg.getBoundingClientRect(); const px = (clientX - r.left) / r.width * W; const v = x0 + (px - PL) / (W - PL - PR) * xspan; let lo = 0, hi = xsArr.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (xsArr[m] < v) lo = m + 1; else hi = m; } return pts[lo]; };
   svg.addEventListener('mousemove', (e) => { const q = nearest(e.clientX); setHover(q); data.onHover && data.onHover(q); });
   svg.addEventListener('mouseleave', () => { setHover(null); data.onHover && data.onHover(null); });
-  svg.addEventListener('click', (e) => { const q = nearest(e.clientX); data.onClick && data.onClick(q); });
+  svg.addEventListener('click', (e) => {
+    const xs = e.target.closest && e.target.closest('text[data-x]');   // 0.9.1: a symbol opens the detail viewer
+    if (xs && data.onExtreme) { const x = (data.extremes || []).find((k) => k.kind === xs.dataset.x); if (x) { e.stopPropagation(); data.onExtreme(x); return; } }
+    const q = nearest(e.clientX); data.onClick && data.onClick(q);
+  });
   svg.addEventListener('touchstart', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
   svg.addEventListener('touchmove', (e) => { const q = nearest(e.touches[0].clientX); setHover(q); data.onHover && data.onHover(q); }, { passive: true });
   svg.addEventListener('touchend', (e) => { const x = e.changedTouches && e.changedTouches[0]; if (x) { const q = nearest(x.clientX); data.onClick && data.onClick(q); } }, { passive: true });

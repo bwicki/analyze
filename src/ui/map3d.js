@@ -3,8 +3,10 @@
 // like the 2D map, darker at night) with a dark top edge = the altitude profile in space; start/landing
 // markers, hover/pin as an amber post. Rotate/tilt with right mouse drag or Ctrl + drag, compass control.
 
-import { LAYERS, NIGHT_HALO } from './map.js';
+import { LAYERS, NIGHT_HALO, extremeHtml } from './map.js';
 import { TERRARIUM_URL } from '../terrain/terrain.js';
+
+const EXPAND_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 
 export const MAPLIBRE = { js: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js', css: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css' };
 
@@ -95,6 +97,9 @@ export async function create3D(container, opts = {}) {
   };
   const map = new ml.Map({ container, style, center: [8, 47], zoom: 6, pitch: 55, bearing: -15, maxPitch: 80, attributionControl: { compact: true }, antialias: true });
   map.addControl(new ml.NavigationControl({ visualizePitch: true, showZoom: true }), 'top-left');
+  // 0.9.1: button under the navigation control opens the 3D view large in the viewer
+  if (opts.onExpand) map.addControl({ onAdd() { const c = document.createElement('div'); c.className = 'maplibregl-ctrl maplibregl-ctrl-group'; const b = document.createElement('button'); b.type = 'button'; b.className = 'xp3d'; b.title = opts.expandLabel || 'Expand'; b.setAttribute('aria-label', b.title); b.innerHTML = EXPAND_SVG; b.addEventListener('click', () => opts.onExpand()); c.appendChild(b); this._c = c; return c; }, onRemove() { this._c && this._c.remove(); } }, 'top-left');
+  let xMarkers = [];   // extreme-value symbols as DOM markers (same glyph as 2D map and figures)
   map.on('load', () => { try { map.setTerrain({ source: 'dem', exaggeration: 1 }); } catch (e) { console.warn('terrain', e); } });
   map.on('error', (e) => { if (e && e.error && /dem|terrain/i.test(String(e.error.message || ''))) return; });
   let bounds = null, pts = [], width = 100, lastData = null, exag = 1, exagMode = opts.exaggeration === undefined || opts.exaggeration === null || opts.exaggeration === '' ? 'auto' : opts.exaggeration;
@@ -109,8 +114,15 @@ export async function create3D(container, opts = {}) {
     map.getSource('walls').setData(walls); map.getSource('tops').setData(tops);
     const marks = []; const mk = (p, color) => { if (p && !Number.isNaN(p.lat)) marks.push({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } }); };
     mk(d.takeoff, '#1f8a4c'); for (const l of d.intermediate || []) mk(l, '#d98c00'); mk(d.landing, '#c0392b');
-    for (const x of d.extremes || []) mk(x, x.color || '#14202e');   // extremes (0.9.0)
     map.getSource('marks').setData({ type: 'FeatureCollection', features: marks });
+    // extremes (0.9.0 / 0.9.1): ◆ ▶ ▲ ▼ as DOM markers – identical to the symbols in the figures and the 2D map
+    xMarkers.forEach((m) => m.remove()); xMarkers = [];
+    for (const x of d.extremes || []) {
+      if (Number.isNaN(x.lat)) continue;
+      const el = document.createElement('div'); el.className = 'xmark xmark3d'; el.innerHTML = extremeHtml(x); el.title = x.label || '';
+      if (d.onExtreme) el.addEventListener('click', (e) => { e.stopPropagation(); d.onExtreme(x); });
+      xMarkers.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([x.lon, x.lat]).addTo(map));
+    }
     let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
     for (const q of pts) if (q.fix) { minLat = Math.min(minLat, q.lat); maxLat = Math.max(maxLat, q.lat); minLon = Math.min(minLon, q.lon); maxLon = Math.max(maxLon, q.lon); }
     bounds = minLat <= maxLat ? [[minLon, minLat], [maxLon, maxLat]] : null;
@@ -135,6 +147,6 @@ export async function create3D(container, opts = {}) {
   function setPinned(q) { post(q, '#1f5fbf', 'pin'); }
   function resize() { map.resize(); }
   function setExaggeration(mode) { exagMode = mode; applyData(); }
-  function destroy() { map.remove(); }
+  function destroy() { xMarkers.forEach((m) => m.remove()); xMarkers = []; map.remove(); }
   return { map, setLayer, setTrack, setHover, setPinned, fit, resize, destroy, setExaggeration, get layer() { return current; }, get exaggeration() { return exag; } };
 }

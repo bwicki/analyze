@@ -19,6 +19,7 @@ import { api } from '../api.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 import { mergeLine } from '../process/mergeinfo.js';
 import { terrainForDisplay } from '../terrain/store.js';
+import { openViewer, fitBox, expandBtn, onPlainClick } from './viewer.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
@@ -84,7 +85,8 @@ export function mountReport(root, ctx) {
   </main>`);
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
-  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo() });
+  let openers = {};   // viewers of the report graphics (set by renderReport)
+  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
   function renderSpecial() {
     const st = el.querySelector('[data-evstate]'); if (!st) return;
     const lg = state.evlog;
@@ -152,14 +154,14 @@ export function mountReport(root, ctx) {
       <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}${state.flight ? ` · ${esc(state.flight.url.replace(/^https?:\/\//, ''))}` : ''}</span><span></span></div>
       <div style="break-before:page"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">${esc(t('ana.map'))} · ${esc(t('rep.mapSub', { min: state.settings.markerMin }))}</h2>
-      <div class="map" data-repmap style="height:360px;min-height:0;flex:none"></div>
+      <div class="gfx click" data-gfx="map"><div class="map" data-repmap style="height:360px;min-height:0;flex:none"></div>${expandBtn('data-what="map"')}</div>
       <div class="muted" style="font-size:11px">${esc(t('ana.mapLegend'))} · © OpenStreetMap</div>
       <div class="rep-detail">
-        <div><div class="pk">${esc(t('wp.takeoff'))} · ${esc(startName)} · ${fmtDateTimeUTC(st.takeoff.t)}</div><div class="map" data-repstart style="height:200px;min-height:0;flex:none"></div></div>
-        ${(st.landing || st.endFix) ? `<div><div class="pk">${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)} · ${fmtDateTimeUTC((st.landing || st.endFix).t)}</div><div class="map" data-repland style="height:200px;min-height:0;flex:none"></div></div>` : ''}
+        <div><div class="pk">${esc(t('wp.takeoff'))} · ${esc(startName)} · ${fmtDateTimeUTC(st.takeoff.t)}</div><div class="gfx click" data-gfx="start"><div class="map" data-repstart style="height:200px;min-height:0;flex:none"></div>${expandBtn('data-what="start"')}</div></div>
+        ${(st.landing || st.endFix) ? `<div><div class="pk">${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)} · ${fmtDateTimeUTC((st.landing || st.endFix).t)}</div><div class="gfx click" data-gfx="land"><div class="map" data-repland style="height:200px;min-height:0;flex:none"></div>${expandBtn('data-what="land"')}</div></div>` : ''}
       </div>
       <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('ana.profile'))}</h2>
-      <div data-repprofile></div>
+      <div class="gfx click" data-gfx="profile"><div data-repprofile></div>${expandBtn('data-what="profile"')}</div>
       <div class="muted" style="font-size:11px">${esc(t('rep.profileLegend'))}</div></div>
       <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('cln.segments'))} · ${esc(t('cln.protocol'))}</h2>
       <table><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th class="r">${esc(t('imp.col.points'))}</th></tr></thead>
@@ -191,7 +193,17 @@ export function mountReport(root, ctx) {
     map = createMap(mapEl, { layer: 'osm', noControls: true });
     detail('[data-repstart]', st.takeoff, '#1f8a4c'); detail('[data-repland]', st.landing || st.endFix, st.landing ? '#c0392b' : '#d98c00');
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
-    renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), showBottom: !!state.settings.showBottom, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
+    const profileData = { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), showBottom: !!state.settings.showBottom, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } };
+    renderProfile(rep.querySelector('[data-repprofile]'), profileData);
+    // 0.9.1: every graphic of the report opens large (click or ⤢) – interactive copies in the viewer
+    const near = (p) => pts.filter((q) => q.fix && Math.abs(q.t - p.t) < 45 * 60000).map((q) => [q.lat, q.lon]);
+    openers = {
+      map: () => { const v = openViewer({ title: esc(t('ana.map')), sub: esc(title), cls: 'fill' }); const box = document.createElement('div'); box.className = 'map'; v.body.appendChild(box); const bm = createMap(box, { layer: state.settings.mapLayer, fitLabel: t('ana.fit'), layerLabels: { osm: t('ana.layer.osm'), topo: t('ana.layer.topo'), sat: t('ana.layer.sat') } }); if (!bm) return; bm.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => bm.invalidate(), 60); v.onClose(() => bm.destroy()); },
+      start: () => { const v = openViewer({ title: `${esc(t('wp.takeoff'))} · ${esc(startName)}`, sub: fmtDateTimeUTC(st.takeoff.t), cls: 'fill' }); const box = document.createElement('div'); box.className = 'map'; v.body.appendChild(box); const dm = createDetailMap(box, { lat: st.takeoff.lat, lon: st.takeoff.lon, color: '#1f8a4c', near: near(st.takeoff), zoom: 14 }); if (dm) v.onClose(() => dm.remove()); },
+      land: () => { const p = st.landing || st.endFix; if (!p) return; const v = openViewer({ title: `${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)}`, sub: fmtDateTimeUTC(p.t), cls: 'fill' }); const box = document.createElement('div'); box.className = 'map'; v.body.appendChild(box); const dm = createDetailMap(box, { lat: p.lat, lon: p.lon, color: st.landing ? '#c0392b' : '#d98c00', near: near(p), zoom: 14 }); if (dm) v.onClose(() => dm.remove()); },
+      profile: () => { const v = openViewer({ title: esc(t('ana.profile')), sub: esc(title) }); const box = fitBox(v, 1180 / 370); renderProfile(box, profileData); },
+    };
+    for (const k of Object.keys(openers)) { const g = rep.querySelector(`[data-gfx="${k}"]`); if (g) onPlainClick(g, () => openers[k]()); }
   }
 
   /** Photos page: thumbnails with time and position (when the flight has photos). */

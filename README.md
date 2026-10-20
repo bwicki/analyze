@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.9.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.9.1 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -63,7 +63,8 @@ Lücken, Nachtbänder, darunter das **Höhenprofil der ganzen Aufzeichnung** mit
 sobald geladen — so sieht man sofort, ob vor dem Start oder nach der Landung noch Punkte liegen. Der **Schnitt**
 hat zwei schlanke Griffe (Ziehen mit Vorschau; Pfeiltasten 10 s, mit Shift 1 min, mit Alt 10 min), dazu die
 Zeitfelder (UTC) und Schritt-Knöpfe ±10 s / ±1 min / ±10 min; «Automatisch» stellt den Vorschlag wieder her
-(2 min vor dem ersten Start bis 2 min nach der letzten Landung).
+(2 min vor dem ersten Start bis 2 min nach der letzten Landung). Doppelklick auf die Zeitleiste oder der Knopf ⤢
+öffnet sie **gross im Viewer** (Griffe funktionieren dort ebenso; × oben rechts oder Esc schliesst).
 
 **Ein Schnitt in der Fahrt gilt als Start bzw. Landung** (✂): Kennzahlen, Bericht und Exporte folgen den
 geänderten Zeiten — man kann also vom Bericht zurück nach Bereinigen, die Startzeit anpassen und den Ablauf
@@ -87,11 +88,18 @@ Fahrt exakt ein (bruchteilige Zoomstufe, auch Vorgabe). Maus über Karte oder
 Profil zeigt den Punkt im jeweils anderen; Klick hält ihn fest (Pin); die Karte schiebt den Ausschnitt nach, damit
 der Marker sichtbar bleibt. Darunter zwei **Detailkarten** von Startort und Landeort mit Datum und Zeit.
 
+**Grossansicht (Viewer, ab 0.9.1):** jede Grafik lässt sich bildschirmfüllend öffnen — Knopf ⤢ (bei der 2D-Karte
+links unter dem Einpassen-Knopf, bei 3D unter dem Kompass, sonst oben rechts in der Grafik), bei Höhenprofil und
+Zeitleiste auch per Doppelklick, bei Detailkarten, Berichtsgrafiken und dem Vorschaubild per Klick. Karte und
+3D-Ansicht wandern samt Zustand (Zoom, Pin, Layer) in den Viewer und zurück; × oben rechts, Esc oder ein Klick
+neben den Viewer schliessen.
+
 **3D** (ab 0.8.0, Vorgabe ab 0.9.0): kippbare Karte (MapLibre GL, ca. 1 MB, nur online; ohne WebGL oder offline
 fällt die Ansicht auf 2D zurück) mit Gelände und Reliefschattierung; die Fahrt steht als **Vorhang** vom Boden bis
 zur Fahrthöhe auf der Karte (Farben wie 2D, Nacht dunkler, dunkle Oberkante = Höhenprofil), Überhöhung **10×**
 (Vorgabe; automatisch oder 1–100×, wird gemerkt), Layerwahl oben rechts, Hover/Pin aus dem Profil als Pfosten,
-Extremwerte als Punkte. Rechte Maustaste oder Ctrl + Ziehen dreht und kippt, Mausrad zoomt.
+Extremwerte als dieselben Symbole ◆ ▲ ▼ ▶ wie in Kennzahlen und 2D. Rechte Maustaste oder Ctrl + Ziehen dreht
+und kippt, Mausrad zoomt.
 Gelände und 3D lassen sich in den Einstellungen abschalten.
 
 **Höhenprofil** (Zeit oder Strecke als x-Achse): Höhe nach Vario gefärbt, Nachtbänder, Zeitmarker, Maximalhöhe,
@@ -109,9 +117,16 @@ Zwischenlandungen mit Bodenzeit, Dauer und Fahrtzeit, Strecke und Luftlinie auf 
 Kurs, Höhe max. GPS/Baro und Mittel, Steigen/Sinken max. (30-s-Mittel), Fahrt über Grund max./Mittel, vertikale
 und horizontale Beschleunigung (über 3 s), Aufsetzrate, Nachtfahrt (bürgerliche Dämmerung, Sonne −6°) mit
 Zeitfenstern, Segmente/Neustarts/Lücken, Tracker und Batterie. Bei Höhe max., Steigen/Sinken max. und Fahrt max.
-steht ein **Symbolknopf** (◆ ▲ ▼ ▶, in den Kacheln und in der Liste), der den Punkt auf Karte, 3D-Ansicht und
-Höhenprofil festhält (Pin) und im Readout zeigt. «Tabelle kopieren» legt alles als Text in die
-Zwischenablage; «In Google Earth öffnen» sichert eine KMZ mit Zeitregler.
+steht ein **Symbolknopf** (◆ ▲ ▼ ▶ — dasselbe Zeichen wie auf Karte, 3D-Ansicht und Höhenprofil; in den Kacheln
+und in der Liste). Er hält den Punkt überall fest (Pin) und öffnet die **Detailansicht** (ab 0.9.1): ein Viewer
+mit Karte und Höhenprofil des Abschnitts ± 5/10/30 min um den Punkt (Minutenpunkte, Beschriftung alle 5 min,
+übrige Fahrt grau, gekoppelter Hover und Readout; Klick hält einen Punkt fest, auch in der Hauptansicht). Ein Klick
+auf ein Symbol in Karte, 3D-Ansicht oder Profil öffnet dieselbe Detailansicht. Der **Listenknopf** ≡ (in der Liste
+und oben in der Detailansicht, «Aufzeichnung») zeigt die **numerische Fahrtaufzeichnung** um den Punkt: Trackpunkte
+± 1/5/30 min mit Zeit, Höhe (bereinigt) und Baro, Vario und Vario 30 s, GS und GS 10 s (die gleitenden Mittel, aus
+denen die Kennzahlen stammen), Kurs, Breite/Länge, Fix und Batterie; die Zeile des Extremwerts ist markiert.
+«Tabelle kopieren» legt alles als Text in die Zwischenablage; «In Google Earth öffnen» sichert eine KMZ mit
+Zeitregler.
 
 **Ereignislog:** «Aus gb_flight_data verknüpfen» (abgeschlossene Fahrten der Reporting-App; nur PINs mit
 Team-Freigabe, Worker-Token nötig) oder «Datei (JSON/CSV)». Ereignisse erscheinen als farbige Marker auf Karte und
@@ -139,7 +154,8 @@ Team-/Organisationsname, bei gespeicherter Fahrt **QR-Code und Kurzlink oben rec
 am Bildschirm ein Platzhalter, im Druck nichts). Seite 1 Stammdaten (zweispaltig) und Kennzahlen, Seite 2
 Übersichtskarte, Detailkarten von Startort und Landeort, Höhenprofil, Seite 3 Segmente/Protokoll, Regeln der
 Erkennung und Unterschrift mit «Daten hochgeladen / letzte Änderung», dann Ereignislog und Fotos. Gedruckt wird in
-Schritt 5; im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier.
+Schritt 5; im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier. Karte, Detailkarten und
+Höhenprofil des Berichts öffnen per Klick oder ⤢ gross (interaktive Kopie mit Layerwahl und Zoom).
 
 **Spezialfunktionen Balthasar** (unten, nur für den Supermaster und den PIN des Ballonteams): Ereignislog aus
 `gb_flight_data` verknüpfen – Liste der JSON-Dateien im Repository, passende Fahrten nach Zeitraum markiert, «JSON
@@ -311,7 +327,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 | `src/terrain/` | Gelände und Wasser: DEM-Kacheln/open-meteo (`terrain.js`), MVT-Leser (`mvt.js`), Cache und Anzeige (`store.js`) |
 | `src/events/log.js`, `src/photos/` | Ereignislog (Normalisierung, Verknüpfung), Fotos (EXIF, Verkleinern, Platzierung, Speicher) |
 | `src/export/` | GPX/GeoJSON/KML/KMZ/CSV (`formats.js`), Downloads und ZIP (`download.js`), Vorschaubild (`preview.js`) |
-| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`) |
+| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`), Viewer für Grossansicht, Detailansicht und Fahrtaufzeichnung (`viewer.js`) |
 | `src/util/` | DOM-Helfer und Dialoge, Formate, Einheiten, Geodäsie (Vincenty, Dämmerung), Ortsnamen, QR-Code (eigener Code) |
 | `src/worker/parse-worker.js` | Parser im Web Worker |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten) |
