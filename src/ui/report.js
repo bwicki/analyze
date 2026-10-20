@@ -10,7 +10,7 @@ import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, createDetailMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
-import { session, logoUrl, DEFAULT_LOGO, orgName } from '../session.js';
+import { session, logoUrl, DEFAULT_LOGO, orgName, accentColor, isHexColor, DEFAULT_ACCENT } from '../session.js';
 import { pickFromRepo } from './events.js';
 import { qrSvg } from '../util/qr.js';
 import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
@@ -105,6 +105,8 @@ export function mountReport(root, ctx) {
     const title = m.title || `${t('rep.defaultTitle')} ${fmtDateUTC(st.takeoff.t)}${times}${m.balloon ? ' · ' + m.balloon : ''}`;
     const saved = state.flight && state.flight.id ? state.flight : null;
     const org = state.viewer ? ((state.viewer.owner && state.viewer.owner.org) || '') : orgName();   // team / organisation of the PIN (profile), replaces the fixed Ballonteam wording
+    const accent = state.viewer ? ((state.viewer.owner && isHexColor(state.viewer.owner.accent) && state.viewer.owner.accent) || DEFAULT_ACCENT) : accentColor();   // report accent (profile), 0.8.9
+    rep.style.setProperty('--rep-accent', accent);
     const linkBlock = saved && saved.public !== false ? `<div class="qrhead">${qrSvg(saved.url, { size: 76 })}<span class="mono">${esc(saved.url.replace(/^https?:\/\//, ''))}</span></div>`
       : state.viewer ? '' : `<div class="qrhead placeholder noprint">${esc(saved ? t('rep.qrPrivate') : t('rep.qrPlaceholder'))}</div>`;   // on screen only: what the print will carry once saved
     const nvfr = m.nvfr === 'yes' || (m.nvfr === '' && st.night.totalSec > 60);

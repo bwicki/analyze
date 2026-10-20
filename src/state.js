@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.8.8';
+export const VERSION = '0.8.9';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }

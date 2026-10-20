@@ -208,7 +208,7 @@ export async function viewFlight(env, id, request) {
   const row = await publicFlight(env, id);
   await logAction(env, '-', 'view', id, request);
   const prefs = parseJson(row.owner_prefs);
-  return { ...flightView(row), owner: { code: row.code, displayName: row.display_name || '', logo: !!row.logo_key, org: (prefs && prefs.org) || '' } };
+  return { ...flightView(row), owner: { code: row.code, displayName: row.display_name || '', logo: !!row.logo_key, org: (prefs && prefs.org) || '', accent: (prefs && /^#[0-9a-f]{6}$/i.test(prefs.accent || '') && prefs.accent) || '' } };
 }
 export async function viewTrack(env, id) {
   const row = await publicFlight(env, id);

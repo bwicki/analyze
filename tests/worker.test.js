@@ -347,9 +347,12 @@ test('link preview: title/description from master data, HTML page under /v/<id>,
   const H = { 'X-Code': c.code };
   const fd0 = new FormData(); fd0.set('meta', JSON.stringify({ title: 'F', stats: { durationSec: 3600 }, meta: { balloon: 'HB-QWV', event: 'Testfahrt' } })); fd0.set('track', new Blob([await gz('{"type":"FeatureCollection","features":[]}')], { type: 'application/gzip' }), 't.gz');
   const fl = await (await call(e, 'POST', '/api/flights', { body: fd0, headers: H })).json();
-  await call(e, 'PUT', '/api/me', { body: { prefs: { org: 'Ballonclub Test' } }, headers: H });
+  await call(e, 'PUT', '/api/me', { body: { prefs: { org: 'Ballonclub Test', accent: '#1f5fbf' } }, headers: H });
   const vw = await (await call(e, 'GET', `/api/view/${fl.id}`)).json();
   assert.equal(vw.owner.org, 'Ballonclub Test');   // 0.8.6: shown under the app title and on the report in the viewer
+  assert.equal(vw.owner.accent, '#1f5fbf');          // 0.8.9: report accent colour of the owner
+  await call(e, 'PUT', '/api/me', { body: { prefs: { accent: 'red' } }, headers: H });
+  assert.equal((await (await call(e, 'GET', `/api/view/${fl.id}`)).json()).owner.accent, '', 'only #rrggbb is handed out');
   const r1 = await call(e, 'GET', `/v/${fl.id}`);
   assert.equal(r1.status, 200); assert.ok((r1.headers.get('Content-Type') || '').includes('text/html'));
   assert.ok((await r1.text()).includes('HB-QWV – Testfahrt'));

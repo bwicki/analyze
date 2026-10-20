@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.8.8 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.8.9 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -177,7 +177,8 @@ nach dem Speichern (GitHub-Pages-Build).
 Klick auf den PIN oben rechts: Liste der eigenen Fahrten (Öffnen ohne Neu-Import, Kurzlink kopieren, **Rohdaten (n)**
 = die importierten Trackerdateien als ZIP zurückholen, Löschen),
 **Profil** mit Anzeigename, **Team / Organisation** (ersetzt «Wickipartners Ballonteam» unter dem App-Titel, im
-Viewer und im Bericht), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
+Viewer und im Bericht), **Akzentfarbe des Berichts** (Farbwähler oder Hex-Wert; Linie unter dem Berichtskopf, Vorgabe
+das Ballonteam-Gelb; gilt auch im Viewer und im Druck), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
 Berichten), Vorgaben (Standard-Ballon, PIC), Abmelden. Je PIN 300 MB Speicher.
 
 ### Supermaster

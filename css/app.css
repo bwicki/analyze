@@ -214,7 +214,7 @@ details.exp>div{padding-bottom:10px}
 .report{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:14px;max-width:860px}
 .report h1{font-size:22px}
 .report .pk{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
-.report .bar{height:3px;background:var(--amber-light)}
+.report .bar{height:3px;background:var(--rep-accent,var(--amber-light));-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .report table{border-collapse:collapse;width:100%;font-size:13px}
 .report .rep-detail{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
 .report .rep-detail .map{border:1px solid #ccc;border-radius:6px}
@@ -354,3 +354,8 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .seg.sm button{padding:4px 10px;font-size:12px;min-height:28px}
 @keyframes welcome-in{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
 @media (min-width:700px){.welcome-bg{align-items:center}}
+
+/* profile: report accent colour (0.8.9) */
+.accent-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.accent-row input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer}
+.accent-row .swatch{display:inline-block;width:120px;height:3px;border-radius:2px}

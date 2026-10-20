@@ -20,6 +20,10 @@ export const hasServer = () => !!config.apiBase;
 export const hasAccess = () => !!session.code || session.guest;
 /** Team / organisation name of the PIN in use (profile → «Team / Organisation»); '' = app default «Wickipartners Ballonteam». */
 export const orgName = () => ((session.me && session.me.prefs && session.me.prefs.org) || '').trim();
+export const DEFAULT_ACCENT = '#f6b03d';   // the Ballonteam yellow of the report bar
+export const isHexColor = (v) => /^#[0-9a-f]{6}$/i.test(String(v || ''));
+/** Accent colour of the PIN's reports (profile → «Akzentfarbe»); the default yellow when none is set. */
+export const accentColor = () => { const v = session.me && session.me.prefs && session.me.prefs.accent; return isHexColor(v) ? v.toLowerCase() : DEFAULT_ACCENT; };
 
 export function setCode(code, me = null) {
   session.code = code || null; session.me = me; session.guest = false;

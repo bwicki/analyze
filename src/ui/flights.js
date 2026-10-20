@@ -7,7 +7,7 @@ import { fmtInt, fmtBytes, fmtDateUTC, fmtDurationClock, fmtDateTimeUTC } from '
 import { makeUnits } from '../util/units.js';
 import { state, bus } from '../state.js';
 import { api, ApiError } from '../api.js';
-import { session, setMe, clearSession, logoUrl, DEFAULT_LOGO } from '../session.js';
+import { session, setMe, clearSession, logoUrl, DEFAULT_LOGO, accentColor, isHexColor, DEFAULT_ACCENT } from '../session.js';
 import { openFlight } from '../flightio.js';
 import { config } from '../config.js';
 import { downloadRawSet } from '../export/rawdl.js';
@@ -26,6 +26,7 @@ export function mountFlights(root, ctx) {
           <div class="row"><span class="k2">${esc(t('start.code'))}</span><span class="val">${esc(session.code || '')}</span></div>
           <label class="f">${esc(t('start.displayName'))}<input class="in" data-pref="displayName" maxlength="60" value="${esc(me.displayName || '')}"></label>
           <label class="f">${esc(t('fl.org'))}<input class="in" data-pref="org" maxlength="60" placeholder="${esc(t('fl.orgPh'))}" value="${esc((me.prefs && me.prefs.org) || '')}"></label>
+          <div class="f"><span>${esc(t('fl.accent'))}</span><div class="accent-row"><input type="color" data-accent-pick value="${esc(accentColor())}" title="${esc(t('fl.accent'))}"><input class="in mono sm" data-pref="accent" maxlength="7" style="width:110px" value="${esc(accentColor())}" placeholder="#f6b03d"><span class="swatch" data-accent-swatch style="background:${esc(accentColor())}"></span><button class="btn xs" type="button" data-act="accentReset">${esc(t('fl.accentReset'))}</button></div><span class="muted small">${esc(t('fl.accentNote'))}</span></div>
           <div class="row-wrap" style="align-items:center;gap:12px">
             <img data-logo src="${logoUrl(session.code, me.logo)}" alt="" style="height:46px;max-width:180px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:8px;padding:4px">
             <label class="btn sm" style="cursor:pointer">${esc(t('fl.logoUpload'))}<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" data-logofile></label>
@@ -89,10 +90,16 @@ export function mountFlights(root, ctx) {
     clearTimeout(prefTimer);
     prefTimer = setTimeout(async () => {
       const patch = { prefs: {} };
-      el.querySelectorAll('[data-pref]').forEach((i) => { if (i.dataset.pref === 'displayName') patch.displayName = i.value.trim(); else patch.prefs[i.dataset.pref] = i.value.trim(); });
+      el.querySelectorAll('[data-pref]').forEach((i) => { if (i.dataset.pref === 'displayName') patch.displayName = i.value.trim(); else if (i.dataset.pref === 'accent') { const v = i.value.trim().toLowerCase(); if (isHexColor(v) || v === '') patch.prefs.accent = v === DEFAULT_ACCENT ? '' : v; } else patch.prefs[i.dataset.pref] = i.value.trim(); });
       try { setMe(await api.me.update(patch)); ctx.refreshBars(); toast(t('fl.saved1')); } catch { toast(t('start.errNetwork'), true); }
     }, 700);
   }));
+  // accent colour: picker ↔ hex field ↔ swatch; the hex field carries the autosave
+  const pick = el.querySelector('[data-accent-pick]'), hexIn = el.querySelector('[data-pref=accent]'), swatch = el.querySelector('[data-accent-swatch]');
+  if (pick) {
+    pick.addEventListener('input', () => { hexIn.value = pick.value; swatch.style.background = pick.value; hexIn.dispatchEvent(new Event('input', { bubbles: true })); });
+    hexIn.addEventListener('input', () => { const v = hexIn.value.trim().toLowerCase(); if (isHexColor(v)) { pick.value = v; swatch.style.background = v; } });
+  }
   el.querySelector('[data-logofile]').addEventListener('change', async (e) => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     if (f.size > 1024 * 1024) { toast(t('fl.logoTooBig'), true); return; }
@@ -107,6 +114,7 @@ export function mountFlights(root, ctx) {
 
   onAct(el, {
     new: () => { ctx.goto('import'); },
+    accentReset: () => { hexIn.value = DEFAULT_ACCENT; pick.value = DEFAULT_ACCENT; swatch.style.background = DEFAULT_ACCENT; hexIn.dispatchEvent(new Event('input', { bubbles: true })); },
     raw: async (b) => {   // the imported tracker files of an own flight, as stored (0.8.8)
       b.disabled = true;
       try { const list = await api.flights.raw(b.dataset.id); if (!list.length) { toast(t('adm.rawNoFiles'), true); return; } toast(t('adm.rawLoading', { n: list.length })); await downloadRawSet({ list, fetchFile: (n) => api.flights.rawFile(b.dataset.id, n), title: b.dataset.title, id: b.dataset.id }); }
