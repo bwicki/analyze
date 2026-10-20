@@ -57,6 +57,7 @@ function run(file, env) {
 const port = +(process.env.SMOKE_PORT || 8765);
 const only = process.argv.slice(2);
 const srv = await serve(port);
+if (process.env.GITHUB_ACTIONS) console.log(`::notice title=smoke::runner started on port ${port}, ${SMOKES.length} scripts`);
 let failed = 0;
 for (const [file, expect] of SMOKES) {
   if (only.length && !only.some((o) => file.includes(o))) continue;
@@ -71,7 +72,12 @@ for (const [file, expect] of SMOKES) {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${file} (${Math.round((Date.now() - t0) / 1000)} s)${ok ? '' : ' – ' + problems.join('; ')}`);
   if (!ok) { console.log(r.out.split('\n').map((l) => '    ' + l).join('\n')); if (r.err.trim()) console.log(r.err.split('\n').slice(0, 25).map((l) => '    ' + l).join('\n')); }
   // GitHub Actions: an annotation per failed script (readable through the checks API even without the raw log)
-  if (!ok && process.env.GITHUB_ACTIONS) { const enc = (x) => String(x).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A'); console.log(`::error title=${file}::${enc(problems.join('; '))}%0A${enc(r.out.trim().split('\n').slice(-6).join('\n'))}%0A${enc(r.err.trim().split('\n').slice(0, 8).join('\n'))}`); }
+  if (!ok && process.env.GITHUB_ACTIONS) {
+    const enc = (x) => String(x).replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A').slice(0, 900);
+    console.log(`::error title=${file}::${enc(problems.join('; '))}`);
+    console.log(`::warning title=${file} stdout::${enc(r.out.trim().split('\n').slice(-5).join(' | '))}`);
+    if (r.err.trim()) console.log(`::warning title=${file} stderr::${enc(r.err.trim().split('\n').slice(0, 6).join(' | '))}`);
+  }
 }
 srv.close();
 console.log(failed ? `\n${failed} smoke test(s) failed` : '\nall smoke tests passed');
