@@ -85,6 +85,8 @@ export const api = {
     // Übergabe an ops.wicki.aero (0.10.0): the Worker talks to ops with the service token; the Supermaster may do it without a PIN
     opsBriefings: (id) => request('GET', `/api/flights/${id}/ops/briefings`, evAuth()),
     opsHandover: (id, briefingId) => request('POST', `/api/flights/${id}/ops`, { body: { briefingId }, ...evAuth() }),
+    // Garmin inReach MapShare (0.12.0): KML of a time window via the Worker (Garmin sends no CORS headers); the password is passed through, never stored
+    mapshare: async ({ share, from, to, pw }) => { const q = new URLSearchParams({ share, from, to }); if (pw) q.set('pw', pw); const res = await request('GET', `/api/mapshare?${q}`, { raw: true }); return { text: await res.text(), name: res.headers.get('X-Analyze-Name') || 'mapshare.kml', points: +(res.headers.get('X-Analyze-Points') || 0) }; },
   },
   view: {
     get: (id) => request('GET', `/api/view/${id}`, { code: null }),

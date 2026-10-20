@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.11.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.12.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -49,6 +49,12 @@ bedienbar. Je Datei entstehen **Segmente** (Zeitsprünge rückwärts > 60 s oder
 Aufzeichnungen (CSV + JSONL desselben Geräts) werden einmal verwendet, Segmente weit ausserhalb der Hauptfahrt
 (> 12 h) gelten als **andere Fahrt** und lösen eine Rückfrage aus («Ignorieren» / «Trotzdem verwenden»). Die
 importierten Dateien selbst bleiben als **Rohdaten** in der Sitzung und werden beim Speichern der Fahrt mitgesichert.
+
+**Garmin inReach (MapShare), ab 0.12.0:** Karte «Garmin inReach (MapShare)» – MapShare-Adresse (`share.garmin.com/…`)
+oder Name, Zeitfenster (Lokalzeit, Vorgabe die letzten 24 h, max. 31 Tage) und falls gesetzt das MapShare-Passwort →
+«Von MapShare laden» holt den KML-Feed über den Worker (`GET /api/mapshare`, nur Garmin-Hosts, 20 Abrufe je 10 min
+und PIN; Garmin sendet keine CORS-Header) und importiert ihn wie eine Datei (`mapshare_<Name>_<Datum>.kml`, auch in
+den Rohdaten). Die Adresse wird in den Einstellungen gemerkt, das Passwort nie. Braucht einen PIN.
 
 **Mehrere Geräte** (ab 0.8.0): zeichnen zwei oder mehr Tracker dieselbe Fahrt auf, erscheint die Karte «Mehrere
 Geräte». *Konsens (Median)* bildet im überlappenden Bereich pro Rasterpunkt (5–60 s, Vorgabe 10 s) den Median von
@@ -366,6 +372,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 /api/flights/‹id›/photos/‹pid›` · `GET /api/profiles` (öffentlich), `POST /api/profiles`, `DELETE
 /api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
 `GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster) ·
+`GET /api/mapshare?share=&from=&to=[&pw=]` (Garmin MapShare-Feed als KML, PIN) ·
 öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg]`, `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|
 flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events|raw`, `GET /api/admin/flights/‹id›/raw/‹n›` (Rohdaten), `DELETE

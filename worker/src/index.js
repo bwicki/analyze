@@ -18,6 +18,7 @@
 //   GET|POST /api/flights/<id>/raw · GET /api/flights/<id>/raw/<n>   raw tracker files as imported (owner; Supermaster: /api/admin/flights/<id>/raw[/<n>])
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code with team, or Supermaster token)
 //   GET  /api/flights/<id>/ops/briefings · POST /api/flights/<id>/ops   Übergabe an ops.wicki.aero (team or Supermaster; secret OPS_HANDOVER_TOKEN)
+//   GET  /api/mapshare?share=&from=&to=[&pw=]   Garmin inReach MapShare feed (KML) for the import – any PIN, Garmin hosts only
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
 //   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
@@ -32,6 +33,7 @@ import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTr
 import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { opsBriefings, opsHandover } from './ops.js';
+import { fetchMapShare } from './mapshare.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
 import { listProfiles, createProfile, deleteProfile } from './profiles.js';
@@ -44,7 +46,7 @@ export function corsHeaders(env, request) {
   const origin = request.headers.get('Origin');
   const allowed = String(env.APP_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (!origin || !(allowed.includes(origin) || /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin))) return {};
-  return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Code', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'X-Analyze-Encoding, X-Analyze-Bytes', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
+  return { 'Access-Control-Allow-Origin': origin, 'Access-Control-Allow-Headers': 'Authorization, Content-Type, X-Code', 'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS', 'Access-Control-Expose-Headers': 'X-Analyze-Encoding, X-Analyze-Bytes, X-Analyze-Name, X-Analyze-Points', 'Access-Control-Max-Age': '600', Vary: 'Origin' };
 }
 
 // Small per-isolate rate limiter: code creation, code guessing and admin logins per client IP.
@@ -90,7 +92,7 @@ export async function api(request, env, url, ctx) {
   }
 
   // ---- code user ---------------------------------------------------------------------------------
-  if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
+  if (path === '/api/me' || path === '/api/me/logo' || path === '/api/mapshare' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
     let user = await codeFromRequest(env, request, url);
     if (!user && (path.startsWith('/api/events') || /\/ops(\/briefings)?$/.test(path))) { const adm = await adminFromRequest(env, request); if (adm) user = { code: `admin:${adm.name}`, team: true, admin: true }; }   // Supermaster without a PIN (0.8.7; 0.10.0 also for the ops handover)
     if (!user) {
@@ -101,6 +103,8 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me' && m === 'PUT') return json(await updateMe(env, user, await readJson(request)));
     if (path === '/api/me/logo' && m === 'PUT') return json(await putLogo(env, user, request));
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
+    // Garmin inReach MapShare feed for the import (0.12.0): any PIN, 20 calls per 10 min
+    if (path === '/api/mapshare' && m === 'GET') { if (rateLimited('mapshare:' + user.code, 20)) throw new HttpError(429, 'too many MapShare requests'); return fetchMapShare(env, user, { share: url.searchParams.get('share'), from: url.searchParams.get('from'), to: url.searchParams.get('to'), pw: url.searchParams.get('pw') || '' }); }
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));
     if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request, ctx));
     // Übergabe an ops.wicki.aero (0.10.0): list of the last briefings, then the handover of one saved flight

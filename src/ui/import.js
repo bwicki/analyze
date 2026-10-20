@@ -8,6 +8,7 @@ import { parseFiles } from '../parser.js';
 import { openAssistant } from './assist.js';
 import { removeProfile, sharedProfiles, localProfiles } from '../profiles-store.js';
 import { session } from '../session.js';
+import { api } from '../api.js';
 
 const ACCEPT = '.csv,.jsonl,.json,.geojson,.txt,.gpx,.kml,.kmz,.igc,.zip,.log,.nmea';
 
@@ -25,6 +26,17 @@ export function mountImport(root, ctx) {
           </div>
           <div class="muted small" data-progress></div>
           <label class="chk"><input type="checkbox" data-opt="hideOther" ${state.settings.hideOtherFlights ? 'checked' : ''}> ${esc(t('imp.hideOther'))}</label>
+        </section>
+        <section class="card" data-mapshare>
+          <h2>${esc(t('imp.msTitle'))}</h2>
+          <span class="muted small">${esc(t('imp.msHint'))}</span>
+          <label class="f">${esc(t('imp.msShare'))}<input class="in" data-ms="share" placeholder="https://share.garmin.com/…" value="${esc((state.settings.mapshare && state.settings.mapshare.share) || '')}"></label>
+          <div class="g2">
+            <label class="f">${esc(t('imp.msFrom'))}<input class="in" type="datetime-local" data-ms="from"></label>
+            <label class="f">${esc(t('imp.msTo'))}<input class="in" type="datetime-local" data-ms="to"></label>
+          </div>
+          <label class="f">${esc(t('imp.msPw'))}<input class="in" type="password" data-ms="pw" autocomplete="off" placeholder="${esc(t('imp.msPwPh'))}"></label>
+          <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="mapshare" ${session.code ? '' : 'disabled'}>${esc(t('imp.msLoad'))}</button><span class="muted small" data-msstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
         </section>
         <section class="card" data-devices hidden></section>
         <section class="card">
@@ -98,7 +110,30 @@ export function mountImport(root, ctx) {
     recompute({ reclassify: false });
   }
 
+  // Garmin inReach MapShare (0.12.0): the Worker fetches the KML of the window, then it goes through the normal import
+  const msIn = (k) => el.querySelector(`[data-ms="${k}"]`);
+  const toLocalInput = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  if (msIn('from')) { const now = Date.now(); msIn('from').value = toLocalInput(now - 24 * 3600000); msIn('to').value = toLocalInput(now); }
+  async function loadMapShare(btn) {
+    const share = msIn('share').value.trim(), from = msIn('from').value, to = msIn('to').value, pw = msIn('pw').value;
+    const st = el.querySelector('[data-msstate]');
+    if (!share) { toast(t('imp.msNoShare'), true); return; }
+    if (!from || !to || Date.parse(from) >= Date.parse(to)) { toast(t('imp.msBadWindow'), true); return; }
+    btn.disabled = true; st.textContent = t('imp.msLoading');
+    try {
+      const r = await api.flights.mapshare({ share, from: new Date(from).toISOString(), to: new Date(to).toISOString(), pw });
+      state.settings.mapshare = { share }; ctx.saveSettings();
+      if (!r.points) { st.textContent = t('imp.msEmpty'); return; }
+      st.textContent = t('imp.msLoaded', { n: r.points, name: r.name });
+      await addFiles([new File([r.text], r.name, { type: 'application/vnd.google-earth.kml+xml' })]);
+    } catch (ex) {
+      const msg = ex.status === 401 ? t('imp.msPwWrong') : ex.status === 404 ? t('imp.msNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.msBadAddress') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      st.textContent = msg; toast(msg, true);
+    } finally { btn.disabled = false; msIn('pw').value = ''; }
+  }
+
   onAct(el, {
+    mapshare: (b) => loadMapShare(b),
     merge: (b) => { state.settings.merge = { ...state.settings.merge, mode: b.dataset.mode }; ctx.saveSettings(); recompute({ reclassify: false }); },
     reset: async () => { if (await confirmDialog({ title: t('imp.reset'), text: esc(t('imp.resetText')), okLabel: t('imp.reset'), cancelLabel: t('common.cancel'), danger: true })) { resetAll(); } },
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: b.dataset.to !== 'off' && b.dataset.to !== 'use' }); },

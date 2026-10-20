@@ -86,3 +86,25 @@ test('opsHandover: team or Supermaster only, saved track required, package goes 
     await assert.rejects(opsBriefings({ ...env, OPS_HANDOVER_TOKEN: '' }, { code: 'KQZMWB', team: true }), /not configured/);
   } finally { globalThis.fetch = realFetch; }
 });
+
+// ---- Garmin MapShare feed (0.12.0): address parsing and the Worker fetch with a stubbed Garmin
+test('mapshare: feed URL from address, feed URL or name; Garmin hosts only; window bounded', async () => {
+  const { feedUrl, fetchMapShare } = await import('../worker/src/mapshare.js');
+  assert.equal(feedUrl('https://share.garmin.com/bwi').url, 'https://share.garmin.com/Feed/Share/bwi');
+  assert.equal(feedUrl('https://share.garmin.com/Feed/Share/bwi/', { from: '2026-10-04T06:00:00Z', to: '2026-10-04T18:30:00Z' }).url, 'https://share.garmin.com/Feed/Share/bwi?d1=2026-10-04T06%3A00Z&d2=2026-10-04T18%3A30Z');
+  assert.equal(feedUrl('bwi').name, 'bwi');
+  assert.throws(() => feedUrl('https://example.com/bwi'), /Garmin/);
+  assert.throws(() => feedUrl('https://share.garmin.com/'), /name/);
+  assert.throws(() => feedUrl('bwi', { from: '2026-01-01T00:00:00Z', to: '2026-03-01T00:00:00Z' }), /31 days/);
+  assert.throws(() => feedUrl('bwi', { from: 'gestern' }), /bad time/);
+  const realFetch = globalThis.fetch; const seen = [];
+  globalThis.fetch = async (url, init) => { seen.push({ url, auth: init.headers.Authorization || null }); if (/pwonly/.test(url) && !init.headers.Authorization) return new Response('', { status: 401 }); if (/nix/.test(url)) return new Response('', { status: 404 }); return new Response('<?xml version="1.0"?><kml><Document><Placemark><TimeStamp><when>2026-10-04T06:00:00Z</when></TimeStamp><Point><coordinates>8.4,47.3,500</coordinates></Point></Placemark><Placemark><TimeStamp><when>2026-10-04T06:10:00Z</when></TimeStamp><Point><coordinates>8.41,47.31,520</coordinates></Point></Placemark></Document></kml>', { status: 200, headers: { 'Content-Type': 'application/vnd.google-earth.kml+xml' } }); };
+  try {
+    const res = await fetchMapShare({}, { code: 'KQZMWB' }, { share: 'https://share.garmin.com/bwi', from: '2026-10-04T06:00:00Z', to: '2026-10-04T18:00:00Z', pw: '' });
+    assert.equal(res.headers.get('X-Analyze-Name'), 'mapshare_bwi_2026-10-04.kml'); assert.equal(res.headers.get('X-Analyze-Points'), '2'); assert.match(await res.text(), /<kml>/);
+    assert.equal(seen[0].auth, null);
+    await assert.rejects(fetchMapShare({}, { code: 'K' }, { share: 'pwonly' }), /password/);
+    const ok = await fetchMapShare({}, { code: 'K' }, { share: 'pwonly', pw: 'geheim' }); assert.equal(ok.status, 200); assert.match(seen.at(-1).auth, /^Basic /);
+    await assert.rejects(fetchMapShare({}, { code: 'K' }, { share: 'nix' }), /not found/);
+  } finally { globalThis.fetch = realFetch; }
+});
