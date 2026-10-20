@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.8.2 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.3 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -69,10 +69,17 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    Rasterpunkt (5–60 s) den Median von Position und Höhe aller Geräte (Geräte weiter als 300 m vom Median werden dort
    verworfen), **Hauptgerät + Lückenfüllung** nimmt ein Gerät und füllt nur dessen Lücken aus den anderen; ausserhalb
    der Überlappung behält jedes Gerät seine volle Auflösung. Der gewählte Modus steht im Protokoll und im Bericht.
-2. **Bereinigen** – Zeitleiste mit Segmenten, Neustarts und Nacht; Start/Landung erkannt; Schnitt mit Griffen
-   oder Zeiten; Protokoll der Aufbereitung. Endet die Aufzeichnung in der Fahrt (keine Landung erkannt), setzt
-   «Landung von Hand setzen» sie im App-Dialog: Karte mit dem Ende des Tracks, Zeitfeld/Schieberegler/Klick auf
-   den Track, Landeort (Vorschlag aus OpenStreetMap, überschreibbar).
+2. **Bereinigen** – Zeitleiste mit Segmenten, Neustarts und Nacht, darunter das **Höhenprofil der ganzen
+   Aufzeichnung** (mit Gelände und Wasser, sobald geladen), so dass Punkte vor dem Start und nach der Landung
+   sichtbar sind; Start/Landung erkannt; Schnitt mit schlanken Griffen (Ziehen mit Vorschau, Pfeiltasten 10 s /
+   Shift 1 min / Alt 10 min), Zeiten eintippen oder Schritt-Knöpfe ±10 s / ±1 min / ±10 min; Protokoll der
+   Aufbereitung. **Ein Schnitt in der Fahrt gilt als Start bzw. Landung** (✂; Kennzahlen, Bericht und Exporte
+   folgen den geänderten Zeiten – man kann also vom Bericht nach «Bereinigen» zurück, die Startzeit anpassen und
+   den Ablauf erneut durchlaufen; «Automatisch» stellt die erkannten Ereignisse wieder her). Endet die
+   Aufzeichnung in der Fahrt (keine Landung erkannt), setzt «Landung von Hand setzen» sie im App-Dialog: Karte mit
+   dem Ende des Tracks, Zeitfeld/Schieberegler/Klick auf den Track, Landeort (Vorschlag aus OpenStreetMap,
+   überschreibbar). Eine von Hand oder per Schnitt gesetzte Landung wird mit der Fahrt gespeichert und beim
+   Öffnen wiederhergestellt (der gespeicherte Track endet dann in der Fahrt).
 3. **Auswerten** – Karte (Layer Strasse/Topo/Satellit als Radiobuttons oben rechts in der Karte, Farbe nach Vario
    oder Fahrt über Grund in fünf Stufen, Nachtabschnitte (NVFR) mit dunklem Saum, Zeitmarker; die Karte ist so hoch
    wie die Kennzahlen daneben), Kennzahlen (ICAO oder metrisch; Ortsnamen `CH-Willisau` von OpenStreetMap Nominatim,

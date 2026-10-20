@@ -1,7 +1,7 @@
 // Saving and re-opening flights under a Kennung (phase 2): the current analysis → GeoJSON + summary
 // for the Worker, and a saved record + GeoJSON → back into the pipeline (same path as an import).
 
-import { state, recompute, resetAll, saveMeta, bus, setEventLog } from './state.js';
+import { state, recompute, resetAll, saveMeta, bus, setEventLog, setManualLanding } from './state.js';
 import { normalizeEvents, summarizeEvents } from './events/log.js';
 import { loadPhotos } from './photos/store.js';
 import { exportData, summaryForExport } from './export/download.js';
@@ -42,6 +42,18 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
   return rec;
 }
 
+/**
+ * The saved track is the trimmed one. When its landing was set by hand or by a cut inside the flight, the
+ * recording ends in the air and detection finds no landing on reopening – restore it from the saved figures.
+ */
+function restoreSavedLanding(stats) {
+  const st = state.stats, saved = stats && stats.landing;
+  if (!st || st.landing || !saved || !saved.time) return;
+  const ms = Date.parse(saved.time); if (!Number.isFinite(ms)) return;
+  const t = state.track.points.t; if (ms < t[0] - 1000 || ms > t[t.length - 1] + 1000) return;
+  setManualLanding(ms, saved.cut ? 'cut' : 'manual');
+}
+
 /** Load a saved record (list row or viewer data) + its GeoJSON (+ stored event log) into the pipeline. */
 export async function openFlight(rec, geojsonText, { viewer = false, eventRows = null } = {}) {
   resetAll();
@@ -56,6 +68,7 @@ export async function openFlight(rec, geojsonText, { viewer = false, eventRows =
     state.places = { takeoff: (rec.stats && rec.stats.startPlace) || null, landing: (rec.stats && rec.stats.landPlace) || null, inter: (rec.stats && rec.stats.interPlaces) || {} };
     state.ignoredLandings = Array.isArray(rec.stats && rec.stats.ignoredLandings) ? rec.stats.ignoredLandings.slice() : [];
     recompute({ reclassify: true });
+    restoreSavedLanding(rec.stats);
     if (eventRows && eventRows.length) { const src = (rec.stats && rec.stats.events && rec.stats.events.source) || ''; setEventLog({ source: { kind: 'saved', flight: src.replace(/^gb_flight_data\//, ''), name: src }, rows: eventRows, events: normalizeEvents(eventRows) }); }
     state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, createdAt: rec.createdAt, updatedAt: rec.updatedAt, public: rec.public };
     state.viewer = viewer ? { id: rec.id, title: rec.title, owner: rec.owner || null } : null;

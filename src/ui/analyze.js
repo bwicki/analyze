@@ -212,8 +212,8 @@ export function mountAnalyze(root, ctx) {
     const row = (k, v, sub = '') => `<div class="row"><span class="k2">${esc(k)}</span><span class="val">${v}${sub ? `<br><span class="sub">${sub}</span>` : ''}</span></div>`;
     const warm = st.accVertMax && st.accVertMax.v > 1.5;
     el.querySelector('[data-stats]').innerHTML = `<div class="card-head"><h2>${esc(t('ana.stats'))}</h2><div class="row-wrap noprint" style="gap:6px"><div class="seg"><button type="button" data-act="units" data-u="icao" class="${s.units !== 'metric' ? 'on' : ''}">ft · kt</button><button type="button" data-act="units" data-u="metric" class="${s.units === 'metric' ? 'on' : ''}">m · km/h</button></div><button class="btn chip" type="button" data-act="copy">${esc(t('ana.copy'))}</button></div></div>
-      ${row(t('st.takeoff'), st.takeoff ? fmtDateTimeUTC(st.takeoff.t) : '–', st.takeoff ? `${fmtLocalByLon(st.takeoff.t, st.takeoff.lon)} · ${placeLine('takeoff', st.takeoff)}` : '')}
-      ${row(t('st.landingAt'), st.landing ? fmtDateTimeUTC(st.landing.t) : (st.endFix ? fmtDateTimeUTC(st.endFix.t) : '–'), st.landing ? `${fmtLocalByLon(st.landing.t, st.landing.lon)} · ${placeLine('landing', st.landing)}` : (st.endFix ? `<span class="err">${esc(t('st.noLandingNote'))}</span> · ${icaoShort(st.endFix.lat, st.endFix.lon)}` : ''))}
+      ${row(t('st.takeoff'), st.takeoff ? fmtDateTimeUTC(st.takeoff.t) : '–', st.takeoff ? `${fmtLocalByLon(st.takeoff.t, st.takeoff.lon)} · ${placeLine('takeoff', st.takeoff)}${st.takeoff.cut ? ` · ${esc(t('st.cutNote'))}` : ''}` : '')}
+      ${row(t('st.landingAt'), st.landing ? fmtDateTimeUTC(st.landing.t) : (st.endFix ? fmtDateTimeUTC(st.endFix.t) : '–'), st.landing ? `${fmtLocalByLon(st.landing.t, st.landing.lon)} · ${placeLine('landing', st.landing)}${st.landing.cut ? ` · ${esc(t('st.cutNote'))}` : ''}` : (st.endFix ? `<span class="err">${esc(t('st.noLandingNote'))}</span> · ${icaoShort(st.endFix.lat, st.endFix.lon)}` : ''))}
       ${row(t('st.landings'), `${st.landings}`, st.intermediate.length ? st.intermediate.map((l) => `<span class="inter">${fmtTimeUTC(l.t)} UTC · ${esc(state.places.inter[l.t] || icaoShort(l.lat, l.lon))} (${fmtDurationHM(l.groundSec || 0)})${state.viewer ? '' : ` <button type="button" class="tt-x inline noprint" data-act="ignore" data-t="${l.t}" title="${esc(t('ana.ignoreLanding'))}">×</button>`}</span>`).join('<br>') + (state.ignoredLandings.length ? `<br><span class="muted">${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}</span>` : '') : esc(t('st.noIntermediate')) + (state.ignoredLandings.length ? ` · ${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}` : ''))}
       ${row(t('st.duration'), `<span class="big">${fmtDurationHM(st.durationSec)}</span>`, st.intermediate.length ? esc(t('st.airtime', { v: fmtDurationHM(st.airSec) })) : '')}
       ${row(t('st.distanceLine'), `${un.dist(st.distanceM)} · ${un.dist(st.straightM)} · ${fmtBearing(st.bearingDeg)}`)}
@@ -249,9 +249,12 @@ export function mountAnalyze(root, ctx) {
   let geoBusy = false, geoFailed = false;
   async function fetchPlaces(force) {
     const st = state.stats; if (!st || geoBusy) return;
-    const getP = (k, p) => (k === 'inter' ? state.places.inter[p.t] : state.places[k]);
-    const setP = (k, p, v) => { if (k === 'inter') state.places.inter[p.t] = v; else state.places[k] = v; };
+    const at = state.places.at || (state.places.at = {});
+    const moved = (k, p) => { const a = at[k]; if (!a) { at[k] = { lat: p.lat, lon: p.lon }; return false; } return Math.hypot(a.lat - p.lat, (a.lon - p.lon) * Math.cos(p.lat * Math.PI / 180)) > 0.003; };   // ≈ 300 m
+    const getP = (k, p) => (k === 'inter' ? state.places.inter[p.t] : (moved(k, p) ? null : state.places[k]));
+    const setP = (k, p, v) => { if (k === 'inter') state.places.inter[p.t] = v; else { state.places[k] = v; at[k] = { lat: p.lat, lon: p.lon }; } };
     const jobs = [['takeoff', st.takeoff], ['landing', st.landing], ...st.intermediate.map((l) => ['inter', l])].filter(([k, p]) => p && !Number.isNaN(p.lat) && (force || !getP(k, p)));
+    for (const [k, p] of jobs) if (k !== 'inter' && state.places[k] && moved(k, p)) { state.places[k] = null; at[k] = { lat: p.lat, lon: p.lon }; }   // stale name of the old position
     if (!jobs.length) return;
     geoBusy = true; geoFailed = false;
     for (const [k, p] of jobs) {
@@ -274,5 +277,6 @@ export function mountAnalyze(root, ctx) {
 export function analyzeStatus() {
   const st = state.stats; if (!st) return '';
   const un = makeUnits(state.settings.units);
-  return tx('ana.status', { title: state.meta.title || `${state.places.takeoff || icaoShort(st.takeoff.lat, st.takeoff.lon)} → ${st.landing ? (state.places.landing || icaoShort(st.landing.lat, st.landing.lon)) : '…'}`, dur: fmtDurationHM(st.durationSec), dist: un.dist(st.distanceM) });
+  const from = st.takeoff ? (state.places.takeoff || icaoShort(st.takeoff.lat, st.takeoff.lon)) : '–';
+  return tx('ana.status', { title: state.meta.title || `${from} → ${st.landing ? (state.places.landing || icaoShort(st.landing.lat, st.landing.lon)) : '…'}`, dur: fmtDurationHM(st.durationSec), dist: un.dist(st.distanceM) });
 }

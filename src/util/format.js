@@ -38,15 +38,15 @@ export const msToFpm = (ms) => ms / M_PER_FT * 60;
 /** "41 h 03 min" from seconds; below one hour "37 min". */
 export function fmtDurationHM(sec) {
   if (sec === null || sec === undefined || Number.isNaN(sec)) return '–';
-  const s = Math.max(0, Math.round(sec));
-  const h = Math.floor(s / 3600), m = Math.round((s % 3600) / 60);
+  const min = Math.round(Math.max(0, sec) / 60);   // round to whole minutes first (36 h 59 min 40 s → 37 h 00 min, never "36 h 60 min")
+  const h = Math.floor(min / 60), m = min % 60;
   return h > 0 ? `${h}${NBSP}h${NBSP}${pad2(m)}${NBSP}min` : `${m}${NBSP}min`;
 }
 /** "41:03" (h:mm) */
 export function fmtDurationClock(sec) {
   if (sec === null || sec === undefined || Number.isNaN(sec)) return '–';
-  const s = Math.max(0, Math.round(sec));
-  return `${Math.floor(s / 3600)}:${pad2(Math.round((s % 3600) / 60) % 60)}`;
+  const min = Math.round(Math.max(0, sec) / 60);
+  return `${Math.floor(min / 60)}:${pad2(min % 60)}`;
 }
 
 export function fmtTimeUTC(ms, withSeconds = false) {

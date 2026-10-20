@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.8.2';
+export const VERSION = '0.8.3';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -135,13 +135,13 @@ export function restoreLandings() {
   recompute({ reclassify: false });
 }
 
-/** Override the detected landing (manual) – replaces the last landing with the given time. */
-export function setManualLanding(ms) {
+/** Override the detected landing (manual) – replaces the last landing with the given time. flag: 'manual' (set by hand) | 'cut' (restored cut of a saved flight). */
+export function setManualLanding(ms, flag = 'manual') {
   const s = state; if (!s.track) return; touch();
   const t = s.track.points.t; let i = 0; while (i < t.length - 1 && t[i] < ms) i++;
   const ps = s.track.points; let p = i; while (p > 0 && !ps.fix[p]) p--;
   const ev = s.events.filter((e) => e.type !== 'landing' || e.t < ms - 1).filter((e) => !(e.type === 'landing' && e.t > ms));
-  ev.push({ type: 'landing', idx: i, t: t[i], lat: ps.lat[p], lon: ps.lon[p], alt: s.series.alt[i], manual: true });
+  ev.push({ type: 'landing', idx: i, t: t[i], lat: ps.lat[p], lon: ps.lon[p], alt: s.series.alt[i], [flag]: true });
   ev.sort((a, b) => a.t - b.t);
   s.events = ev;
   s.trim = proposeTrim(s.track, s.events, s.settings.detect);

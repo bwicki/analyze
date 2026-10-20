@@ -7,8 +7,15 @@ import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restor
 import { reverseGeocode } from '../util/places.js';
 import { mergeLine } from '../process/mergeinfo.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
+import { makeUnits } from '../util/units.js';
+import { terrainForDisplay } from '../terrain/store.js';
 
-const W = 1180, H = 150, L = 20, R = 20;
+// timeline geometry (SVG units): state bar, segment bar, altitude mini-profile, axis, handle labels
+const W = 1180, H = 200, L = 48, R = 20;
+const SB0 = 24, SB1 = 38;          // state bar (air / ground)
+const SG0 = 41, SG1 = 47;          // segment bar
+const PT = 54, PB = 154;           // altitude mini-profile
+const AX = 170, HL = 188;          // axis labels, handle grips (time)
 
 function parseUtc(s) {
   const m = String(s).trim().match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
@@ -17,20 +24,26 @@ function parseUtc(s) {
 }
 const fmtUtcInput = (ms) => { const d = new Date(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${d.getUTCFullYear()} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}:${pad2(d.getUTCSeconds())}`; };
 
+const NUDGES = [-600, -60, -10, 10, 60, 600];
+const nudgeLabel = (sec) => `${sec < 0 ? '−' : '+'}${Math.abs(sec) >= 60 ? `${Math.abs(sec) / 60} min` : `${Math.abs(sec)} s`}`;
+const nudgeButtons = (which) => NUDGES.map((sec) => `<button class="btn xs" type="button" data-act="nudge" data-w="${which}" data-s="${sec}" title="${esc(t(sec < 0 ? 'cln.nudgeEarlier' : 'cln.nudgeLater'))}">${nudgeLabel(sec)}</button>`).join('');
+
 export function mountClean(root, ctx) {
   const el = html(`<main class="page">
     <div data-banner></div>
     <section class="card">
       <h2>${esc(t('cln.timeline'))}</h2>
       <div data-timeline></div>
-      <div class="legend"><span class="pill sm"><span class="dot b"></span>${esc(t('cln.leg.air'))}</span><span class="pill sm"><span class="dot x"></span>${esc(t('cln.leg.ground'))}</span><span class="pill sm"><span class="dot g"></span>${esc(t('cln.leg.cutStart'))}</span><span class="pill sm"><span class="dot r"></span>${esc(t('cln.leg.cutEnd'))}</span><span>${esc(t('cln.leg.hint'))}</span></div>
+      <div class="legend"><span class="pill sm"><span class="dot b"></span>${esc(t('cln.leg.air'))}</span><span class="pill sm"><span class="dot x"></span>${esc(t('cln.leg.ground'))}</span><span class="pill sm"><span class="dot g"></span>${esc(t('cln.leg.cutStart'))}</span><span class="pill sm"><span class="dot r"></span>${esc(t('cln.leg.cutEnd'))}</span><span class="pill sm"><span class="dot alt"></span>${esc(t('cln.leg.alt'))}</span><span>${esc(t('cln.leg.hint'))}</span></div>
     </section>
     <div class="g3" style="align-items:start">
       <section class="card" data-detect></section>
       <section class="card">
         <h2>${esc(t('cln.trim'))}</h2>
         <label class="f">${esc(t('cln.from'))}<input class="in mono" type="text" data-from></label>
+        <div class="nudge" data-nudge="from">${nudgeButtons('from')}</div>
         <label class="f">${esc(t('cln.to'))}<input class="in mono" type="text" data-to></label>
+        <div class="nudge" data-nudge="to">${nudgeButtons('to')}</div>
         <div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-act="apply">${esc(t('cln.apply'))}</button><button class="btn sm" type="button" data-act="auto">${esc(t('cln.auto'))}</button></div>
         <div data-trimstats></div>
       </section>
@@ -44,6 +57,7 @@ export function mountClean(root, ctx) {
   onAct(el, {
     apply: () => { const a = parseUtc(inFrom.value), b = parseUtc(inTo.value); if (Number.isNaN(a) || Number.isNaN(b)) { toast(t('cln.badTime'), true); return; } setTrim(a, b, false); },
     auto: () => setTrim(0, 0, true),
+    nudge: (b) => { if (!state.trim) return; const d = +b.dataset.s * 1000; if (b.dataset.w === 'from') setTrim(state.trim.from + d, state.trim.to, false); else setTrim(state.trim.from, state.trim.to + d, false); },
     landing: () => landingDialog(),
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: false }); },
     redetect: () => recompute({ reclassify: false }),
@@ -97,7 +111,7 @@ export function mountClean(root, ctx) {
       ok: () => {
         setManualLanding(ms);
         const name = placeIn.value.trim();
-        if (name) { state.meta.landName = name; state.places.landing = name; saveMeta(); bus.emit('places'); }
+        if (name) { const p = pointAt(ms); state.meta.landName = name; state.places.landing = name; if (p) (state.places.at || (state.places.at = {})).landing = { lat: p.lat, lon: p.lon }; saveMeta(); bus.emit('places'); }
         close(); toast(t('cln.landingSet', { time: fmtDateTimeUTC(ms, true) }));
       },
     });
@@ -130,43 +144,51 @@ export function mountClean(root, ctx) {
     if (!tr || !st) { tl.innerHTML = `<p class="muted">${esc(t('cln.noTrack'))}</p>`; return; }
     const ps = tr.points, t0 = ps.t[0], t1 = ps.t[ps.n - 1], span = Math.max(1, t1 - t0);
     const X = (ms) => L + (ms - t0) / span * (W - L - R);
-    // segments bars with air/ground colouring (per run of equal state)
-    let bars = '';
+    // state bar: runs of equal air/ground state per segment; thin segment bar below
+    let bars = '', seglabels = '';
     for (const s of tr.segments) {
       let run = s.from;
       for (let i = s.from + 1; i <= s.to; i++) {
         if (i === s.to || state.states[i] !== state.states[run]) {
           const x0 = X(ps.t[run]), x1 = X(ps.t[i - 1]);
-          bars += `<rect x="${x0.toFixed(1)}" y="38" width="${Math.max(1.5, x1 - x0).toFixed(1)}" height="18" rx="2" fill="${state.states[run] ? '#1f5fbf' : '#9aa7b6'}"/>`;
+          bars += `<rect x="${x0.toFixed(1)}" y="${SB0}" width="${Math.max(1.5, x1 - x0).toFixed(1)}" height="${SB1 - SB0}" rx="2" fill="${state.states[run] ? '#1f5fbf' : '#9aa7b6'}"/>`;
           run = i;
         }
       }
-      bars += `<rect x="${X(ps.t[s.from]).toFixed(1)}" y="62" width="${Math.max(1.5, X(ps.t[s.to - 1]) - X(ps.t[s.from])).toFixed(1)}" height="10" rx="2" fill="#fff" stroke="#c7d0dc"/>`;
+      const sx0 = X(ps.t[s.from]), sx1 = X(ps.t[s.to - 1]);
+      bars += `<rect x="${sx0.toFixed(1)}" y="${SG0}" width="${Math.max(1.5, sx1 - sx0).toFixed(1)}" height="${SG1 - SG0}" rx="1.5" fill="#fff" stroke="#c7d0dc"/>`;
       const seg = state.segments.find((x) => x.id === s.id);
-      const cx = (X(ps.t[s.from]) + X(ps.t[s.to - 1])) / 2;
-      if (X(ps.t[s.to - 1]) - X(ps.t[s.from]) > 60) bars += `<text x="${cx.toFixed(1)}" y="86" text-anchor="middle" font-size="11" fill="#5b6b7f">${esc(t('cln.segLabel', { id: s.id }))} · ${esc(seg ? seg.file : '')}</text>`;
+      if (sx1 - sx0 > 60) seglabels += `<text x="${((sx0 + sx1) / 2).toFixed(1)}" y="${PT + 11}" text-anchor="middle" font-size="10" fill="#5b6b7f" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(t('cln.segLabel', { id: s.id }))} · ${esc(seg ? seg.file : '')}</text>`;
     }
+    // altitude mini-profile over the whole recording (so points before the start / after the landing show)
+    const profile = miniProfile(tr, X);
     // restarts / gaps
     let marks = '';
-    for (const r of st.restartList) marks += `<line x1="${X(r.t).toFixed(1)}" y1="30" x2="${X(r.t).toFixed(1)}" y2="76" stroke="#c0392b" stroke-width="2"/><text x="${X(r.t).toFixed(1)}" y="104" text-anchor="middle" font-size="11" fill="#c0392b">${esc(t('cln.restart', { sec: Math.round(r.sec) }))}</text>`;
-    for (const g of tr.gaps) if (!st.restartList.some((r) => Math.abs(r.t - g.to) < 1000)) marks += `<rect x="${X(g.from).toFixed(1)}" y="38" width="${Math.max(2, X(g.to) - X(g.from)).toFixed(1)}" height="18" fill="#fff4e0" stroke="#d98c00" stroke-dasharray="3 2"/>`;
+    for (const r of st.restartList) marks += `<line x1="${X(r.t).toFixed(1)}" y1="${SB0 - 2}" x2="${X(r.t).toFixed(1)}" y2="${PB}" stroke="#c0392b" stroke-width="1.5"/><text x="${(X(r.t) + 4).toFixed(1)}" y="${PB - 4}" font-size="10" fill="#c0392b" paint-order="stroke" stroke="#fff" stroke-width="3">${esc(t('cln.restart', { sec: Math.round(r.sec) }))}</text>`;
+    for (const g of tr.gaps) if (!st.restartList.some((r) => Math.abs(r.t - g.to) < 1000)) marks += `<rect x="${X(g.from).toFixed(1)}" y="${SB0}" width="${Math.max(2, X(g.to) - X(g.from)).toFixed(1)}" height="${SB1 - SB0}" fill="#fff4e0" stroke="#d98c00" stroke-dasharray="3 2"/>`;
     // night bands
     let night = '';
-    for (const iv of st.night.intervals) night += `<rect x="${X(iv.from).toFixed(1)}" y="24" width="${(X(iv.to) - X(iv.from)).toFixed(1)}" height="60" fill="#14202e" fill-opacity="0.06"/>`;
+    for (const iv of st.night.intervals) night += `<rect x="${X(iv.from).toFixed(1)}" y="${SB0 - 2}" width="${(X(iv.to) - X(iv.from)).toFixed(1)}" height="${PB - SB0 + 2}" fill="#14202e" fill-opacity="0.06"/>`;
     // ticks: pick a step so that labels are ~90 px apart
-    const hours = span / 3600000; const stepH = hours > 60 ? 6 : hours > 24 ? 3 : hours > 8 ? 1 : 0.5;
+    const hours = span / 3600000; const stepH = hours > 60 ? 6 : hours > 24 ? 3 : hours > 8 ? 1 : hours > 3 ? 0.5 : 0.25;
     let ticks = ''; const first = Math.ceil(t0 / (stepH * 3600000)) * stepH * 3600000;
-    for (let m = first; m <= t1; m += stepH * 3600000) { const d = new Date(m); const lab = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 ? fmtDayUTC(m) : fmtTimeUTC(m); ticks += `<line x1="${X(m).toFixed(1)}" y1="100" x2="${X(m).toFixed(1)}" y2="106" stroke="#9aa7b6"/><text x="${X(m).toFixed(1)}" y="122" text-anchor="middle" font-size="11" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${lab}</text>`; }
-    // trim handles
+    for (let m = first; m <= t1; m += stepH * 3600000) { const d = new Date(m); const lab = d.getUTCHours() === 0 && d.getUTCMinutes() === 0 ? fmtDayUTC(m) : fmtTimeUTC(m); ticks += `<line x1="${X(m).toFixed(1)}" y1="${PB}" x2="${X(m).toFixed(1)}" y2="${PB + 5}" stroke="#9aa7b6"/><line x1="${X(m).toFixed(1)}" y1="${PT}" x2="${X(m).toFixed(1)}" y2="${PB}" stroke="#e3e8ee"/><text x="${X(m).toFixed(1)}" y="${AX}" text-anchor="middle" font-size="11" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${lab}</text>`; }
+    // trim: shaded cut-off ranges + slim handles (flag on top, line through the whole strip, time below)
     const hx0 = X(state.trim.from), hx1 = X(state.trim.to);
-    const handles = `<rect x="${L}" y="24" width="${Math.max(0, hx0 - L).toFixed(1)}" height="60" fill="#fff" fill-opacity="0.55"/><rect x="${hx1.toFixed(1)}" y="24" width="${Math.max(0, W - R - hx1).toFixed(1)}" height="60" fill="#fff" fill-opacity="0.55"/>
-      <g class="handle" data-h="from"><line x1="${hx0.toFixed(1)}" y1="26" x2="${hx0.toFixed(1)}" y2="90" stroke="#1f8a4c" stroke-width="2.5"/><rect x="${(hx0 - 9).toFixed(1)}" y="84" width="18" height="18" rx="3" fill="#1f8a4c"/><text x="${hx0.toFixed(1)}" y="140" text-anchor="middle" font-size="12" font-weight="600" fill="#1f8a4c">${fmtTimeUTC(state.trim.from)}</text></g>
-      <g class="handle" data-h="to"><line x1="${hx1.toFixed(1)}" y1="26" x2="${hx1.toFixed(1)}" y2="90" stroke="#c0392b" stroke-width="2.5"/><rect x="${(hx1 - 9).toFixed(1)}" y="84" width="18" height="18" rx="3" fill="#c0392b"/><text x="${hx1.toFixed(1)}" y="140" text-anchor="middle" font-size="12" font-weight="600" fill="#c0392b">${fmtTimeUTC(state.trim.to)}</text></g>`;
+    const handle = (which, x, color, ms) => `<g class="handle" data-h="${which}" tabindex="0" role="slider" aria-label="${esc(t(which === 'from' ? 'cln.from' : 'cln.to'))}" aria-valuetext="${fmtTimeUTC(ms, true)}" transform="translate(${x.toFixed(1)},0)">
+        <rect x="-8" y="${SB0 - 10}" width="16" height="${PB + 4 - SB0 + 10}" fill="transparent"/>
+        <line x1="0" y1="${SB0 - 2}" x2="0" y2="${PB + 4}" stroke="${color}" stroke-width="1.5"/>
+        <path d="M-4 ${SB0 - 9}h8l-4 6z" fill="${color}"/>
+        <rect x="-23" y="${HL - 12}" width="46" height="17" rx="4" fill="${color}"/>
+        <text y="${HL}" text-anchor="middle" font-size="11" font-weight="600" fill="#fff" font-family="IBM Plex Mono, monospace" data-hl>${fmtTimeUTC(ms)}</text></g>`;
+    const handles = `<rect data-cut="from" x="${L}" y="${SB0 - 2}" width="${Math.max(0, hx0 - L).toFixed(1)}" height="${PB - SB0 + 2}" fill="#fff" fill-opacity="0.6"/><rect data-cut="to" x="${hx1.toFixed(1)}" y="${SB0 - 2}" width="${Math.max(0, W - R - hx1).toFixed(1)}" height="${PB - SB0 + 2}" fill="#fff" fill-opacity="0.6"/>
+      ${handle('from', hx0, '#1f8a4c', state.trim.from)}${handle('to', hx1, '#c0392b', state.trim.to)}`;
     // events
     let evs = '';
-    for (const e of st.takeoff ? [st.takeoff] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="20" text-anchor="middle" font-size="11" fill="#1f8a4c">${esc(t('cln.takeoffShort'))} ${fmtTimeUTC(e.t)}</text>`;
-    for (const e of st.landing ? [st.landing] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="20" text-anchor="middle" font-size="11" fill="#c0392b">${esc(t('cln.landingShort'))} ${fmtTimeUTC(e.t)}</text>`;
-    tl.innerHTML = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('cln.timeline'))}" font-family="IBM Plex Sans, sans-serif">${night}${bars}${marks}<line x1="${L}" y1="100" x2="${W - R}" y2="100" stroke="#d9dee6"/>${ticks}${evs}${handles}</svg>`;
+    const anchor = (x) => (x < L + 50 ? 'start' : x > W - R - 50 ? 'end' : 'middle');   // labels near the edges stay inside
+    for (const e of st.takeoff ? [st.takeoff] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="13" text-anchor="${anchor(X(e.t))}" font-size="11" fill="#1f8a4c">${esc(t('cln.takeoffShort'))} ${fmtTimeUTC(e.t)}${e.cut ? ' ✂' : ''}</text>`;
+    for (const e of st.landing ? [st.landing] : []) evs += `<text x="${X(e.t).toFixed(1)}" y="13" text-anchor="${anchor(X(e.t))}" font-size="11" fill="#c0392b">${esc(t('cln.landingShort'))} ${fmtTimeUTC(e.t)}${e.manual ? ' ✎' : e.cut ? ' ✂' : ''}</text>`;
+    tl.innerHTML = `<svg class="timeline" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(t('cln.timeline'))}" font-family="IBM Plex Sans, sans-serif">${night}${profile}${bars}${seglabels}${marks}<line x1="${L}" y1="${PB}" x2="${W - R}" y2="${PB}" stroke="#d9dee6"/>${ticks}${evs}${handles}</svg>`;
     bindHandles(tl.querySelector('svg'), X, t0, span);
     inFrom.value = fmtUtcInput(state.trim.from); inTo.value = fmtUtcInput(state.trim.to);
 
@@ -178,11 +200,12 @@ export function mountClean(root, ctx) {
     const det = el.querySelector('[data-detect]');
     const d = state.settings.detect;
     det.innerHTML = `<h2>${esc(t('cln.detect'))}</h2>
-      <div class="row"><span>${esc(t('cln.takeoff'))}</span><span class="val">${st.takeoff ? fmtDateTimeUTC(st.takeoff.t, true) : '–'}</span></div>
+      <div class="row"><span>${esc(t('cln.takeoff'))}</span><span class="val">${st.takeoff ? fmtDateTimeUTC(st.takeoff.t, true) : '–'}${st.takeoff && st.takeoff.cut ? ' ✂' : ''}</span></div>
       <div class="row"><span class="k2">${esc(t('cln.position'))}</span><span class="val small">${st.takeoff ? icaoShort(st.takeoff.lat, st.takeoff.lon) : '–'}</span></div>
-      <div class="row"><span>${esc(t('cln.landing'))}</span><span class="val">${st.landing ? fmtDateTimeUTC(st.landing.t, true) : '–'}${st.landing && st.landing.manual ? ' ✎' : ''}</span></div>
+      <div class="row"><span>${esc(t('cln.landing'))}</span><span class="val">${st.landing ? fmtDateTimeUTC(st.landing.t, true) : '–'}${st.landing && st.landing.manual ? ' ✎' : st.landing && st.landing.cut ? ' ✂' : ''}</span></div>
       <div class="row"><span class="k2">${esc(t('cln.position'))}</span><span class="val small">${st.landing ? icaoShort(st.landing.lat, st.landing.lon) : '–'}</span></div>
       <div class="row"><span>${esc(t('cln.intermediate'))}</span><span class="val">${st.intermediate.length ? st.intermediate.map((l) => `<span class="inter">${fmtTimeUTC(l.t)} <button type="button" class="tt-x inline" data-act="ignore" data-t="${l.t}" title="${esc(t('ana.ignoreLanding'))}">×</button></span>`).join('<br>') : esc(t('cln.none'))}${state.ignoredLandings.length ? `<br><span class="sub">${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))} · <a href="#" data-act="restore">${esc(t('ana.restoreLandings'))}</a></span>` : ''}</span></div>
+      ${(st.takeoff && st.takeoff.cut) || (st.landing && st.landing.cut) ? `<div class="muted small">${esc(t('cln.cutNote'))}</div>` : ''}
       ${!st.landing ? `<div class="banner warn"><div class="body"><div class="sub">${esc(t('cln.noLanding'))}</div></div></div>` : ''}
       <div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-act="landing">${esc(t('cln.setLanding'))}</button><button class="btn sm" type="button" data-act="redetect">${esc(t('cln.redetect'))}</button></div>
       <details class="exp"><summary>${esc(t('cln.rules'))}</summary><div>
@@ -215,15 +238,69 @@ export function mountClean(root, ctx) {
   function bindHandles(svg, X, t0, span) {
     let drag = null;
     const toMs = (clientX) => { const r = svg.getBoundingClientRect(); const x = (clientX - r.left) / r.width * W; return t0 + Math.max(0, Math.min(1, (x - L) / (W - L - R))) * span; };
+    // live preview while dragging: move the handle group and the shaded cut-off range, update its label
+    const preview = (which, ms) => {
+      const g = svg.querySelector(`.handle[data-h="${which}"]`), cut = svg.querySelector(`[data-cut="${which}"]`), x = X(ms);
+      g.setAttribute('transform', `translate(${x.toFixed(1)},0)`); g.querySelector('[data-hl]').textContent = fmtTimeUTC(ms);
+      if (which === 'from') cut.setAttribute('width', Math.max(0, x - L).toFixed(1)); else { cut.setAttribute('x', x.toFixed(1)); cut.setAttribute('width', Math.max(0, W - R - x).toFixed(1)); }
+      if (which === 'from') inFrom.value = fmtUtcInput(ms); else inTo.value = fmtUtcInput(ms);
+    };
     svg.addEventListener('pointerdown', (e) => { const h = e.target.closest('.handle'); if (!h) return; drag = h.dataset.h; svg.setPointerCapture(e.pointerId); e.preventDefault(); });
-    svg.addEventListener('pointermove', (e) => { if (!drag) return; const ms = toMs(e.clientX); if (drag === 'from') inFrom.value = fmtUtcInput(ms); else inTo.value = fmtUtcInput(ms); });
+    svg.addEventListener('pointermove', (e) => { if (!drag) return; preview(drag, toMs(e.clientX)); });
     svg.addEventListener('pointerup', (e) => { if (!drag) return; const ms = toMs(e.clientX); const from = drag === 'from' ? ms : state.trim.from, to = drag === 'to' ? ms : state.trim.to; drag = null; setTrim(from, to, false); });
+    svg.addEventListener('pointercancel', () => { if (drag) { drag = null; render(); } });
+    // keyboard: ← → 10 s, Shift 1 min, Alt/Ctrl 10 min
+    svg.addEventListener('keydown', (e) => {
+      const h = e.target.closest && e.target.closest('.handle'); if (!h || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+      e.preventDefault(); const d = (e.key === 'ArrowLeft' ? -1 : 1) * (e.altKey || e.ctrlKey ? 600 : e.shiftKey ? 60 : 10) * 1000;
+      if (h.dataset.h === 'from') setTrim(state.trim.from + d, state.trim.to, false); else setTrim(state.trim.from, state.trim.to + d, false);
+      setTimeout(() => { const g = tl.querySelector(`.handle[data-h="${h.dataset.h}"]`); if (g) g.focus(); }, 0);
+    });
+  }
+
+  /** Altitude mini-profile (whole recording, terrain + water when loaded) as SVG for the timeline strip. */
+  function miniProfile(tr, X) {
+    const se = state.series; if (!se) return '';
+    const ps = tr.points, n = ps.n, un = makeUnits(state.settings.units);
+    const terr = terrainForDisplay('time');
+    let aMin = Infinity, aMax = -Infinity;
+    for (let i = 0; i < n; i++) { const a = se.altClean[i]; if (Number.isNaN(a)) continue; if (a < aMin) aMin = a; if (a > aMax) aMax = a; }
+    for (const p of terr) { if (p.alt < aMin) aMin = p.alt; if (p.alt > aMax) aMax = p.alt; }
+    if (!Number.isFinite(aMin)) return '';
+    if (aMax - aMin < 50) aMax = aMin + 50;
+    const Y = (a) => PB - (a - aMin) / (aMax - aMin) * (PB - PT - 14);
+    // per-pixel-column min/max of the altitude → band polygon (noisy data stays visible) + mean line
+    const cols = Math.round(W - L - R), lo = new Float32Array(cols).fill(NaN), hi = new Float32Array(cols).fill(NaN);
+    for (let i = 0; i < n; i++) { const a = se.altClean[i]; if (Number.isNaN(a)) continue; const c = Math.min(cols - 1, Math.max(0, Math.floor(X(ps.t[i]) - L))); if (Number.isNaN(lo[c]) || a < lo[c]) lo[c] = a; if (Number.isNaN(hi[c]) || a > hi[c]) hi[c] = a; }
+    let out = '';
+    // terrain (ground grey, water blue) as filled areas down to the axis
+    if (terr.length) {
+      let g = '', w = ''; let open = false;
+      for (let k = 0; k < terr.length; k++) { const p = terr[k]; const x = X(p.x).toFixed(1), y = Y(p.alt).toFixed(1); g += (open ? 'L' : `M${x} ${PB}L`) + `${x} ${y}`; open = true; if (k === terr.length - 1) g += `L${x} ${PB}Z`; }
+      out += `<path d="${g}" fill="#cfd6de" fill-opacity="0.8"/>`;
+      // water stretches: rect from surface down to the axis per run of water samples
+      let run = null;
+      for (let k = 0; k <= terr.length; k++) { const p = terr[k]; if (p && p.water) { if (!run) run = { x0: X(p.x), y: Y(p.alt) }; run.x1 = X(p.x); } else if (run) { w += `<rect x="${run.x0.toFixed(1)}" y="${run.y.toFixed(1)}" width="${Math.max(1.5, run.x1 - run.x0).toFixed(1)}" height="${Math.max(0, PB - run.y).toFixed(1)}" fill="#8fbdeb" fill-opacity="0.85"/>`; run = null; } }
+      out += w;
+    }
+    // altitude band + line (gaps where the altitude is masked / missing)
+    let band = '', line = '', openB = false, openL = false, rev = [];
+    for (let c = 0; c <= cols; c++) {
+      const has = c < cols && !Number.isNaN(lo[c]);
+      if (has) { const x = (L + c + 0.5).toFixed(1); band += (openB ? 'L' : 'M') + `${x} ${Y(hi[c]).toFixed(1)}`; rev.push(`${x} ${Y(lo[c]).toFixed(1)}`); line += (openL ? 'L' : 'M') + `${x} ${Y((lo[c] + hi[c]) / 2).toFixed(1)}`; openB = openL = true; }
+      else if (openB) { band += 'L' + rev.reverse().join('L') + 'Z'; rev = []; openB = openL = false; }
+    }
+    out += `<path d="${band}" fill="#1f5fbf" fill-opacity="0.18"/><path d="${line}" fill="none" stroke="#1f5fbf" stroke-width="1.2"/>`;
+    // axis: top / bottom altitude labels
+    out += `<text x="${L - 6}" y="${(PT + 14 + 4).toFixed(1)}" text-anchor="end" font-size="10" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${fmtInt(un.altValue(aMax))}</text><text x="${L - 6}" y="${PB}" text-anchor="end" font-size="10" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${fmtInt(un.altValue(aMin))} ${un.altUnit}</text>`;
+    return out;
   }
 
   const off = bus.on('track', render);
+  let terrTimer = null; const off2 = bus.on('terrain', () => { if (state.terrain && (state.terrain.status === 'ready' || state.terrain.status === 'ground')) { clearTimeout(terrTimer); terrTimer = setTimeout(render, 250); } });
   render();
   root.appendChild(el);
-  return { unmount: off };
+  return { unmount: () => { off(); off2(); clearTimeout(terrTimer); } };
 }
 
 export function cleanStatus() {

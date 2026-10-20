@@ -12,6 +12,8 @@ test('formatting', () => {
   assert.equal(fmtSigned(3.04, 1), '+3.0');
   assert.equal(fmtDurationHM(41 * 3600 + 3 * 60 + 20), '41 h 03 min');
   assert.equal(fmtDurationClock(41 * 3600 + 3 * 60), '41:03');
+  assert.equal(fmtDurationHM(36 * 3600 + 59 * 60 + 40), '37 h 00 min');   // minutes rounded first, never «36 h 60 min»
+  assert.equal(fmtDurationClock(59 * 60 + 40), '1:00');
   assert.equal(icaoShort(51.5574, 6.974), '5133N00658E');
   assert.equal(icaoShort(60.4642, 26.3927), '6028N02624E');
   assert.equal(fmtBearing(42.8), '043°');

@@ -12,6 +12,24 @@ function maxOf(t, v, i0, i1, sign = 1) {
 function meanOf(v, i0, i1) { let s = 0, c = 0; for (let i = i0; i <= i1; i++) if (!Number.isNaN(v[i])) { s += v[i]; c++; } return c ? s / c : NaN; }
 
 /**
+ * Events inside the trim. Detection runs on the whole recording; a trim set by hand that cuts into the
+ * flight defines the flight itself: airborne at the cut → the cut is the take-off (resp. the landing),
+ * flagged `cut`. The end cut only counts as a landing when the recording goes on after it – a recording
+ * that ends in the air keeps "no landing" so the pilot sets one by hand.
+ */
+export function eventsInTrim(events, trim, track, series, i0, i1) {
+  const ps = track.points, t = ps.t;
+  const inside = events.filter((e) => e.t >= trim.from - 1000 && e.t <= trim.to + 1000);
+  if (trim.auto) return inside;
+  const at = (type, i) => { let p = i; while (p > 0 && !ps.fix[p]) p--; return { type, idx: i, t: t[i], lat: ps.fix[p] ? ps.lat[p] : NaN, lon: ps.fix[p] ? ps.lon[p] : NaN, alt: series.alt[i], cut: true }; };
+  const before = events.filter((e) => e.t < trim.from - 1000), last = before[before.length - 1];
+  if (last && last.type === 'takeoff') inside.unshift(at('takeoff', i0));
+  const lastIn = inside[inside.length - 1];
+  if (lastIn && lastIn.type === 'takeoff' && i1 < ps.n - 1) inside.push(at('landing', i1));
+  return inside;
+}
+
+/**
  * @param track  merged track {points, gap, gaps, segments}
  * @param series deriveSeries() output
  * @param events detectEvents().events
@@ -20,8 +38,7 @@ function meanOf(v, i0, i1) { let s = 0, c = 0; for (let i = i0; i <= i1; i++) if
 export function computeStats(track, series, events, trim, opts = {}) {
   const ps = track.points, t = ps.t, n = ps.n;
   const i0 = indexAt(t, trim.from), i1 = indexAt(t, trim.to);
-  const inRange = (e) => e.t >= trim.from - 1000 && e.t <= trim.to + 1000;
-  const evs = events.filter(inRange);
+  const evs = eventsInTrim(events, trim, track, series, i0, i1);
   const takeoffs = evs.filter((e) => e.type === 'takeoff'), landings = evs.filter((e) => e.type === 'landing');
   const takeoff = takeoffs[0] || null, landing = landings.length ? landings[landings.length - 1] : null;
   const intermediate = [];
@@ -52,8 +69,8 @@ export function computeStats(track, series, events, trim, opts = {}) {
   // accelerations derived over 3 s (concept decision 6)
   const accV = derivative(t, movingMean(t, series.vs, 1), 1.5), accH = derivative(t, movingMean(t, series.gs, 1), 1.5);
   const accVertMax = maxOf(t, accV.map(Math.abs), a0, a1), accHorMax = maxOf(t, accH.map(Math.abs), a0, a1);
-  // touchdown vertical speed: mean vs in the 5 s before each landing
-  const touchdown = landings.map((l) => { let s = 0, c = 0; for (let i = l.idx; i >= 0 && (l.t - t[i] <= 10000 || c < 3); i--) { if (!Number.isNaN(series.vs[i])) { s += series.vs[i]; c++; } if (l.t - t[i] > 120000) break; } return { t: l.t, vs: c ? s / c : NaN }; });
+  // touchdown vertical speed: mean vs in the 5 s before each landing (not for a landing set by the cut)
+  const touchdown = landings.map((l) => { if (l.cut) return { t: l.t, vs: NaN, cut: true }; let s = 0, c = 0; for (let i = l.idx; i >= 0 && (l.t - t[i] <= 10000 || c < 3); i--) { if (!Number.isNaN(series.vs[i])) { s += series.vs[i]; c++; } if (l.t - t[i] > 120000) break; } return { t: l.t, vs: c ? s / c : NaN }; });
   // night along the track (civil twilight)
   const nightFrom = takeoff ? takeoff.t : t[i0], nightTo = landing ? landing.t : t[i1];
   const night = nightIntervals(nightFrom, nightTo, (ms) => positionAt(track, ms), opts.nightLimitDeg ?? -6, 60);
