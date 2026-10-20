@@ -21,6 +21,8 @@ import { openFlight } from './flightio.js';
 import { refreshSharedProfiles } from './profiles-store.js';
 import { loadTerrain } from './terrain/store.js';
 
+function applyDocumentTitle() { if (!state.viewer) document.title = t('hdr.title'); }
+
 const root = document.getElementById('app');
 const slots = { header: null, action: null, view: null, footer: null };
 let view = null;
@@ -141,7 +143,7 @@ async function loadViewer() {
     const rec = await api.view.get(id.toUpperCase());
     const [text, eventRows] = await Promise.all([api.view.track(id.toUpperCase()), rec.hasEvents ? api.view.events(id.toUpperCase()).catch(() => null) : null]);
     await openFlight({ ...rec, url: location.origin + location.pathname.replace(/\/$/, '') + '/v/' + rec.id }, text, { viewer: true, eventRows });
-    document.title = `${rec.title || 'analyze'} – analyze`;
+    document.title = `${rec.title ? rec.title + ' – ' : ''}${t('hdr.title')}`;
     gotoPhase('analyze');
   } catch (ex) {
     console.error(ex);
@@ -160,13 +162,13 @@ async function refreshMe() {
 }
 
 async function boot() {
-  await initI18n();
+  await initI18n(); applyDocumentTitle();
   root.innerHTML = '';
   slots.header = document.createElement('div'); slots.action = document.createElement('div'); slots.view = document.createElement('div'); slots.footer = document.createElement('div');
   slots.view.style.display = 'contents';
   root.append(slots.header, slots.action, slots.view, slots.footer);
   renderFooter(); renderHeaderBar(); renderAction();
-  onLangChange(() => { renderHeaderBar(); renderAction(); renderFooter(); mountView(); });
+  onLangChange(() => { applyDocumentTitle(); renderHeaderBar(); renderAction(); renderFooter(); mountView(); });
   bus.on('track', () => { renderHeaderBar(); renderAction(); });
   bus.on('flight', () => { renderHeaderBar(); });
   window.addEventListener('hashchange', () => { const p = phaseFromHash(); if (p && p !== state.phase) gotoPhase(p); });

@@ -7,7 +7,8 @@ import { makeUnits } from '../util/units.js';
 import { state, bus, ignoreLanding } from '../state.js';
 import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
-import { createMap, VARIO_COLORS, GS_COLORS, GS_LIMITS_KT, varioClass, gsClass } from './map.js';
+import { createMap, VARIO_COLORS, GS_COLORS, GS_LIMITS_KT, varioClass, gsClass, LAYERS } from './map.js';
+import { create3D } from './map3d.js';
 import { renderProfile } from './profile.js';
 import { downloadKmz } from '../export/download.js';
 import { reverseGeocode } from '../util/places.js';
@@ -23,10 +24,12 @@ export function mountAnalyze(root, ctx) {
     <div class="row-wrap">
       <section class="card" style="flex:2 1 620px">
         <div class="card-head"><h2>${esc(t('ana.map'))}</h2><div class="row-wrap noprint" style="gap:8px;align-items:center">
+          <div class="seg" data-view><button type="button" data-v="2d" class="on">2D</button><button type="button" data-v="3d" title="${esc(t('ana.view3dTitle'))}">3D</button></div>
           <div class="seg" data-color><button type="button" data-c="vario">${esc(t('ana.color.vario'))}</button><button type="button" data-c="gs">${esc(t('ana.color.gs'))}</button></div>
           <select class="in sm" data-marker style="width:auto"><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="180">3 h</option></select>
         </div></div>
         <div class="map" data-map></div>
+        <div class="map map3d" data-map3d hidden><div class="layer-radio map3d-layers" data-layers3d></div><div class="map3d-exag"><label>${esc(t('ana.exag'))} <select class="in sm" data-exag><option value="auto">${esc(t('ana.exagAuto'))}</option>${[1, 2, 5, 10, 20, 50, 100].map((x) => `<option value="${x}">${x}×</option>`).join('')}</select><span class="mono" data-exagval></span></label></div><div class="map3d-hint muted small">${esc(t('ana.view3dHint'))}</div></div>
         <div class="row-wrap noprint" style="gap:8px;align-items:center">
           <button class="btn chip" type="button" data-act="kmz">${esc(t('ana.googleEarth'))}</button>
           <a class="btn chip" data-gm-start target="_blank" rel="noopener">${esc(t('ana.gmStart'))}</a>
@@ -48,17 +51,47 @@ export function mountAnalyze(root, ctx) {
     <div data-photoscard style="display:contents"></div>
   </main>`);
 
-  const mapEl = el.querySelector('[data-map]');
-  let map = null, profile = null, display = null, xMode = 'time', pinned = null;
-  const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
+  const mapEl = el.querySelector('[data-map]'), map3dEl = el.querySelector('[data-map3d]');
+  let map = null, map3d = null, map3dLoading = false, view3d = false, profile = null, display = null, xMode = 'time', pinned = null;
+  const evCard = mountEventsCard(el.querySelector('[data-eventscard]'), { onSelect: (e) => { const q = e && !Number.isNaN(e.lat) ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); map3d && map3d.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
   // click on the map or the profile pins a moment on both (hover stays transient)
-  function pin(q) { pinned = q && q.fix ? q : null; map && map.setPinned(pinned); profile && profile.setPinned(pinned); readout(pinned); }
-  const phCard = mountPhotosCard(el.querySelector('[data-photoscard]'), { goto: (p) => ctx.goto(p), getPinned: () => pinned, onSelect: (p) => { const q = p && p.onTrack ? { t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
+  function pin(q) { pinned = q && q.fix ? q : null; map && map.setPinned(pinned); map3d && map3d.setPinned(pinned); profile && profile.setPinned(pinned); readout(pinned); }
+  const phCard = mountPhotosCard(el.querySelector('[data-photoscard]'), { goto: (p) => ctx.goto(p), getPinned: () => pinned, onSelect: (p) => { const q = p && p.onTrack ? { t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, vsS: NaN, gs: NaN, fix: true } : null; map && map.setHover(q); map3d && map3d.setHover(q); profile && profile.setHover(q); readout(q || pinned); } });
   const shownEvents = () => [...eventsForDisplay().filter((e) => !evCard.hidden.has(e.type)), ...photosForDisplay()];
   const u = () => makeUnits(state.settings.units);
 
   const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
   el.querySelectorAll('[data-color] button').forEach((b) => b.addEventListener('click', () => { state.settings.colorBy = b.dataset.c; ctx.saveSettings(); render(); }));
+  el.querySelectorAll('[data-view] button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.v === '3d')));
+  // layer radios of the 3D view (same choice as the 2D map)
+  const layers3d = el.querySelector('[data-layers3d]');
+  layers3d.innerHTML = Object.keys(LAYERS).map((k) => `<label><input type="radio" name="layer3d" value="${k}"> ${esc(t('ana.layer.' + k))}</label>`).join('');
+  layers3d.addEventListener('change', (e) => { const k = e.target.value; state.settings.mapLayer = k; ctx.saveSettings(); map && map.setLayer(k); map3d && map3d.setLayer(k); });
+  const syncLayers3d = () => layers3d.querySelectorAll('input').forEach((i) => { i.checked = i.value === state.settings.mapLayer; });
+  const exagSel = el.querySelector('[data-exag]'), exagVal = el.querySelector('[data-exagval]');
+  exagSel.addEventListener('change', () => { if (map3d) { map3d.setExaggeration(exagSel.value); exagVal.textContent = `${map3d.exaggeration}×`; } });
+
+  /** Switch between the Leaflet map and the MapLibre 3D view (created on first use). */
+  async function setView(to3d) {
+    view3d = to3d;
+    el.querySelectorAll('[data-view] button').forEach((b) => b.classList.toggle('on', (b.dataset.v === '3d') === to3d));
+    mapEl.hidden = to3d; map3dEl.hidden = !to3d;
+    if (!to3d) { map && map.invalidate(); return; }
+    syncLayers3d();
+    if (!map3d && !map3dLoading) {
+      map3dLoading = true; map3dEl.classList.add('loading');
+      try { map3d = await create3D(map3dEl, { layer: state.settings.mapLayer, onApplied: () => { exagVal.textContent = `${map3d ? map3d.exaggeration : 1}×`; } }); if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) globalThis.__map3d = map3d; }
+      catch (e) { console.warn(e); toast(t('ana.view3dFailed'), true); map3dLoading = false; map3dEl.classList.remove('loading'); setView(false); return; }
+      map3dLoading = false; map3dEl.classList.remove('loading');
+      if (pinned) map3d.setPinned(pinned);
+    }
+    if (map3d) { map3d.resize(); render3D(true); }
+  }
+  function render3D(refit = false) {
+    if (!map3d || !display) return;
+    map3d.setTrack({ pts: display.pts, colors: display.colors, night: display.night, takeoff: display.takeoff, landing: display.landing, intermediate: display.intermediate, ground: (q) => groundAt(q.i) }, { refit });
+    exagVal.textContent = `${map3d.exaggeration}×`;
+  }
   el.querySelectorAll('[data-xmode] button').forEach((b) => b.addEventListener('click', () => { xMode = b.dataset.x; renderProfileCard(); segBtns('[data-xmode]', 'x', xMode); }));
   const markerSel = el.querySelector('[data-marker]'); markerSel.value = String(state.settings.markerMin);
   markerSel.addEventListener('change', () => { state.settings.markerMin = +markerSel.value; ctx.saveSettings(); render(); });
@@ -90,7 +123,7 @@ export function mountAnalyze(root, ctx) {
   function render() {
     display = buildDisplay();
     segBtns('[data-color]', 'c', state.settings.colorBy === 'gs' ? 'gs' : 'vario'); segBtns('[data-xmode]', 'x', xMode);
-    renderTiles(); renderStats(); renderMap(); renderProfileCard(); renderLegend();
+    renderTiles(); renderStats(); renderMap(); renderProfileCard(); renderLegend(); render3D(false);
     if (state.settings.geocode) fetchPlaces(false);
   }
 
@@ -99,7 +132,7 @@ export function mountAnalyze(root, ctx) {
     if (!map) {
       map = createMap(mapEl, { layer: state.settings.mapLayer, layerLabels: { osm: t('ana.layer.osm'), topo: t('ana.layer.topo'), sat: t('ana.layer.sat') } }); if (!map) return;
       map.onHover((q) => { profile && profile.setHover(q); readout(q || pinned); }); map.onClick((q) => pin(q));
-      map.onLayerChange((k) => { state.settings.mapLayer = k; ctx.saveSettings(); });
+      map.onLayerChange((k) => { state.settings.mapLayer = k; ctx.saveSettings(); map3d && map3d.setLayer(k); syncLayers3d(); });
     }
     const every = state.settings.markerMin >= 180 ? 1 : state.settings.markerMin >= 60 ? 3 : state.settings.markerMin >= 30 ? 6 : 12;
     map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate'), ignoreLabel: t('ana.ignoreLanding'), onIgnoreIntermediate: state.viewer ? null : (ms) => { ignoreLanding(ms); toast(t('ana.landingIgnored')); } });
@@ -213,11 +246,11 @@ export function mountAnalyze(root, ctx) {
 
   const off = bus.on('track', render);
   const off2 = bus.on('events', render), off3 = bus.on('events-filter', render), off4 = bus.on('photos', render);
-  const off5 = bus.on('terrain', () => { if (display) { renderProfileCard(); renderLegend(); } });
+  const off5 = bus.on('terrain', () => { if (display) { renderProfileCard(); renderLegend(); if (state.terrain && state.terrain.status !== 'loading') render3D(false); } });
   render();
   root.appendChild(el);
   setTimeout(() => map && map.invalidate(), 50);
-  return { unmount: () => { off(); off2(); off3(); off4(); off5(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; } };
+  return { unmount: () => { off(); off2(); off3(); off4(); off5(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; map3d && map3d.destroy(); map3d = null; } };
 }
 
 export function analyzeStatus() {

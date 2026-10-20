@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.7.5 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.0 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -29,6 +29,9 @@ Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-F
 | `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
 | `src/events/log.js`, `src/ui/events.js` | Ereignislog: Normalisierung der Reporting-App-Zeilen, Verknüpfung mit dem Track, Karte/Profil/Tabelle |
 | `src/parse/assist.js`, `src/ui/assist.js`, `src/profiles-store.js` | Profil-Assistent: Dateianalyse, Spaltenvorschläge, Profil-JSON, Vorschau; geteilte und lokale Profile |
+| `src/process/consensus.js` | Mehrere Geräte: Gerätegruppen, Abdeckung, Konsens-Raster (Median, Ausreisser), Hauptgerät + Lückenfüllung |
+| `src/terrain/{terrain,mvt,store}.js` | Gelände und Wasser: DEM-Kacheln/open-meteo, MVT-Leser für OpenFreeMap-Wasserpolygone, Cache |
+| `src/ui/map3d.js` | 3D-Ansicht (MapLibre GL): Vorhang-Geometrie, Überhöhung, Layer, Hover/Pin |
 | `src/photos/{exif,place,process,store}.js`, `src/ui/photos.js` | Fotos: EXIF-Leser (Zeit, Zone, GPS), Verkleinern im Browser, Platzierung auf dem Track, Kamerazeit-Vorschlag |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql` (D1), `src/` (API) |
 | `404.html` | Leitet Kurzlinks `/v/‹ID›` auf die App um (GitHub Pages) |
@@ -60,7 +63,12 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
 
 1. **Importieren** – Dateien oder ein ganzes ZIP (z. B. `gb26_data.zip`) ins Feld ziehen. Erkannt werden
    GB-Instrument CSV/JSONL, GPX, KML/KMZ, IGC, aprs.fi-CSV. Doppelte Aufzeichnungen (CSV + JSONL) werden einmal
-   verwendet, Aufzeichnungen anderer Fahrten ausgeblendet.
+   verwendet; Aufzeichnungen, die zeitlich weit von der Hauptfahrt liegen (frühere Fahrt), lösen eine Rückfrage aus
+   («Ignorieren» / «Trotzdem verwenden»). **Mehrere Geräte** (ab 0.8.0): zeichnen zwei oder mehr Tracker dieselbe
+   Fahrt auf, erscheint die Karte «Mehrere Geräte» – **Konsens (Median)** bildet im überlappenden Bereich pro
+   Rasterpunkt (5–60 s) den Median von Position und Höhe aller Geräte (Geräte weiter als 300 m vom Median werden dort
+   verworfen), **Hauptgerät + Lückenfüllung** nimmt ein Gerät und füllt nur dessen Lücken aus den anderen; ausserhalb
+   der Überlappung behält jedes Gerät seine volle Auflösung. Der gewählte Modus steht im Protokoll und im Bericht.
 2. **Bereinigen** – Zeitleiste mit Segmenten, Neustarts und Nacht; Start/Landung erkannt; Schnitt mit Griffen
    oder Zeiten; Protokoll der Aufbereitung. Endet die Aufzeichnung in der Fahrt (keine Landung erkannt), setzt
    «Landung von Hand setzen» sie im App-Dialog: Karte mit dem Ende des Tracks, Zeitfeld/Schieberegler/Klick auf
@@ -70,8 +78,14 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    wie die Kennzahlen daneben), Kennzahlen (ICAO oder metrisch; Ortsnamen `CH-Willisau` von OpenStreetMap Nominatim,
    Ersatz Photon; «Ortsnamen holen» wiederholt den Abruf; ohne erkannte Landung zeigt die Landezeile das Ende der
    Aufzeichnung mit Hinweis). Strecke und Luftlinie werden auf dem WGS84-Ellipsoid gerechnet (Vincenty),
-   Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt
-   den Ausschnitt nach, damit der Marker auch in einer gezoomten Ansicht sichtbar bleibt.
+   Höhenprofil mit Nacht, **Geländeprofil** (grau; Höhendaten aus Terrarium-DEM-Kacheln, Ersatz open-meteo) und
+   **Wasserflächen** (blau; Meer aus den Höhendaten, Seen und Flüsse aus OpenFreeMap-Vektorkacheln) sowie Fahrt über
+   Grund; Readout mit «Über Grund»; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt den Ausschnitt
+   nach, damit der Marker auch in einer gezoomten Ansicht sichtbar bleibt. **3D** (ab 0.8.0, Knopf 2D/3D): kippbare
+   Karte (MapLibre GL, wird beim ersten Aufruf geladen) mit Gelände und Reliefschattierung; die Fahrt steht als
+   «Vorhang» vom Boden bis zur Fahrthöhe auf der Karte (Farbe wie 2D, Nacht dunkler, dunkle Oberkante = Höhenprofil),
+   Überhöhung automatisch oder 1–100×; rechte Maustaste/Ctrl + Ziehen dreht und kippt, Layerwahl oben rechts,
+   Hover/Pin aus dem Profil als Pfosten. Gelände und 3D lassen sich in den Einstellungen abschalten (nur online).
    «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. Klick auf den Track (Karte) oder ins Profil hält den
    Zeitpunkt in beiden fest. Ortsnamen im Format `CH-Willisau`. Eine fälschlich erkannte **Zwischenlandung**
    (Richtungsumkehr, Stillstand) entfernt das × am Marker bzw. in der Kennzahlenliste/Bereinigen; die beiden
