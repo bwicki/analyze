@@ -67,14 +67,14 @@ export function mountReport(root, ctx) {
         </section>
       </div>
       <div style="flex:1 1 560px;min-width:0;display:flex;flex-direction:column;gap:10px">
-        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(t('rep.previewNote'))}</span><button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button></div>
+        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(state.viewer ? t('rep.previewNote') : t('rep.printMoved'))}</span>${state.viewer ? `<button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button>` : `<button class="btn sm" type="button" data-act="toExport">${esc(t('rep.toExport'))} →</button>`}</div>
         <article class="report" data-report></article>
       </div>
     </div>
   </main>`);
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
-  onAct(el, { print: () => window.print() });
+  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export') });
   let map = null, mapEl = null, detailMaps = [];
 
   function renderReport() {
@@ -89,7 +89,8 @@ export function mountReport(root, ctx) {
     const times = landRef ? ` (${t('rep.titleTimes', { start: fmtTimeUTC(st.takeoff.t), land: sameDay ? fmtTimeUTC(landRef.t) : `${fmtDayUTC(landRef.t)} ${fmtTimeUTC(landRef.t)}` })})` : ` (${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)} UTC)`;
     const title = m.title || `${t('rep.defaultTitle')} ${fmtDateUTC(st.takeoff.t)}${times}${m.balloon ? ' · ' + m.balloon : ''}`;
     const saved = state.flight && state.flight.id ? state.flight : null;
-    const linkBlock = saved && saved.public !== false ? `<div class="qrhead">${qrSvg(saved.url, { size: 76 })}<span class="mono">${esc(saved.url.replace(/^https?:\/\//, ''))}</span></div>` : '';
+    const linkBlock = saved && saved.public !== false ? `<div class="qrhead">${qrSvg(saved.url, { size: 76 })}<span class="mono">${esc(saved.url.replace(/^https?:\/\//, ''))}</span></div>`
+      : state.viewer ? '' : `<div class="qrhead placeholder noprint">${esc(saved ? t('rep.qrPrivate') : t('rep.qrPlaceholder'))}</div>`;   // on screen only: what the print will carry once saved
     const nvfr = m.nvfr === 'yes' || (m.nvfr === '' && st.night.totalSec > 60);
     const tr = (k, v, note = '', wrap = false) => `<tr><td class="lbl">${esc(k)}</td><td class="v">${v}</td><td class="muted note${wrap ? ' wrap' : ''}">${note}</td></tr>`;
     const interNote = st.intermediate.length ? st.intermediate.map((l) => `${fmtTimeUTC(l.t)} ${esc(state.places.inter[l.t] || icaoShort(l.lat, l.lon))}`).join(' · ') : esc(t('st.noIntermediate'));

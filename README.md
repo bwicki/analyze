@@ -1,11 +1,11 @@
 # analyze – analyze.wicki.aero
 
 Fahrtanalyse aus Trackerdaten für Ballonfahrten (Wicki Partners Ballonteam).
-Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren**.
+Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Speichern/Drucken/Exportieren**.
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.8.4 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.5 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -117,13 +117,17 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    Bildtext je Foto, Maus über ein Foto → Ort auf Karte/Profil, Klick → Grossansicht. Der Viewer hinter dem
    Kurzlink/QR-Code zeigt die Fotos ebenfalls; der Bericht erhält eine Fotoseite (bis 24 Bilder).
 4. **Bericht** – Stammdaten eintragen (Ballon mit Muster/Volumen und «Ergänzungen zur Ausrüstung», PIC, Co-Pilot,
-   Passagiere, Nachfahrer, Command Center, Zweck privat/gewerblich/Wettfahrt/Schulung), «Drucken / PDF» (im Druckdialog
-   «Als PDF sichern»). Titel «Fahrt vom ‹Datum› (Start hh:mm UTC – Landung hh:mm UTC)»; bei gespeicherter Fahrt QR-Code
-   und Kurzlink oben rechts; unter der Unterschrift «Daten hochgeladen / letzte Änderung». Seite 1 Stammdaten
-   (zweispaltig, auch im Druck) und Kennzahlen (Start- und Landezeile mit Ort), Seite 2 Übersichtskarte,
-   Detailkarten von Startort und Landeort, Höhenprofil, Seite 3 Segmente/Protokoll und Unterschrift, dann Ereignislog
-   und Fotos. Gespeicherte Fahrten tragen Kurzlink und QR-Code in der Fusszeile.
-5. **Exportieren** – GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen
+   Passagiere, Nachfahrer, Command Center, Zweck privat/gewerblich/Wettfahrt/Schulung) und Vorschau des Berichts.
+   Titel «Fahrt vom ‹Datum› (Start hh:mm UTC – Landung hh:mm UTC)»; bei gespeicherter Fahrt QR-Code und Kurzlink
+   oben rechts (vor dem Speichern steht dort am Bildschirm ein Platzhalter, im Druck nichts); unter der Unterschrift
+   «Daten hochgeladen / letzte Änderung». Seite 1 Stammdaten (zweispaltig, auch im Druck) und Kennzahlen (Start- und
+   Landezeile mit Ort), Seite 2 Übersichtskarte, Detailkarten von Startort und Landeort, Höhenprofil, Seite 3
+   Segmente/Protokoll und Unterschrift, dann Ereignislog und Fotos. Gedruckt wird in Schritt 5 (im Viewer direkt
+   hier).
+5. **Speichern/Drucken/Exportieren** – **Fahrt speichern** (oben), **Bericht drucken / PDF** (öffnet Schritt 4 und
+   den Druckdialog des Browsers, «Als PDF sichern»; ist die Fahrt noch nicht gespeichert, fragt die App «Zuerst
+   speichern, dann drucken / Ohne Link drucken / Abbrechen» – nur ein gespeicherter Bericht trägt Kurzlink und
+   QR-Code), dann GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen
    als JSON und Text, Stammdaten, Ereignislog, README); Auflösung wählbar. **Fahrt speichern** legt den
    geschnittenen Track (volle Auflösung, komprimiert), Kennzahlen und Stammdaten unter dem PIN ab und erzeugt den
    Kurzlink `analyze.wicki.aero/v/‹ID›` (QR-Code daneben; «Kurzlink deaktivieren» macht die Fahrt privat). Beim

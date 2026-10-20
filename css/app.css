@@ -209,6 +209,7 @@ details.exp>div{padding-bottom:10px}
 .report .rep-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
 .report .qrhead{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:10px}
 .report .qrhead svg{width:76px;height:76px}
+.report .qrhead.placeholder{width:120px;min-height:76px;border:1px dashed var(--border-strong);border-radius:6px;padding:6px;color:var(--muted);font-size:10px;line-height:1.3;align-items:flex-start;justify-content:center;text-align:left}
 .report td{padding:5px 6px;border-bottom:1px solid var(--hair);vertical-align:top}
 .report td.v{font-family:var(--mono);white-space:nowrap}
 .report .sig{display:flex;gap:28px;margin-top:18px}

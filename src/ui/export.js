@@ -2,7 +2,7 @@
 // (phase 2) with short link and QR code for the public viewer.
 
 import { t, tx } from '../i18n.js';
-import { esc, html, onAct, toast, copyText } from '../util/dom.js';
+import { esc, html, onAct, toast, copyText, choiceDialog } from '../util/dom.js';
 import { fmtInt, fmtBytes, fmtDateTimeUTC } from '../util/format.js';
 import { state, bus } from '../state.js';
 import { downloadGpx, downloadGeoJson, downloadKmz, downloadCsv, downloadAllZip, estimateSizes, baseName } from '../export/download.js';
@@ -17,6 +17,14 @@ export function mountExport(root, ctx) {
   const el = html(`<main class="page">
     <div class="row-wrap" style="align-items:flex-start">
       <div class="col" style="flex:2 1 600px">
+        <section class="card" data-savecard>
+          <h2>${esc(t('exp.save'))}</h2>
+          <div data-save></div>
+        </section>
+        <section class="card">
+          <h2>${esc(t('exp.print'))}</h2>
+          <div class="row-wrap" style="gap:12px;align-items:center;justify-content:space-between"><span class="muted small" style="flex:1 1 320px" data-printnote>${esc(t('exp.printSub'))}</span><button class="btn primary" type="button" data-act="print">${esc(t('exp.printBtn'))}</button></div>
+        </section>
         <section class="card">
           <h2>${esc(t('exp.download'))}</h2>
           <div class="row-wrap" style="gap:12px;align-items:flex-end">
@@ -25,10 +33,6 @@ export function mountExport(root, ctx) {
           </div>
           <div class="g2" data-cards></div>
           <span class="muted small">${esc(t('exp.nameNote', { name: '' }))}<span class="mono" data-basename></span></span>
-        </section>
-        <section class="card" data-savecard>
-          <h2>${esc(t('exp.save'))}</h2>
-          <div data-save></div>
         </section>
       </div>
       <div class="col" style="flex:1 1 340px">
@@ -57,12 +61,30 @@ export function mountExport(root, ctx) {
       catch (ex) { console.error(ex); toast(ex.status === 413 ? t('exp.quota') : ex.status === 401 ? t('start.errUnknown') : t('start.errNetwork'), true); renderSave(); }
     },
     copy: async () => { if (state.flight && await copyText(state.flight.url)) toast(t('common.copied')); },
+    print: async () => {
+      // not saved yet (and saving is possible): offer to save first so the print carries short link + QR code
+      const canSave = hasServer() && !!session.code && !state.viewer;
+      if (canSave && !(state.flight && state.flight.id)) {
+        const choice = await choiceDialog({ title: t('exp.printUnsavedTitle'), text: `<p>${esc(t('exp.printUnsavedText'))}</p>`, buttons: [{ id: 'save', label: t('exp.printSaveFirst'), primary: true }, { id: 'print', label: t('exp.printWithout') }, { id: 'cancel', label: t('common.cancel') }] });
+        if (!choice || choice === 'cancel') return;
+        if (choice === 'save') { try { const rec = await saveCurrentFlight(); toast(t('exp.savedToast', { title: rec.title })); renderSave(); renderShare(); } catch (ex) { console.error(ex); toast(ex.status === 413 ? t('exp.quota') : ex.status === 401 ? t('start.errUnknown') : t('start.errNetwork'), true); return; } }
+      } else if (state.flight && state.flight.id && state.flight.public === false) toast(t('exp.printPrivateNote'));
+      printReport(ctx);
+    },
     toggleVisibility: async () => {
       if (!state.flight) return;
       try { const rec = await api.flights.update(state.flight.id, { public: !state.flight.public }); state.flight.public = rec.public; renderShare(); renderSave(); } catch { toast(t('start.errNetwork'), true); }
     },
     gotoStart: () => ctx.goto('start'),
   });
+  /** The printable report lives in step 4: show it, print once the maps have drawn, come back afterwards. */
+  function printReport(ctx) {
+    toast(t('exp.printPreparing'));
+    const back = () => ctx.goto('export');
+    window.addEventListener('afterprint', back, { once: true });
+    ctx.goto('report');
+    setTimeout(() => { try { window.print(); } catch { window.removeEventListener('afterprint', back); back(); } }, 1400);
+  }
   function card(id, ico, title, sub, cls = '') { return `<div class="exp"><div class="ico">${ico}</div><div class="t"><strong>${esc(title)}</strong><span>${sub}</span></div><button class="btn sm ${cls}" type="button" data-act="${id}">${esc(t('exp.saveBtn'))}</button></div>`; }
   function render() {
     const est = estimateSizes(step);

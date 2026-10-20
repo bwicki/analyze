@@ -56,6 +56,22 @@ export function toast(text, isError = false) {
 }
 
 /** Simple modal confirm; resolves true/false. Buttons are labels passed by the caller (i18n). */
+/** Dialog with several choices: buttons [{id, label, primary}] – resolves the id of the button clicked, or null. */
+export function choiceDialog({ title, text, buttons }) {
+  return new Promise((resolve) => {
+    const bg = html(`<div class="modal-bg"><section class="modal sm" role="dialog" aria-modal="true">
+      <div class="head"><h1>${esc(title)}</h1></div>
+      <div>${text}</div>
+      <div class="foot" style="flex-wrap:wrap">${buttons.map((b) => `<button class="btn ${b.primary ? 'primary' : ''}" data-act="choose" data-id="${esc(b.id)}" type="button">${esc(b.label)}</button>`).join('')}</div>
+    </section></div>`);
+    const done = (v) => { bg.remove(); resolve(v); };
+    onAct(bg, { choose: (b) => done(b.dataset.id) });
+    bg.addEventListener('click', (e) => { if (e.target === bg) done(null); });
+    document.body.appendChild(bg);
+    const prim = bg.querySelector('[data-act="choose"].primary'); (prim || bg.querySelector('[data-act="choose"]')).focus();
+  });
+}
+
 export function confirmDialog({ title, text, okLabel, cancelLabel, danger = false }) {
   return new Promise((resolve) => {
     const bg = html(`<div class="modal-bg"><section class="modal sm" role="dialog" aria-modal="true">
