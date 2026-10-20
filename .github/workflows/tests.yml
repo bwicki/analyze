@@ -3,6 +3,7 @@ name: Tests
 
 on:
   push:
+    paths-ignore: ['v/**']     # link-preview pages committed by the Worker
   pull_request:
 
 jobs:

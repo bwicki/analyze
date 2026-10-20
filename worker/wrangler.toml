@@ -22,6 +22,8 @@ RETENTION_DAYS = "730"
 DATA_REPO = "bwicki/gb_flight_data"
 DATA_BRANCH = "main"
 DATA_DIR = "data"
+PAGES_REPO = "bwicki/analyze"      # link-preview pages v/<id>/index.html are committed here (secret GITHUB_PAGES_TOKEN)
+PAGES_BRANCH = "main"
 
 # D1 database: create it once in the Cloudflare dashboard (Workers & Pages → D1 → "analyze")
 # and paste its ID below (README step 3b). Apply worker/schema.sql via the "migrate" workflow input.

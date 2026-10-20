@@ -23,6 +23,7 @@
 
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
+import { previewHtml, removePreview } from './preview.js';
 import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup } from './flights.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
@@ -92,7 +93,7 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me/logo' && m === 'PUT') return json(await putLogo(env, user, request));
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));
-    if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request));
+    if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request, ctx));
     const trackId = seg(/^\/api\/flights\/([^/]+)\/track$/);
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
@@ -115,8 +116,8 @@ export async function api(request, env, url, ctx) {
     if (repoFlight && m === 'GET') return json(await getRepoFlight(env, repoFlight, ctx));
     const id = seg(/^\/api\/flights\/([^/]+)$/);
     if (id && m === 'GET') return json(await getFlight(env, user, id));
-    if (id && m === 'PUT') return json(await updateFlight(env, user, id, request));
-    if (id && m === 'DELETE') return json(await deleteFlight(env, user, id, request));
+    if (id && m === 'PUT') return json(await updateFlight(env, user, id, request, ctx));
+    if (id && m === 'DELETE') return json(await deleteFlight(env, user, id, request, ctx));
   }
 
   // ---- Supermaster -------------------------------------------------------------------------------
@@ -145,7 +146,7 @@ export async function api(request, env, url, ctx) {
     const delCode = seg(/^\/api\/admin\/codes\/([^/]+)$/);
     if (delCode && m === 'DELETE') return json(await adminDeleteCode(env, admin, delCode, request));
     const delFlight = seg(/^\/api\/admin\/flights\/([^/]+)$/);
-    if (delFlight && m === 'DELETE') return json(await adminDeleteFlight(env, admin, delFlight, request));
+    if (delFlight && m === 'DELETE') { const r = await adminDeleteFlight(env, admin, delFlight, request); ctx.waitUntil(removePreview(env, delFlight)); return json(r); }
     if (path === '/api/admin/cleanup' && m === 'POST') return json(await cleanup(env));
   }
 
@@ -185,6 +186,15 @@ export default {
         const res = await api(request, env, url, ctx);
         for (const [k, v] of Object.entries(cors)) res.headers.set(k, v);
         return res;
+      }
+      // link preview page of a public flight (the same page is committed to the Pages repo, see preview.js)
+      const pv = /^\/v\/([A-Z2-9]{8})\/?$/.exec(url.pathname);
+      if (pv && request.method === 'GET') {
+        await ensureSchema(env);
+        const row = await env.DB.prepare('SELECT f.*, c.blocked FROM flights f JOIN codes c ON c.code = f.code WHERE f.id = ?1').bind(pv[1]).first();
+        if (!row || !row.public || row.blocked) return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
+        const lang = /^en/i.test(request.headers.get('Accept-Language') || '') ? 'en' : 'de';
+        return new Response(previewHtml(row, env.APP_URL || 'https://analyze.wicki.aero', lang), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } });
       }
       return json({ error: 'not found', app: env.APP_URL || 'https://analyze.wicki.aero' }, 404, cors);
     } catch (e) {

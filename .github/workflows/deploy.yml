@@ -7,6 +7,8 @@
 #   CLOUDFLARE_ACCOUNT_ID  – the account ID shown in the Cloudflare dashboard
 #   GITHUB_DATA_TOKEN      – optional: fine-grained GitHub token (Contents: read on bwicki/gb_flight_data);
 #                            pushed to the Worker as a secret so the Ereignislog can be linked
+#   GITHUB_PAGES_TOKEN     – optional: fine-grained GitHub token (Contents: read & write on bwicki/analyze);
+#                            lets the Worker commit link-preview pages v/<id>/index.html for shared flights
 name: Deploy worker
 
 on:
@@ -42,6 +44,7 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GITHUB_DATA_TOKEN: ${{ secrets.GITHUB_DATA_TOKEN }}
+      GITHUB_PAGES_TOKEN: ${{ secrets.GITHUB_PAGES_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -60,3 +63,9 @@ jobs:
         env:
           GITHUB_DATA_TOKEN: ${{ secrets.GITHUB_DATA_TOKEN }}
         run: printf '%s' "$GITHUB_DATA_TOKEN" | npx --yes wrangler@4 secret put GITHUB_DATA_TOKEN
+      - name: Worker secret GITHUB_PAGES_TOKEN (only when the GitHub secret is set)
+        if: ${{ env.GITHUB_PAGES_TOKEN != '' }}
+        working-directory: worker
+        env:
+          GITHUB_PAGES_TOKEN: ${{ secrets.GITHUB_PAGES_TOKEN }}
+        run: printf '%s' "$GITHUB_PAGES_TOKEN" | npx --yes wrangler@4 secret put GITHUB_PAGES_TOKEN

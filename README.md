@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.8.1 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.2 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -192,6 +192,16 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    «Deploy worker» einmal laufen lassen – der Workflow legt es als Worker-Secret ab (`wrangler secret put`); der
    Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs. Danach im Supermaster bei den
    PINs des Ballonteams «Team-Zugang geben» – nur diese sehen den Knopf «Aus gb_flight_data verknüpfen».
+9. **Link-Vorschau in WhatsApp & Co. (optional, ab 0.8.2):** Messenger lesen für die Vorschau die Open-Graph-Tags der
+   verlinkten Seite, ohne JavaScript auszuführen; die App ist eine statische GitHub-Pages-Seite und die DNS-Zone
+   `wicki.aero` liegt nicht bei Cloudflare (keine Worker-Route möglich). Darum legt der Worker für jede öffentliche
+   Fahrt eine kleine Seite `v/‹ID›/index.html` mit Titel («Fahrtanalyse/Fahrtbericht – HB-QPJ – AMBC26 (Start
+   15.10.2026)»), Beschreibung (Start, Landung, Dauer, Strecke) und Weiterleitung in die App im Repo `bwicki/analyze`
+   ab – beim Speichern, Ändern, Privat-Schalten (entfernt) und Löschen. Dazu ein zweiter Token: *Fine-grained token*,
+   Repository access nur `bwicki/analyze`, Permission **Contents: Read and write**, als GitHub-Secret
+   `GITHUB_PAGES_TOKEN` hinterlegen und «Deploy worker» einmal laufen lassen. Die Vorschau erscheint ca. eine Minute
+   nach dem Speichern (GitHub-Pages-Build); ohne Secret bleibt der Kurzlink wie bisher (Vorschau nur mit dem
+   allgemeinen Titel). Zum Testen liefert auch der Worker selbst die Seite: `analyze-api.balthasar.workers.dev/v/‹ID›`.
 
 Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
 730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro PIN: 300 MB
@@ -199,7 +209,7 @@ Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine
 
 **API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
-`GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
+`GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /v/‹id›` (Vorschauseite mit Open-Graph-Tags, öffentliche Fahrten) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
 `/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-PINs, 5 min Cache) · `GET /api/profiles`
 (öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `GET|POST /api/flights/‹id›/photos`,
 `PUT|DELETE /api/flights/‹id›/photos/‹pid›` (PUT: `caption`, `manualTime` = UTC von Hand bzw. `null`, `cameraTime` = Kamera-Uhr), `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;

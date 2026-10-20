@@ -276,3 +276,27 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'POST', '/api/admin/logout', { headers: A })).status, 200);
   assert.equal((await call(e, 'GET', '/api/admin/codes', { headers: A })).status, 401);
 });
+
+test('link preview: title/description from master data, HTML page under /v/<id>, private → 404', async () => {
+  const { previewText, previewHtml } = await import('../worker/src/preview.js');
+  const row = { id: 'ABCDEFGH', public: 1, start_ts: Date.UTC(2026, 9, 15, 12, 24), end_ts: Date.UTC(2026, 9, 16, 13, 25), created_at: 1, meta: JSON.stringify({ balloon: 'HB-QPJ', event: 'AMBC26' }), stats: JSON.stringify({ durationSec: 90060, distanceM: 641200, startPlace: 'CH-Mürren', landPlace: 'IT-Ferrara' }) };
+  const p = previewText(row);
+  assert.equal(p.title, 'Fahrtanalyse/Fahrtbericht – HB-QPJ – AMBC26 (Start 15.10.2026)');
+  assert.ok(p.description.startsWith('Start 15.10.2026 12:24 UTC CH-Mürren · Landung 16.10.2026 13:25 UTC IT-Ferrara · 25 h 01 min · 641 km'), p.description);
+  assert.equal(previewText(row, 'en').title, 'Flight analysis/report – HB-QPJ – AMBC26 (Launch 15.10.2026)');
+  const html = previewHtml(row, 'https://analyze.wicki.aero');
+  assert.ok(html.includes('<meta property="og:title" content="Fahrtanalyse/Fahrtbericht – HB-QPJ – AMBC26 (Start 15.10.2026)">'));
+  assert.ok(html.includes('url=https://analyze.wicki.aero/?v=ABCDEFGH#analyze') && html.includes('og:image'));
+  // through the worker: public flight → html, private → 404
+  const e = env();
+  const c = await (await call(e, 'POST', '/api/codes', { body: { displayName: 'P' } })).json();
+  const H = { 'X-Code': c.code };
+  const fd0 = new FormData(); fd0.set('meta', JSON.stringify({ title: 'F', stats: { durationSec: 3600 }, meta: { balloon: 'HB-QWV', event: 'Testfahrt' } })); fd0.set('track', new Blob([await gz('{"type":"FeatureCollection","features":[]}')], { type: 'application/gzip' }), 't.gz');
+  const fl = await (await call(e, 'POST', '/api/flights', { body: fd0, headers: H })).json();
+  const r1 = await call(e, 'GET', `/v/${fl.id}`);
+  assert.equal(r1.status, 200); assert.ok((r1.headers.get('Content-Type') || '').includes('text/html'));
+  assert.ok((await r1.text()).includes('HB-QWV – Testfahrt'));
+  await call(e, 'PUT', `/api/flights/${fl.id}`, { body: { public: false }, headers: H });
+  assert.equal((await call(e, 'GET', `/v/${fl.id}`)).status, 404);
+  assert.equal((await call(e, 'GET', '/v/NOPE')).status, 404);
+});

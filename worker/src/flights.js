@@ -5,6 +5,7 @@
 import { HttpError, randomCode, isFlightId } from './auth.js';
 import { logAction } from './log.js';
 import { counts } from './codes.js';
+import { syncPreview, removePreview } from './preview.js';
 import { removeFlightPhotos } from './photos.js';
 
 const TRACK_MAX = 25 * 1024 * 1024;                 // gzipped bytes per flight
@@ -84,7 +85,7 @@ async function checkQuota(env, user, addBytes, excludeId = null) {
   if (used + addBytes > quota) throw new HttpError(413, 'storage quota of this code exhausted');
 }
 
-export async function createFlight(env, user, request) {
+export async function createFlight(env, user, request, ctx) {
   const { meta, track, events } = await readFlightBody(request);
   if (!track) throw new HttpError(400, 'track missing');
   await checkQuota(env, user, track.byteLength);
@@ -99,8 +100,10 @@ export async function createFlight(env, user, request) {
     .bind(id, user.code, f.title, f.startTs, f.endTs, f.stats, f.meta, key, track.byteLength, f.points, eventsKey, f.public ?? 1, now).run();
   await logAction(env, user.code, 'flight.create', `${id} ${f.title} ${track.byteLength} B`, request);
   const row = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
+  later(ctx, syncPreview(env, row));
   return { ...flightView(row), url: `${env.APP_URL || ''}/v/${id}` };
 }
+const later = (ctx, p) => { if (ctx && ctx.waitUntil) ctx.waitUntil(p); else p.catch(() => {}); };
 
 async function ownFlight(env, user, id) {
   if (!isFlightId(id)) throw new HttpError(404, 'not found');
@@ -114,7 +117,7 @@ export async function getFlight(env, user, id) {
   return { ...flightView(row), url: `${env.APP_URL || ''}/v/${id}` };
 }
 
-export async function updateFlight(env, user, id, request) {
+export async function updateFlight(env, user, id, request, ctx) {
   const row = await ownFlight(env, user, id);
   const { meta, track, events } = await readFlightBody(request);
   const f = fields({ title: row.title, stats: parseJson(row.stats), meta: parseJson(row.meta), points: row.points, ...meta });
@@ -129,12 +132,14 @@ export async function updateFlight(env, user, id, request) {
     .bind(id, f.title, f.startTs, f.endTs, f.stats, f.meta, bytes, f.points, f.public ?? row.public, Date.now(), eventsKey).run();
   await logAction(env, user.code, 'flight.update', `${id} ${f.title}${track ? ` ${bytes} B` : ''}`, request);
   const out = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
+  later(ctx, syncPreview(env, out));
   return { ...flightView(out), url: `${env.APP_URL || ''}/v/${id}` };
 }
 
-export async function deleteFlight(env, user, id, request) {
+export async function deleteFlight(env, user, id, request, ctx) {
   const row = await ownFlight(env, user, id);
   await removeFlightRow(env, row);
+  later(ctx, removePreview(env, id));
   await logAction(env, user.code, 'flight.delete', `${id} ${row.title}`, request);
   return { ok: true };
 }
@@ -194,7 +199,7 @@ export async function viewTrack(env, id) {
 export async function cleanup(env) {
   const days = Number(env.RETENTION_DAYS || 730), limit = Date.now() - days * 86400e3;
   const old = await env.DB.prepare('SELECT * FROM flights WHERE updated_at < ?1 LIMIT 200').bind(limit).all();
-  for (const row of old.results || []) await removeFlightRow(env, row);
+  for (const row of old.results || []) { await removeFlightRow(env, row); await removePreview(env, row.id); }
   await env.DB.prepare('DELETE FROM tokens WHERE expires_at < ?1').bind(Date.now()).run();
   await env.DB.prepare('DELETE FROM usage_log WHERE t < ?1').bind(limit).run();
   return { removed: (old.results || []).length };
