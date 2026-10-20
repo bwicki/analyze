@@ -129,8 +129,8 @@ export function mountReport(root, ctx) {
       <div class="map" data-repmap style="height:360px;min-height:0;flex:none"></div>
       <div class="muted" style="font-size:11px">${esc(t('ana.mapLegend'))} · © OpenStreetMap</div>
       <div class="rep-detail">
-        <div><div class="pk">${esc(t('wp.takeoff'))} · ${esc(startName)} · ${fmtTimeUTC(st.takeoff.t)} UTC</div><div class="map" data-repstart style="height:200px;min-height:0;flex:none"></div></div>
-        ${(st.landing || st.endFix) ? `<div><div class="pk">${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)} · ${fmtTimeUTC((st.landing || st.endFix).t)} UTC</div><div class="map" data-repland style="height:200px;min-height:0;flex:none"></div></div>` : ''}
+        <div><div class="pk">${esc(t('wp.takeoff'))} · ${esc(startName)} · ${fmtDateTimeUTC(st.takeoff.t)}</div><div class="map" data-repstart style="height:200px;min-height:0;flex:none"></div></div>
+        ${(st.landing || st.endFix) ? `<div><div class="pk">${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)} · ${fmtDateTimeUTC((st.landing || st.endFix).t)}</div><div class="map" data-repland style="height:200px;min-height:0;flex:none"></div></div>` : ''}
       </div>
       <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('ana.profile'))}</h2>
       <div data-repprofile></div>
