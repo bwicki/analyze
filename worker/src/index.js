@@ -19,6 +19,7 @@
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code with team, or Supermaster token)
 //   GET  /api/flights/<id>/ops/briefings · POST /api/flights/<id>/ops   Übergabe an ops.wicki.aero (team or Supermaster; secret OPS_HANDOVER_TOKEN)
 //   GET  /api/mapshare?share=&from=&to=[&pw=]   Garmin inReach MapShare feed (KML) for the import – any PIN, Garmin hosts only
+//   GET  /api/view/<id>/report.pdf        Fahrtbericht als PDF vom Server (public flights; Browser Rendering, secrets CF_BR_TOKEN + CF_ACCOUNT_ID)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
 //   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
@@ -29,11 +30,12 @@
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
 import { previewHtml, removePreview } from './preview.js';
-import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage, listOwnRaw, putOwnRaw, getOwnRaw } from './flights.js';
+import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage, listOwnRaw, putOwnRaw, getOwnRaw, publicFlightRow } from './flights.js';
 import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { opsBriefings, opsHandover } from './ops.js';
 import { fetchMapShare } from './mapshare.js';
+import { reportPdf } from './pdf.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
 import { listProfiles, createProfile, deleteProfile } from './profiles.js';
@@ -73,6 +75,9 @@ export async function api(request, env, url, ctx) {
   if (logoCode && m === 'GET') return getLogo(env, logoCode);
   const viewId = seg(/^\/api\/view\/([^/]+)$/);
   if (viewId && m === 'GET') return json(await viewFlight(env, viewId, request));
+  // Fahrtbericht als PDF vom Server (0.13.0): public flights; cached in R2 until the flight changes
+  const viewPdfId = seg(/^\/api\/view\/([^/]+)\/report\.pdf$/);
+  if (viewPdfId && m === 'GET') { if (rateLimited('pdf:' + ip, 20)) throw new HttpError(429, 'too many PDF requests'); return reportPdf(env, ctx, await publicFlightRow(env, viewPdfId)); }
   const viewTrackId = seg(/^\/api\/view\/([^/]+)\/track$/);
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
@@ -155,7 +160,7 @@ export async function api(request, env, url, ctx) {
     requireAdmin(admin);
     if (path === '/api/admin/me' && m === 'GET') return json({ name: admin.name });
     if (path === '/api/admin/pin' && m === 'PUT') return json(await changePin(env, admin, await readJson(request), request));
-    if (path === '/api/admin/stats' && m === 'GET') return json({ ...(await adminStats(env)), secrets: { dataToken: !!env.GITHUB_DATA_TOKEN, pagesToken: !!env.GITHUB_PAGES_TOKEN, opsToken: !!env.OPS_HANDOVER_TOKEN }, apiUrl: env.API_URL || '' });
+    if (path === '/api/admin/stats' && m === 'GET') return json({ ...(await adminStats(env)), secrets: { dataToken: !!env.GITHUB_DATA_TOKEN, pagesToken: !!env.GITHUB_PAGES_TOKEN, opsToken: !!env.OPS_HANDOVER_TOKEN, pdfToken: !!(env.CF_BR_TOKEN && env.CF_ACCOUNT_ID) }, apiUrl: env.API_URL || '' });
     if (path === '/api/admin/codes' && m === 'GET') return json(await adminCodes(env));
     if (path === '/api/admin/flights' && m === 'GET') return json(await adminFlights(env, url.searchParams.get('limit')));
     if (path === '/api/admin/log' && m === 'GET') return json(await adminLog(env, url.searchParams.get('limit')));

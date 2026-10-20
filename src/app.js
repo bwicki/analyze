@@ -141,16 +141,18 @@ function renderFooter() {
 
 /** ?v=<id>: load a saved flight read-only. Returns true when handled. */
 async function loadViewer() {
-  const id = new URLSearchParams(location.search).get('v');
+  const q = new URLSearchParams(location.search), id = q.get('v');
   if (!id || !/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{8}$/.test(id.toUpperCase())) return false;
   if (!hasServer()) return false;
+  const pdf = q.get('pdf') === '1';   // 0.13.0: opened by the Worker's PDF renderer → straight to the report, flags readiness on <html>
+  if (pdf) document.documentElement.classList.add('pdf');
   slots.view.innerHTML = `<main class="page"><div class="banner info"><div class="body"><h3>${esc(t('viewer.loading'))}</h3></div></div></main>`;
   try {
     const rec = await api.view.get(id.toUpperCase());
     const [text, eventRows] = await Promise.all([api.view.track(id.toUpperCase()), rec.hasEvents ? api.view.events(id.toUpperCase()).catch(() => null) : null]);
     await openFlight({ ...rec, url: location.origin + location.pathname.replace(/\/$/, '') + '/v/' + rec.id }, text, { viewer: true, eventRows });
     document.title = `${rec.title ? rec.title + ' – ' : ''}${t('hdr.title')}`;
-    gotoPhase('analyze');
+    gotoPhase(pdf ? 'report' : 'analyze');
   } catch (ex) {
     console.error(ex);
     state.viewer = null;

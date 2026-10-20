@@ -16,6 +16,7 @@ import { qrSvg } from '../util/qr.js';
 import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
 import { photosForDisplay } from './photos.js';
 import { api } from '../api.js';
+import { config } from '../config.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 import { mergeLine } from '../process/mergeinfo.js';
 import { terrainForDisplay } from '../terrain/store.js';
@@ -71,7 +72,7 @@ export function mountReport(root, ctx) {
         </section>
       </div>
       <div style="flex:1 1 560px;min-width:0;display:flex;flex-direction:column;gap:10px">
-        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(state.viewer ? t('rep.previewNote') : t('rep.printMoved'))}</span>${state.viewer ? `<button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button>` : `<button class="btn sm" type="button" data-act="toExport">${esc(t('rep.toExport'))} →</button>`}</div>
+        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(state.viewer ? t('rep.previewNote') : t('rep.printMoved'))}</span>${state.viewer ? `<span class="row-wrap" style="gap:8px">${config.apiBase ? `<a class="btn" href="${esc(`${config.apiBase}/api/view/${state.viewer.id}/report.pdf`)}" target="_blank" rel="noopener" title="${esc(t('rep.pdfServerSub'))}">${esc(t('rep.pdfServer'))} ↗</a>` : ''}<button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button></span>` : `<button class="btn sm" type="button" data-act="toExport">${esc(t('rep.toExport'))} →</button>`}</div>
         <article class="report" data-report></article>
       </div>
     </div>
@@ -130,7 +131,10 @@ export function mountReport(root, ctx) {
   }
   let map = null, mapEl = null, detailMaps = [];
 
+  let readyTimer = null;
   function renderReport() {
+    // PDF mode (0.13.0): the Worker's renderer waits for html[data-print-ready] – set once the last render has had time to draw its maps
+    if (document.documentElement.classList.contains('pdf')) { clearTimeout(readyTimer); readyTimer = setTimeout(() => document.documentElement.setAttribute('data-print-ready', '1'), 3000); }
     const st = state.stats, un = makeUnits(state.settings.units), m = state.meta, rep = el.querySelector('[data-report]');
     if (!st) { rep.innerHTML = `<p class="muted">${esc(t('cln.noTrack'))}</p>`; return; }
     const startPlace = m.startName || state.places.takeoff || '', landPlace = m.landName || (st.landing ? state.places.landing : '') || '';

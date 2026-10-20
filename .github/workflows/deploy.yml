@@ -47,6 +47,7 @@ jobs:
       GH_DATA_TOKEN: ${{ secrets.GH_DATA_TOKEN }}
       GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
       OPS_HANDOVER_TOKEN: ${{ secrets.OPS_HANDOVER_TOKEN }}
+      CF_BR_TOKEN: ${{ secrets.CF_BR_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -77,3 +78,11 @@ jobs:
         env:
           OPS_HANDOVER_TOKEN: ${{ secrets.OPS_HANDOVER_TOKEN }}
         run: printf '%s' "$OPS_HANDOVER_TOKEN" | npx --yes wrangler@4 secret put OPS_HANDOVER_TOKEN
+      - name: Worker secrets CF_BR_TOKEN + CF_ACCOUNT_ID for the report PDF (only when the GitHub secret CF_BR_TOKEN is set)
+        if: ${{ env.CF_BR_TOKEN != '' }}
+        working-directory: worker
+        env:
+          CF_BR_TOKEN: ${{ secrets.CF_BR_TOKEN }}
+        run: |
+          printf '%s' "$CF_BR_TOKEN" | npx --yes wrangler@4 secret put CF_BR_TOKEN
+          printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | npx --yes wrangler@4 secret put CF_ACCOUNT_ID

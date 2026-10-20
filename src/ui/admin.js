@@ -66,7 +66,7 @@ export function mountAdmin(root, ctx) {
       const s = await api.admin.stats(); body.querySelector('[data-stats]').textContent = t('adm.statsLine', { codes: s.codes, flights: s.flights, size: fmtBytes(s.bytes), days: s.retentionDays, actions: s.actions30d });
       // Worker secrets (set / missing – the Worker never reveals values): GITHUB_DATA_TOKEN (Ereignislog), GITHUB_PAGES_TOKEN (link-preview pages)
       const sec = s.secrets || {}; const mark = (ok) => (ok ? `<span class="ok">✓ ${esc(t('adm.tokenSet'))}</span>` : `<span class="err">✗ ${esc(t('adm.tokenMissing'))}</span>`);
-      body.querySelector('[data-secrets]').innerHTML = `${esc(t('adm.tokens'))}: ${esc(t('adm.tokenData'))} ${mark(sec.dataToken)} · ${esc(t('adm.tokenPages'))} ${mark(sec.pagesToken)} · ${esc(t('adm.tokenOps'))} ${mark(sec.opsToken)}${s.apiUrl ? '' : ` · <span class="err">API_URL ${esc(t('adm.tokenMissing'))}</span>`}`;
+      body.querySelector('[data-secrets]').innerHTML = `${esc(t('adm.tokens'))}: ${esc(t('adm.tokenData'))} ${mark(sec.dataToken)} · ${esc(t('adm.tokenPages'))} ${mark(sec.pagesToken)} · ${esc(t('adm.tokenOps'))} ${mark(sec.opsToken)} · ${esc(t('adm.tokenPdf'))} ${mark(sec.pdfToken)}${s.apiUrl ? '' : ` · <span class="err">API_URL ${esc(t('adm.tokenMissing'))}</span>`}`;
     } catch { /* ignore */ }
     show();
   }

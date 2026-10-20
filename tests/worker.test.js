@@ -94,6 +94,7 @@ function fakeR2() {
     put: async (key, data, opts) => { const bytes = data instanceof Uint8Array ? data : typeof data === 'string' ? new TextEncoder().encode(data) : data instanceof ReadableStream ? new Uint8Array(await new Response(data).arrayBuffer()) : new Uint8Array(data); objs.set(key, { data: bytes, opts }); },
     get: async (key) => { const o = objs.get(key); return o ? { body: o.data, size: o.data.byteLength } : null; },
     delete: async (key) => { objs.delete(key); },
+    list: async ({ prefix = '' } = {}) => ({ objects: [...objs.keys()].filter((k) => k.startsWith(prefix)).map((key) => ({ key, size: objs.get(key).data.byteLength })) }),
   };
 }
 
@@ -169,6 +170,14 @@ test('code: create, me, save flight, list, view, update, delete', async () => {
   const view = await (await call(e, 'GET', `/api/view/${saved.id}`, { origin: 'https://other.example' })).json();
   assert.equal(view.owner.displayName, 'Balthasar'); assert.equal(view.title, 'GB26');
   assert.equal((await call(e, 'GET', `/api/view/${saved.id}/track`)).status, 200);
+  // report PDF (0.13.0): not configured → 503; configured → rendered through the stubbed Browser Rendering and cached in R2
+  assert.equal((await call(e, 'GET', `/api/view/${saved.id}/report.pdf`)).status, 503);
+  const realFetch = globalThis.fetch; globalThis.fetch = async () => new Response(new Uint8Array(1500), { status: 200, headers: { 'Content-Type': 'application/pdf' } });
+  try {
+    const pdf = await call({ ...e, CF_BR_TOKEN: 'br', CF_ACCOUNT_ID: 'acc' }, 'GET', `/api/view/${saved.id}/report.pdf`);
+    assert.equal(pdf.status, 200); assert.equal(pdf.headers.get('Content-Type'), 'application/pdf'); assert.match(pdf.headers.get('Content-Disposition'), /Fahrtbericht_GB26_\d{4}-\d{2}-\d{2}\.pdf/);
+    assert.equal([...e.FILES.objs.keys()].filter((k) => k.startsWith('pdfs/')).length, 1);
+  } finally { globalThis.fetch = realFetch; }
   // another code cannot see it
   const c2 = await (await call(e, 'POST', '/api/codes', { body: {} })).json();
   assert.equal((await call(e, 'GET', `/api/flights/${saved.id}`, { headers: { 'X-Code': c2.code } })).status, 404);
@@ -176,6 +185,8 @@ test('code: create, me, save flight, list, view, update, delete', async () => {
   const up = await (await call(e, 'PUT', `/api/flights/${saved.id}`, { body: { title: 'GB26 · Gordon Bennett', public: false }, headers: H })).json();
   assert.equal(up.title, 'GB26 · Gordon Bennett'); assert.equal(up.public, false); assert.equal(up.meta.balloon, 'HB-QWV');
   assert.equal((await call(e, 'GET', `/api/view/${saved.id}`)).status, 404);
+  assert.equal((await call(e, 'GET', `/api/view/${saved.id}/report.pdf`)).status, 404);
+  assert.equal([...e.FILES.objs.keys()].filter((k) => k.startsWith('pdfs/')).length, 0);   // the cached PDF went with the update
   // logo
   const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
   assert.equal((await call(e, 'PUT', '/api/me/logo', { body: png, headers: { ...H, 'Content-Type': 'image/png' } })).status, 200);
@@ -278,9 +289,9 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 200);
   const stats = await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json();
   assert.equal(stats.codes, 1); assert.equal(stats.retentionDays, 730);
-  assert.deepEqual(stats.secrets, { dataToken: false, pagesToken: false, opsToken: false });   // 0.8.4: set/missing only, never values
+  assert.deepEqual(stats.secrets, { dataToken: false, pagesToken: false, opsToken: false, pdfToken: false });   // 0.8.4: set/missing only, never values
   e.GITHUB_PAGES_TOKEN = 'ghp_x';
-  assert.deepEqual((await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json()).secrets, { dataToken: false, pagesToken: true, opsToken: false });
+  assert.deepEqual((await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json()).secrets, { dataToken: false, pagesToken: true, opsToken: false, pdfToken: false });
   delete e.GITHUB_PAGES_TOKEN;
   const log = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log.some((l) => l.action === 'admin.login') && log.some((l) => l.action === 'code.block'));

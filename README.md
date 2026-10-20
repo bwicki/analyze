@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.12.1 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.13.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -194,8 +194,9 @@ Fünf nummerierte Karten mit je einem blauen Aktionsknopf:
    (Google Earth mit Zeitregler), CSV (SI, Semikolon) und **Alles als ZIP** (GPX, GeoJSON, KML + KMZ, CSV,
    Kennzahlen als JSON und Text, Stammdaten, Ereignislog, README); ZIP graut die Einzelformate aus. Knopf
    «Ausgewählte herunterladen» (bei mehreren Dateien fragt der Browser einmal). Dateiname aus Datum und Titel.
-4. **Teilen · Viewer** — Kurzlink mit «Link kopieren», QR-Code, «Viewer öffnen», «Kurzlink deaktivieren»
-   (Fahrt privat) und das Vorschaubild, wie es Messenger beim Teilen zeigen.
+4. **Teilen · Viewer** — Kurzlink mit «Link kopieren», QR-Code, «Viewer öffnen», **«Bericht-PDF»** (ab 0.13.0:
+   fertiges PDF vom Server, ohne Druckdialog – nur bei aktivem Kurzlink, siehe «Bericht-PDF vom Server»),
+   «Kurzlink deaktivieren» (Fahrt privat) und das Vorschaubild, wie es Messenger beim Teilen zeigen.
 5. **Weitergabe an andere Programme** — «KMZ sichern» für Google Earth (die Übergabe an ops.wicki.aero steht bei
    den Spezialfunktionen im Bericht).
 
@@ -208,6 +209,19 @@ Vorschau die Open-Graph-Tags einer Seite, ohne JavaScript auszuführen. Darum le
 AMBC26 (Start 15.10.2026)», Beschreibung mit Start, Landung, Dauer, Strecke, Vorschaubild, Weiterleitung in die
 App) — beim Speichern, Ändern, Privat-Schalten (entfernt) und Löschen. Die Vorschau erscheint rund eine Minute
 nach dem Speichern (GitHub-Pages-Build).
+
+### Bericht-PDF vom Server
+
+Ab 0.13.0 liefert `‹API›/api/view/‹ID›/report.pdf` den Fahrtbericht einer **öffentlichen** Fahrt als fertiges PDF
+(A4, Kopf mit QR-Code, Karten, Profil) — Knopf «Bericht-PDF» in Schritt 5 und «PDF laden» im Viewer; ein Link,
+der sich wie jede Datei weitergeben lässt. Der Worker lässt dafür Cloudflare **Browser Rendering** (wie
+ops.wicki.aero für die Wetterblätter) die Viewer-Seite `/?v=‹ID›&pdf=1#report` öffnen: die App springt direkt in
+den Bericht, zeichnet Karten und Profil und meldet mit `html[data-print-ready]`, dass alles steht; gedruckt wird
+mit den Druck-Stylesheets der App (`emulateMediaType: print`). Das PDF liegt danach in R2 (`pdfs/‹ID›-‹Stand›.pdf`)
+und wird bis zur nächsten Änderung der Fahrt direkt ausgeliefert (erster Abruf 10–20 s, danach sofort); Ändern,
+Privat-Schalten und Löschen räumen es weg. Private Fahrten drucken weiterhin über den Browser (Schritt 5 ·
+Karte 2). Ohne die Secrets `CF_BR_TOKEN`/`CF_ACCOUNT_ID` antwortet die Route mit 503; der Supermaster sieht den
+Status unter «Tokens». Höchstens 20 Abrufe je Minute und Adresse.
 
 ### Meine Fahrten und Profil
 
@@ -227,8 +241,8 @@ Berichten), Vorgaben (Standard-Ballon, PIC), Abmelden. Je PIN 300 MB Speicher.
 **PINs** (sperren/freigeben, löschen, **Team-Zugang** für das Ereignislog aus gb_flight_data), **Fahrten** (alle
 PINs; **Rohdaten (n)**: die importierten Trackerdateien jeder Fahrt als ZIP (eine Datei direkt), dazu «Track» =
 gespeicherter Track als GeoJSON und «Ereignislog» als JSON; jeder Abruf steht im Nutzungsprotokoll; Löschen), **Profile** (geteilte Trackerprofile), **Nutzung** (Protokoll). Die Kopfzeile zeigt
-Anzahl PINs/Fahrten/Speicher/Aktionen und ob die beiden Worker-Tokens (`GH_DATA_TOKEN`, `GH_PAGES_TOKEN`)
-hinterlegt sind — nur gesetzt/fehlt, nie der Wert.
+Anzahl PINs/Fahrten/Speicher/Aktionen und ob die Worker-Tokens (`GH_DATA_TOKEN`, `GH_PAGES_TOKEN`,
+`OPS_HANDOVER_TOKEN`, `CF_BR_TOKEN`) hinterlegt sind — nur gesetzt/fehlt, nie der Wert.
 
 ### Einstellungen (☰)
 
@@ -317,6 +331,12 @@ Repository `bwicki/gb_flight_data` über den Worker. Ortsnamen, Gelände und 3D 
     Secret `OPS_HANDOVER_TOKEN` **in beiden Repositories** (`bwicki/analyze` und `bwicki/ops`) → in beiden «Deploy
     worker» einmal laufen lassen. Der Supermaster sieht den Status unter «Tokens» (gesetzt/fehlt, nie den Wert);
     `worker/wrangler.toml` nennt die ops-Adressen (`OPS_API_URL`, `OPS_APP_URL`).
+11. **Bericht-PDF vom Server (optional, 0.13.0):** Cloudflare → My Profile → API Tokens → Create Token → Custom
+    Token mit der Berechtigung **Browser Rendering: Edit** für das Konto (dasselbe Token wie `cf_api_token` von
+    ops.wicki.aero eignet sich, wenn es diese Berechtigung trägt) → als Secret `CF_BR_TOKEN` in `bwicki/analyze`
+    → «Deploy worker» einmal laufen lassen (legt im Worker `CF_BR_TOKEN` und `CF_ACCOUNT_ID` aus
+    `CLOUDFLARE_ACCOUNT_ID` ab). Browser Rendering ist im Workers-Paid-Plan enthalten (Kontingent: Browser-
+    Minuten pro Tag); ohne Secret bleibt der Knopf ohne Wirkung (503), die App druckt wie bisher.
 
 ## Tests
 
@@ -366,7 +386,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 | `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`), Viewer für Grossansicht, Detailansicht und Fahrtaufzeichnung (`viewer.js`), Logbuch (`logbook.js`), Legal (`legal.js`) |
 | `src/util/` | DOM-Helfer und Dialoge, Formate, Einheiten, Geodäsie (Vincenty, Dämmerung), Ortsnamen, QR-Code (eigener Code) |
 | `src/worker/parse-worker.js` | Parser im Web Worker |
-| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten) |
+| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten, ops-Übergabe, MapShare, Bericht-PDF) |
 | `v/‹ID›/index.html` | Vom Worker abgelegte Vorschauseiten öffentlicher Fahrten |
 | `404.html`, `CNAME`, `.nojekyll` | Kurzlink-Umleitung, Domain, Pages-Einstellung |
 | `tests/` | Automatische Tests mit Fixtures (verdünnte GB26-Logs, Fotos, Ereignislog) |
@@ -384,7 +404,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 /api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
 `GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster) ·
 `GET /api/mapshare?share=&from=&to=[&pw=]` (Garmin MapShare-Feed als KML, PIN) ·
-öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg]`, `GET /api/photos/‹pid›[/thumb]`,
+öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg|/report.pdf]` (PDF: Browser Rendering, R2-Cache), `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|
 flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events|raw`, `GET /api/admin/flights/‹id›/raw/‹n›` (Rohdaten), `DELETE
 /api/admin/flights/‹id›`, `POST /api/admin/codes/‹code›/block|unblock|team`, `DELETE /api/admin/codes/‹code›`.

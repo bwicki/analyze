@@ -2,6 +2,7 @@
 // The browser gzips the GeoJSON itself and sends it as the "track" part of a multipart form; the Worker
 // stores the bytes untouched (no decompression on the edge – keeps CPU time tiny for 10-MB tracks).
 
+import { dropOldPdfs } from './pdf.js';
 import { HttpError, randomCode, isFlightId } from './auth.js';
 import { logAction } from './log.js';
 import { counts } from './codes.js';
@@ -150,6 +151,7 @@ export async function updateFlight(env, user, id, request, ctx) {
   await logAction(env, user.code, 'flight.update', `${id} ${f.title}${track ? ` ${bytes} B` : ''}`, request);
   const out = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
   later(ctx, syncPreview(env, out));
+  later(ctx, dropOldPdfs(env, id));   // 0.13.0: the cached report PDF belongs to the previous updated_at
   return { ...flightView(out), url: `${env.APP_URL || ''}/v/${id}` };
 }
 
@@ -167,6 +169,7 @@ export async function removeFlightRow(env, row) {
   await env.FILES.delete(row.track_key).catch(() => {});
   await env.FILES.delete(previewKey(row.id)).catch(() => {});
   if (row.events_key) await env.FILES.delete(row.events_key).catch(() => {});
+  await dropOldPdfs(env, row.id);
   await env.DB.prepare('DELETE FROM flights WHERE id = ?1').bind(row.id).run();
 }
 
@@ -198,6 +201,8 @@ export async function viewEvents(env, id) {
 }
 
 // ---- public viewer (short link /v/<id>) ---------------------------------------------------------------
+/** Public flight row for the PDF (0.13.0) – same rules as the viewer. */
+export async function publicFlightRow(env, id) { return publicFlight(env, id); }
 async function publicFlight(env, id) {
   if (!isFlightId(id)) throw new HttpError(404, 'not found');
   const row = await env.DB.prepare('SELECT f.*, c.display_name, c.logo_key, c.blocked, c.prefs AS owner_prefs FROM flights f JOIN codes c ON c.code = f.code WHERE f.id = ?1').bind(id).first();
