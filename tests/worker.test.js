@@ -269,6 +269,10 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 200);
   const stats = await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json();
   assert.equal(stats.codes, 1); assert.equal(stats.retentionDays, 730);
+  assert.deepEqual(stats.secrets, { dataToken: false, pagesToken: false });   // 0.8.4: set/missing only, never values
+  e.GITHUB_PAGES_TOKEN = 'ghp_x';
+  assert.deepEqual((await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json()).secrets, { dataToken: false, pagesToken: true });
+  delete e.GITHUB_PAGES_TOKEN;
   const log = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log.some((l) => l.action === 'admin.login') && log.some((l) => l.action === 'code.block'));
   assert.equal((await call(e, 'DELETE', `/api/admin/codes/${c.code}`, { headers: A })).status, 200);
@@ -286,7 +290,10 @@ test('link preview: title/description from master data, HTML page under /v/<id>,
   assert.equal(previewText(row, 'en').title, 'Flight analysis/report – HB-QPJ – AMBC26 (Launch 15.10.2026)');
   const html = previewHtml(row, 'https://analyze.wicki.aero');
   assert.ok(html.includes('<meta property="og:title" content="Fahrtanalyse/Fahrtbericht – HB-QPJ – AMBC26 (Start 15.10.2026)">'));
-  assert.ok(html.includes('url=https://analyze.wicki.aero/?v=ABCDEFGH#analyze') && html.includes('og:image'));
+  assert.ok(html.includes('url=https://analyze.wicki.aero/?v=ABCDEFGH#analyze') && html.includes('og:image" content="https://analyze.wicki.aero/img/logo.png'));
+  // with the Worker address the image is the flight picture (0.8.4), versioned by the last change
+  const html2 = previewHtml({ ...row, updated_at: 1234 }, 'https://analyze.wicki.aero', 'de', 'https://analyze-api.example.workers.dev/');
+  assert.ok(html2.includes('og:image" content="https://analyze-api.example.workers.dev/api/view/ABCDEFGH/preview.jpg?v=1234"') && html2.includes('summary_large_image') && html2.includes('og:image:width" content="1200"'));
   // through the worker: public flight → html, private → 404
   const e = env();
   const c = await (await call(e, 'POST', '/api/codes', { body: { displayName: 'P' } })).json();
@@ -296,7 +303,20 @@ test('link preview: title/description from master data, HTML page under /v/<id>,
   const r1 = await call(e, 'GET', `/v/${fl.id}`);
   assert.equal(r1.status, 200); assert.ok((r1.headers.get('Content-Type') || '').includes('text/html'));
   assert.ok((await r1.text()).includes('HB-QWV – Testfahrt'));
+  // preview image: owner uploads a JPEG, the public endpoint serves it; wrong type / foreign flight refused
+  const jpg = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 0xff, 0xd9]);
+  assert.equal((await call(e, 'PUT', `/api/flights/${fl.id}/preview`, { body: jpg, headers: { ...H, 'Content-Type': 'image/png' } })).status, 415);
+  const up = await call(e, 'PUT', `/api/flights/${fl.id}/preview`, { body: jpg, headers: { ...H, 'Content-Type': 'image/jpeg' } });
+  assert.equal(up.status, 200); assert.equal((await up.json()).bytes, 9);
+  const c2 = await (await call(e, 'POST', '/api/codes', { body: { displayName: 'Q' } })).json();
+  assert.equal((await call(e, 'PUT', `/api/flights/${fl.id}/preview`, { body: jpg, headers: { 'X-Code': c2.code, 'Content-Type': 'image/jpeg' } })).status, 404);
+  const img = await call(e, 'GET', `/api/view/${fl.id}/preview.jpg`);
+  assert.equal(img.status, 200); assert.equal(img.headers.get('Content-Type'), 'image/jpeg'); assert.equal((await img.arrayBuffer()).byteLength, 9);
+  assert.ok(e.FILES.objs.has(`previews/${fl.id}.jpg`));
   await call(e, 'PUT', `/api/flights/${fl.id}`, { body: { public: false }, headers: H });
   assert.equal((await call(e, 'GET', `/v/${fl.id}`)).status, 404);
+  assert.equal((await call(e, 'GET', `/api/view/${fl.id}/preview.jpg`)).status, 404);   // private → no image either
   assert.equal((await call(e, 'GET', '/v/NOPE')).status, 404);
+  await call(e, 'DELETE', `/api/flights/${fl.id}`, { headers: H });
+  assert.ok(!e.FILES.objs.has(`previews/${fl.id}.jpg`), 'preview removed with the flight');
 });

@@ -14,6 +14,7 @@
 //   GET|PUT|DELETE /api/flights/<id>         one flight (owner); GET /api/flights/<id>/track → gzip GeoJSON
 //   GET  /api/flights/<id>/events · /api/view/<id>/events   stored event log (JSON array)
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
+//   PUT  /api/flights/<id>/preview (JPEG, owner) · GET /api/view/<id>/preview.jpg   link-preview image for messengers
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code, team)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
@@ -24,7 +25,7 @@
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
 import { previewHtml, removePreview } from './preview.js';
-import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup } from './flights.js';
+import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage } from './flights.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
 import { logAction } from './log.js';
@@ -69,6 +70,8 @@ export async function api(request, env, url, ctx) {
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
   if (viewEventsId && m === 'GET') return viewEvents(env, viewEventsId);
+  const viewPreviewId = seg(/^\/api\/view\/([^/]+)\/preview\.jpg$/);
+  if (viewPreviewId && m === 'GET') return viewPreviewImage(env, viewPreviewId);
   const viewPhotosId = seg(/^\/api\/view\/([^/]+)\/photos$/);
   if (viewPhotosId && m === 'GET') return json(await listPublicPhotos(env, viewPhotosId), 200, { 'Cache-Control': 'public, max-age=60' });
   const photoGet = /^\/api\/photos\/([^/]+)(\/thumb)?$/.exec(path);
@@ -98,6 +101,8 @@ export async function api(request, env, url, ctx) {
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
     if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
+    const previewId = seg(/^\/api\/flights\/([^/]+)\/preview$/);
+    if (previewId && m === 'PUT') return json(await putPreview(env, user, previewId, request));
     const photosId = seg(/^\/api\/flights\/([^/]+)\/photos$/);
     if (photosId && m === 'GET') return json(await listOwnPhotos(env, user, photosId));
     if (photosId && m === 'POST') return json(await uploadPhoto(env, user, photosId, request));
@@ -130,7 +135,7 @@ export async function api(request, env, url, ctx) {
     requireAdmin(admin);
     if (path === '/api/admin/me' && m === 'GET') return json({ name: admin.name });
     if (path === '/api/admin/pin' && m === 'PUT') return json(await changePin(env, admin, await readJson(request), request));
-    if (path === '/api/admin/stats' && m === 'GET') return json(await adminStats(env));
+    if (path === '/api/admin/stats' && m === 'GET') return json({ ...(await adminStats(env)), secrets: { dataToken: !!env.GITHUB_DATA_TOKEN, pagesToken: !!env.GITHUB_PAGES_TOKEN }, apiUrl: env.API_URL || '' });
     if (path === '/api/admin/codes' && m === 'GET') return json(await adminCodes(env));
     if (path === '/api/admin/flights' && m === 'GET') return json(await adminFlights(env, url.searchParams.get('limit')));
     if (path === '/api/admin/log' && m === 'GET') return json(await adminLog(env, url.searchParams.get('limit')));
@@ -194,7 +199,7 @@ export default {
         const row = await env.DB.prepare('SELECT f.*, c.blocked FROM flights f JOIN codes c ON c.code = f.code WHERE f.id = ?1').bind(pv[1]).first();
         if (!row || !row.public || row.blocked) return new Response('not found', { status: 404, headers: { 'Content-Type': 'text/plain' } });
         const lang = /^en/i.test(request.headers.get('Accept-Language') || '') ? 'en' : 'de';
-        return new Response(previewHtml(row, env.APP_URL || 'https://analyze.wicki.aero', lang), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } });
+        return new Response(previewHtml(row, env.APP_URL || 'https://analyze.wicki.aero', lang, env.API_URL || ''), { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } });
       }
       return json({ error: 'not found', app: env.APP_URL || 'https://analyze.wicki.aero' }, 404, cors);
     } catch (e) {

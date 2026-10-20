@@ -32,10 +32,13 @@ export function previewText(row, lang = 'de') {
 }
 
 /** The static page: Open-Graph tags + redirect into the app (meta refresh for browsers without JS). */
-export function previewHtml(row, appUrl, lang = 'de') {
+export function previewHtml(row, appUrl, lang = 'de', apiUrl = '') {
   const { title, description } = previewText(row, lang);
   const base = (appUrl || 'https://analyze.wicki.aero').replace(/\/$/, '');
   const target = `${base}/?v=${row.id}#analyze`, canonical = `${base}/v/${row.id}`;
+  // the flight image rendered by the app on save (Worker serves the logo until it exists); ?v= busts messenger caches
+  const api = (apiUrl || '').replace(/\/$/, '');
+  const image = api ? `${api}/api/view/${row.id}/preview.jpg?v=${row.updated_at || row.created_at || 0}` : `${base}/img/logo.png`;
   return `<!doctype html>
 <html lang="${lang}">
 <head>
@@ -47,8 +50,10 @@ export function previewHtml(row, appUrl, lang = 'de') {
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(description)}">
 <meta property="og:url" content="${esc(canonical)}">
-<meta property="og:image" content="${base}/img/logo.png">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="${esc(image)}">
+${api ? '<meta property="og:image:type" content="image/jpeg">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">' : ''}
+<meta name="twitter:card" content="${api ? 'summary_large_image' : 'summary'}">
+<meta name="twitter:image" content="${esc(image)}">
 <meta name="twitter:title" content="${esc(title)}">
 <meta name="twitter:description" content="${esc(description)}">
 <link rel="canonical" href="${esc(canonical)}">
@@ -81,7 +86,7 @@ export async function syncPreview(env, row) {
   try {
     const sha = await currentSha(env, repo, path, branch);
     if (!row.public) return sha ? removePreview(env, row.id, sha) : { ok: true, none: true };
-    const html = previewHtml(row, env.APP_URL || 'https://analyze.wicki.aero', 'de');
+    const html = previewHtml(row, env.APP_URL || 'https://analyze.wicki.aero', 'de', env.API_URL || '');
     const content = btoa(String.fromCharCode(...new TextEncoder().encode(html)));
     const body = { message: `Vorschau Fahrt ${row.id}`, content, branch, ...(sha ? { sha } : {}) };
     const res = await fetch(`${GH}/repos/${repo}/contents/${path}`, { method: 'PUT', headers: { ...ghHeaders(env), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });

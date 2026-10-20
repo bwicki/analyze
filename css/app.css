@@ -23,6 +23,7 @@ p{margin:0}
 .k{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 .small{font-size:13px}
 .err{color:var(--red);font-size:14px}
+span.ok{color:var(--green)}
 .right{text-align:right}
 
 /* ---- app frame ---- */
@@ -317,3 +318,7 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .report .rep-photos img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:4px;border:1px solid var(--border)}
 .report .rep-photos figcaption{font-size:10px;color:var(--muted);padding-top:3px}
 @media (max-width:760px){ .photogrid{grid-template-columns:repeat(2,1fr)} .report .rep-photos{grid-template-columns:repeat(3,1fr)} }
+
+/* link preview (export page): how the short link appears in messengers */
+.msgpreview{margin-top:10px;max-width:360px}
+.msgpreview img{display:block;width:100%;aspect-ratio:1200/630;object-fit:cover;border:1px solid var(--border);border-radius:8px;margin:4px 0;background:#e9eef3}

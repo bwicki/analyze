@@ -53,11 +53,17 @@ export function mountAdmin(root, ctx) {
     body.innerHTML = `<div class="row-wrap" style="align-items:center;gap:10px">
         <div class="seg"><button type="button" data-tab="codes">${esc(t('adm.codes'))}</button><button type="button" data-tab="flights">${esc(t('adm.flights'))}</button><button type="button" data-tab="profiles">${esc(t('adm.profiles'))}</button><button type="button" data-tab="log">${esc(t('adm.log'))}</button></div>
         <span class="muted small" data-stats></span>
+        <span class="muted small" data-secrets title="${esc(t('adm.tokensHint'))}"></span>
         <span style="margin-left:auto" class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-act="pin">${esc(t('adm.changePin'))}</button><button class="btn sm" type="button" data-act="logout">${esc(t('fl.logout'))} (${esc(session.adminName || '')})</button></span>
       </div>
       <section class="card"><div class="scroll-x" data-content><p class="muted">${esc(t('fl.loading'))}</p></div></section>`;
     body.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { tab = b.dataset.tab; show(); }));
-    try { const s = await api.admin.stats(); body.querySelector('[data-stats]').textContent = t('adm.statsLine', { codes: s.codes, flights: s.flights, size: fmtBytes(s.bytes), days: s.retentionDays, actions: s.actions30d }); } catch { /* ignore */ }
+    try {
+      const s = await api.admin.stats(); body.querySelector('[data-stats]').textContent = t('adm.statsLine', { codes: s.codes, flights: s.flights, size: fmtBytes(s.bytes), days: s.retentionDays, actions: s.actions30d });
+      // Worker secrets (set / missing – the Worker never reveals values): GITHUB_DATA_TOKEN (Ereignislog), GITHUB_PAGES_TOKEN (link-preview pages)
+      const sec = s.secrets || {}; const mark = (ok) => (ok ? `<span class="ok">✓ ${esc(t('adm.tokenSet'))}</span>` : `<span class="err">✗ ${esc(t('adm.tokenMissing'))}</span>`);
+      body.querySelector('[data-secrets]').innerHTML = `${esc(t('adm.tokens'))}: ${esc(t('adm.tokenData'))} ${mark(sec.dataToken)} · ${esc(t('adm.tokenPages'))} ${mark(sec.pagesToken)}${s.apiUrl ? '' : ` · <span class="err">API_URL ${esc(t('adm.tokenMissing'))}</span>`}`;
+    } catch { /* ignore */ }
     show();
   }
 

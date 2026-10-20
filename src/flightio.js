@@ -10,6 +10,7 @@ import { parseFiles } from './parser.js';
 import { api } from './api.js';
 import { t } from './i18n.js';
 import { fmtDateUTC } from './util/format.js';
+import { renderPreview, previewData } from './export/preview.js';
 
 /** Title shown in lists and on the report when the user typed none. */
 export function flightTitle() {
@@ -39,7 +40,17 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
   state.flight = { id: rec.id, title: rec.title, url: rec.url, createdAt: rec.createdAt || (state.flight && state.flight.createdAt) || rec.updatedAt, updatedAt: rec.updatedAt, public: rec.public };
   bus.emit('flight');
   loadPhotos();
+  uploadPreview(rec.id);
   return rec;
+}
+
+/** Link-preview image for messengers (0.8.4): rendered here, stored by the Worker; failures are silent. */
+export async function uploadPreview(id) {
+  try {
+    const blob = await renderPreview(previewData(flightTitle()));
+    if (blob) await api.flights.preview(id, blob);
+    bus.emit('preview', { id, ok: !!blob });
+  } catch (e) { console.warn('preview image failed:', e && e.message); bus.emit('preview', { id, ok: false }); }
 }
 
 /**

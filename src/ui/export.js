@@ -8,6 +8,7 @@ import { state, bus } from '../state.js';
 import { downloadGpx, downloadGeoJson, downloadKmz, downloadCsv, downloadAllZip, estimateSizes, baseName } from '../export/download.js';
 import { session, hasServer } from '../session.js';
 import { saveCurrentFlight, flightTitle } from '../flightio.js';
+import { config } from '../config.js';
 import { api } from '../api.js';
 import { qrSvg } from '../util/qr.js';
 
@@ -96,11 +97,14 @@ export function mountExport(root, ctx) {
     box.innerHTML = `<label class="f">${esc(t('exp.shortLink'))}<div class="row-wrap" style="gap:8px"><input class="in mono" type="text" readonly value="${esc(url.replace(/^https?:\/\//, ''))}" style="flex:1"><button class="btn" type="button" data-act="copy">${esc(t('exp.copyLink'))}</button></div></label>
       <div class="row-wrap" style="gap:14px;align-items:center"><div class="qr" data-qr></div><div class="col" style="gap:6px;flex:1"><a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">${esc(t('exp.openViewer'))} ↗</a>
         ${state.viewer ? '' : `<button class="btn sm" type="button" data-act="toggleVisibility">${esc(f.public ? t('exp.makePrivate') : t('exp.makePublic'))}</button>`}
-        <span class="muted small">${esc(f.public ? t('exp.isPublic') : t('exp.isPrivate'))}</span></div></div>`;
+        <span class="muted small">${esc(f.public ? t('exp.isPublic') : t('exp.isPrivate'))}</span></div></div>
+      ${f.public && config.apiBase ? `<div class="msgpreview" data-msgpreview><div class="muted small">${esc(t('exp.msgPreview'))}</div><img alt="" src="${esc(`${config.apiBase}/api/view/${f.id}/preview.jpg?v=${previewVersion || f.updatedAt || 0}`)}" loading="lazy"><div class="muted small">${esc(t('exp.msgPreviewSub'))}</div></div>` : ''}`;
     box.querySelector('[data-qr]').innerHTML = qrSvg(url, { size: 132 });
   }
+  let previewVersion = 0;
   const off = bus.on('track', render), off2 = bus.on('flight', () => { renderSave(); renderShare(); });
+  const off3 = bus.on('preview', (d) => { if (d && d.ok) { previewVersion = Date.now(); renderShare(); } });   // image uploaded → show it
   render();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); } };
+  return { unmount: () => { off(); off2(); off3(); } };
 }

@@ -71,6 +71,7 @@ export const api = {
     track: (id) => trackText(`/api/flights/${id}/track`),
     events: (id) => request('GET', `/api/flights/${id}/events`),
     remove: (id) => request('DELETE', `/api/flights/${id}`),
+    preview: (id, blob) => request('PUT', `/api/flights/${id}/preview`, { body: blob, headers: { 'Content-Type': 'image/jpeg' } }),
   },
   view: {
     get: (id) => request('GET', `/api/view/${id}`, { code: null }),

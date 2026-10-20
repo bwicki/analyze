@@ -15,6 +15,9 @@ APP_ORIGINS = "https://analyze.wicki.aero,https://bwicki.github.io,http://localh
 TOKEN_HOURS = "12"
 # Public address of the app – used for the short links (analyze.wicki.aero/v/<id>).
 APP_URL = "https://analyze.wicki.aero"
+# Public address of this Worker (same value as apiBase in src/config.js) – the link-preview pages point
+# messengers to the flight image here (/api/view/<id>/preview.jpg).
+API_URL = "https://analyze-api.balthasar.workers.dev"
 # Flights are kept this long after the last change (concept decision 9); the cleanup runs daily.
 RETENTION_DAYS = "730"
 # Ereignislog source (private repo of the gb_notion_frontend app). The token is a secret, NOT a var:

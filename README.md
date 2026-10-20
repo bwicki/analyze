@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.8.3 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.4 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -126,7 +126,11 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
 5. **Exportieren** – GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen
    als JSON und Text, Stammdaten, Ereignislog, README); Auflösung wählbar. **Fahrt speichern** legt den
    geschnittenen Track (volle Auflösung, komprimiert), Kennzahlen und Stammdaten unter dem PIN ab und erzeugt den
-   Kurzlink `analyze.wicki.aero/v/‹ID›` (QR-Code daneben; «Kurzlink deaktivieren» macht die Fahrt privat).
+   Kurzlink `analyze.wicki.aero/v/‹ID›` (QR-Code daneben; «Kurzlink deaktivieren» macht die Fahrt privat). Beim
+   Speichern zeichnet die App zudem ein **Vorschaubild** (1200 × 630, JPEG < 300 KB: Kartenkacheln des gewählten
+   Layers, Track nach Vario gefärbt, Start/Landung, Bildzeile mit Titel, Dauer, Strecke, Zeiten) und lädt es zum
+   Worker; Messenger zeigen es beim Teilen des Kurzlinks neben dem Titel. Die Karte «Teilen · Viewer» zeigt das Bild
+   nach dem Speichern.
 
 **Persönlicher PIN:** Startseite → «Neuen PIN erzeugen» (einmal notieren) oder vorhandenen eingeben. Der PIN (sechs
 Zeichen) ist das einzige Geheimnis – wer ihn kennt, sieht und ändert die Fahrten darunter. «Ohne PIN ausprobieren» = Phase-1-Betrieb.
@@ -134,7 +138,9 @@ Zeichen) ist das einzige Geheimnis – wer ihn kennt, sieht und ändert die Fahr
 Logo (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst Ballonteam-Logo), Vorgaben (Standard-Ballon, PIC).
 **Viewer:** Der Kurzlink zeigt Auswerten und Bericht ohne PIN, ohne Bearbeiten.
 **Supermaster** (☰ → Supermaster oder `#admin`): einmalig Name + Supermaster-PIN einrichten; sieht alle persönlichen PINs (sperren,
-löschen, **Team-Freigabe** für das Ereignislog aus gb_flight_data), alle Fahrten und das Nutzungsprotokoll.
+löschen, **Team-Freigabe** für das Ereignislog aus gb_flight_data), alle Fahrten und das Nutzungsprotokoll. In der
+Kopfzeile steht, ob die beiden Worker-Tokens (Ereignislog `GH_DATA_TOKEN`, Link-Vorschau `GH_PAGES_TOKEN`) hinterlegt
+sind – nur gesetzt/fehlt, nie der Wert.
 
 Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen), PIN wechseln.
 
@@ -210,6 +216,9 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    GitHub-Secret **`GH_PAGES_TOKEN`** hinterlegen (im Worker: `GITHUB_PAGES_TOKEN`) und «Deploy worker» einmal laufen lassen. Die Vorschau erscheint ca. eine Minute
    nach dem Speichern (GitHub-Pages-Build); ohne Secret bleibt der Kurzlink wie bisher (Vorschau nur mit dem
    allgemeinen Titel). Zum Testen liefert auch der Worker selbst die Seite: `analyze-api.balthasar.workers.dev/v/‹ID›`.
+   Das Vorschaubild (ab 0.8.4) liegt im Worker (`previews/‹ID›.jpg` in R2) und wird über `API_URL` aus
+   `wrangler.toml` als `og:image` eingetragen (`…/api/view/‹ID›/preview.jpg?v=‹Änderungszeit›`); solange keines
+   hochgeladen ist, liefert der Worker das Ballonteam-Logo. Ob die Tokens gesetzt sind, zeigt der Supermaster.
 
 Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
 730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro PIN: 300 MB
@@ -217,7 +226,7 @@ Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine
 
 **API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
-`GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /v/‹id›` (Vorschauseite mit Open-Graph-Tags, öffentliche Fahrten) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
+`GET /api/view/‹id›[/track|/events|/preview.jpg]` (öffentlich) · `PUT /api/flights/‹id›/preview` (JPEG ≤ 600 KB, Vorschaubild) · `GET /v/‹id›` (Vorschauseite mit Open-Graph-Tags, öffentliche Fahrten) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
 `/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-PINs, 5 min Cache) · `GET /api/profiles`
 (öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `GET|POST /api/flights/‹id›/photos`,
 `PUT|DELETE /api/flights/‹id›/photos/‹pid›` (PUT: `caption`, `manualTime` = UTC von Hand bzw. `null`, `cameraTime` = Kamera-Uhr), `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;

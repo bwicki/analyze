@@ -147,6 +147,7 @@ export async function deleteFlight(env, user, id, request, ctx) {
 export async function removeFlightRow(env, row) {
   await removeFlightPhotos(env, row.id).catch(() => {});
   await env.FILES.delete(row.track_key).catch(() => {});
+  await env.FILES.delete(previewKey(row.id)).catch(() => {});
   if (row.events_key) await env.FILES.delete(row.events_key).catch(() => {});
   await env.DB.prepare('DELETE FROM flights WHERE id = ?1').bind(row.id).run();
 }
@@ -193,6 +194,31 @@ export async function viewFlight(env, id, request) {
 export async function viewTrack(env, id) {
   const row = await publicFlight(env, id);
   return trackResponse(env, row, 'public, max-age=300');
+}
+
+// ---- link-preview image (0.8.4): rendered by the app when a flight is saved, served to messengers ------
+export const previewKey = (id) => `previews/${id}.jpg`;
+const PREVIEW_MAX = 600 * 1024;
+
+export async function putPreview(env, user, id, request) {
+  const row = await ownFlight(env, user, id);
+  const type = (request.headers.get('Content-Type') || '').split(';')[0].trim().toLowerCase();
+  if (type !== 'image/jpeg') throw new HttpError(415, 'preview must be JPEG');
+  const bytes = await request.arrayBuffer();
+  if (!bytes.byteLength) throw new HttpError(400, 'empty preview');
+  if (bytes.byteLength > PREVIEW_MAX) throw new HttpError(413, 'preview larger than 600 KB');
+  await env.FILES.put(previewKey(row.id), bytes, { httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=3600' }, customMetadata: { code: user.code } });
+  return { ok: true, bytes: bytes.byteLength };
+}
+
+/** The image of a public flight; the Ballonteam logo when none was uploaded (so a messenger always gets a picture). */
+export async function viewPreviewImage(env, id) {
+  const row = await publicFlight(env, id);
+  const obj = await env.FILES.get(previewKey(row.id));
+  if (obj) return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'Content-Length': String(obj.size) } });
+  const logo = await fetch(`${env.APP_URL || 'https://analyze.wicki.aero'}/img/logo.png`).catch(() => null);
+  if (!logo || !logo.ok) throw new HttpError(404, 'no preview');
+  return new Response(logo.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=60' } });
 }
 
 // ---- housekeeping (cron) ----------------------------------------------------------------------------
