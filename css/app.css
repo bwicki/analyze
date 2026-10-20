@@ -183,6 +183,19 @@ details.exp>div{padding-bottom:10px}
 .legend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
 
 /* export cards */
+.card.step h2{display:flex;align-items:center;gap:10px}
+.stepnum{display:inline-flex;width:24px;height:24px;border-radius:50%;align-items:center;justify-content:center;background:var(--text);color:#fff;font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:0;text-transform:none;flex:none}
+.card.step .actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}
+.card.step .actions .muted{flex:1 1 200px;text-align:left}
+.card.step .actions .btn.primary{min-width:220px}
+.dl-list{display:flex;flex-direction:column;gap:8px}
+.dl{display:flex;align-items:center;gap:14px;padding:10px 14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);cursor:pointer}
+.dl input{width:20px;height:20px;flex:none;accent-color:var(--primary)}
+.dl .ico{width:44px;height:36px;border-radius:8px;background:var(--hair);display:flex;align-items:center;justify-content:center;flex:none;font-family:var(--mono);font-size:11px;font-weight:600}
+.dl .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.dl .t strong{font-size:15px}
+.dl .t span{font-size:13px;color:var(--muted)}
+.dl.dim{opacity:.45;cursor:default}
 .exp{display:flex;align-items:center;gap:14px;padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface)}
 .exp .ico{width:44px;height:44px;border-radius:10px;background:var(--hair);display:flex;align-items:center;justify-content:center;flex:none;font-family:var(--mono);font-size:11px;font-weight:600}
 .exp .t{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
@@ -322,4 +335,5 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 
 /* link preview (export page): how the short link appears in messengers */
 .msgpreview{margin-top:10px;max-width:360px}
+.msgpreview-busy{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1200/630;border:1px dashed var(--border-strong);border-radius:8px;margin:4px 0;background:#f4f6f9}
 .msgpreview img{display:block;width:100%;aspect-ratio:1200/630;object-fit:cover;border:1px solid var(--border);border-radius:8px;margin:4px 0;background:#e9eef3}

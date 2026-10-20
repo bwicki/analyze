@@ -24,12 +24,13 @@ export function mountFlights(root, ctx) {
           <h2>${esc(t('fl.codeLogo'))}</h2>
           <div class="row"><span class="k2">${esc(t('start.code'))}</span><span class="val">${esc(session.code || '')}</span></div>
           <label class="f">${esc(t('start.displayName'))}<input class="in" data-pref="displayName" maxlength="60" value="${esc(me.displayName || '')}"></label>
+          <label class="f">${esc(t('fl.org'))}<input class="in" data-pref="org" maxlength="60" placeholder="${esc(t('fl.orgPh'))}" value="${esc((me.prefs && me.prefs.org) || '')}"></label>
           <div class="row-wrap" style="align-items:center;gap:12px">
             <img data-logo src="${logoUrl(session.code, me.logo)}" alt="" style="height:46px;max-width:180px;object-fit:contain;background:#fff;border:1px solid var(--border);border-radius:8px;padding:4px">
             <label class="btn sm" style="cursor:pointer">${esc(t('fl.logoUpload'))}<input type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hidden" data-logofile></label>
             <button class="btn sm ${me.logo ? '' : 'hidden'}" type="button" data-act="logoDelete">${esc(t('fl.logoDelete'))}</button>
           </div>
-          <span class="muted small">${esc(t('fl.logoNote'))}</span>
+          <span class="muted small">${esc(t('fl.logoNote'))} ${esc(t('fl.orgNote'))}</span>
         </section>
         <section class="card" style="flex:1 1 300px">
           <h2>${esc(t('fl.defaults'))}</h2>

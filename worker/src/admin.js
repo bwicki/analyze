@@ -80,6 +80,22 @@ export async function setBlocked(env, admin, codeRaw, blocked, request) {
   return { ok: true };
 }
 
+/** Raw data of any flight for the Supermaster: the stored track (gzip GeoJSON, full resolution) or the event log. */
+export async function adminFlightFile(env, admin, id, what, request) {
+  if (!isFlightId(id)) throw new HttpError(404, 'not found');
+  const row = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();
+  if (!row) throw new HttpError(404, 'not found');
+  if (what === 'events') {
+    if (!row.events_key) throw new HttpError(404, 'no event log');
+    const obj = await env.FILES.get(row.events_key); if (!obj) throw new HttpError(404, 'no event log');
+    await logAction(env, `admin:${admin.name}`, 'flight.rawdata', `${id} events (${row.code})`, request);
+    return new Response(obj.body, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' } });
+  }
+  const obj = await env.FILES.get(row.track_key); if (!obj) throw new HttpError(404, 'track missing');
+  await logAction(env, `admin:${admin.name}`, 'flight.rawdata', `${id} track (${row.code})`, request);
+  return new Response(obj.body, { headers: { 'Content-Type': 'application/gzip', 'Cache-Control': 'no-store', 'X-Analyze-Encoding': 'gzip', 'X-Analyze-Bytes': String(obj.size) } });
+}
+
 export async function adminDeleteFlight(env, admin, id, request) {
   if (!isFlightId(id)) throw new HttpError(404, 'not found');
   const row = await env.DB.prepare('SELECT * FROM flights WHERE id = ?1').bind(id).first();

@@ -21,13 +21,14 @@
 //   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
 //   GET  /api/admin/setup · POST /api/admin/setup · POST /api/admin/login · POST /api/admin/logout · PUT /api/admin/pin
 //   GET  /api/admin/stats|codes|flights|log · POST /api/admin/codes/<code>/block|unblock|team · DELETE /api/admin/codes/<code> · DELETE /api/admin/flights/<id>
+//   GET  /api/admin/flights/<id>/track|events   raw data of any flight (Supermaster)
 
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
 import { previewHtml, removePreview } from './preview.js';
 import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage } from './flights.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
-import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog } from './admin.js';
+import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
 import { listProfiles, createProfile, deleteProfile } from './profiles.js';
 import { listOwn as listOwnPhotos, listPublic as listPublicPhotos, uploadPhoto, updatePhoto, deletePhoto, servePhoto } from './photos.js';
@@ -150,6 +151,8 @@ export async function api(request, env, url, ctx) {
     if (teamCode && m === 'POST') return json(await setTeam(env, admin, teamCode, !!(await readJson(request)).team, request));
     const delCode = seg(/^\/api\/admin\/codes\/([^/]+)$/);
     if (delCode && m === 'DELETE') return json(await adminDeleteCode(env, admin, delCode, request));
+    const admFile = /^\/api\/admin\/flights\/([^/]+)\/(track|events)$/.exec(path);
+    if (admFile && m === 'GET') return adminFlightFile(env, admin, decodeURIComponent(admFile[1]), admFile[2], request);
     const delFlight = seg(/^\/api\/admin\/flights\/([^/]+)$/);
     if (delFlight && m === 'DELETE') { const r = await adminDeleteFlight(env, admin, delFlight, request); ctx.waitUntil(removePreview(env, delFlight)); return json(r); }
     if (path === '/api/admin/cleanup' && m === 'POST') return json(await cleanup(env));

@@ -38,7 +38,7 @@ function fakeD1() {
     if (/^SELECT \* FROM flights WHERE updated_at </.test(s)) return T.flights.filter((f) => f.updated_at < a(1));
     if (/^SELECT \* FROM flights ORDER BY/.test(s)) return T.flights.slice();
     if (/^SELECT f\.\*, c\.blocked FROM flights f JOIN codes/.test(s)) return T.flights.filter((f) => f.id === a(1)).map((f) => { const c = T.codes.find((x) => x.code === f.code); return { ...f, blocked: c.blocked }; });
-    if (/^SELECT f\.\*, c\.display_name/.test(s)) return T.flights.filter((f) => f.id === a(1)).map((f) => { const c = T.codes.find((x) => x.code === f.code); return { ...f, display_name: c.display_name, logo_key: c.logo_key, blocked: c.blocked }; });
+    if (/^SELECT f\.\*, c\.display_name/.test(s)) return T.flights.filter((f) => f.id === a(1)).map((f) => { const c = T.codes.find((x) => x.code === f.code); return { ...f, display_name: c.display_name, logo_key: c.logo_key, blocked: c.blocked, owner_prefs: c.prefs }; });
     if (/^INSERT INTO flights/.test(s)) { T.flights.push({ id: a(1), code: a(2), title: a(3), start_ts: a(4), end_ts: a(5), stats: a(6), meta: a(7), track_key: a(8), track_bytes: a(9), points: a(10), events_key: a(11), public: a(12), created_at: a(13), updated_at: a(13) }); return []; }
     if (/^UPDATE flights SET title/.test(s)) { const f = T.flights.find((x) => x.id === a(1)); Object.assign(f, { title: a(2), start_ts: a(3), end_ts: a(4), stats: a(5), meta: a(6), track_bytes: a(7), points: a(8), public: a(9), updated_at: a(10), events_key: a(11) }); return []; }
     if (/^DELETE FROM flights/.test(s)) { T.flights = T.flights.filter((f) => f.id !== a(1)); return []; }
@@ -275,6 +275,19 @@ test('admin: setup once, login, lists, block, delete', async () => {
   delete e.GITHUB_PAGES_TOKEN;
   const log = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log.some((l) => l.action === 'admin.login') && log.some((l) => l.action === 'code.block'));
+  // raw data of any flight (0.8.6): stored track (gzip GeoJSON) and event log, logged as flight.rawdata
+  const fdR = new FormData(); fdR.set('meta', JSON.stringify({ title: 'Raw', stats: {}, meta: {} })); fdR.set('track', new Blob([await gz('{"type":"FeatureCollection","features":[]}')], { type: 'application/gzip' }), 't.gz'); fdR.set('events', '[{"t":1}]');
+  const rawFl = await (await call(e, 'POST', '/api/flights', { body: fdR, headers: { 'X-Code': c.code } })).json();
+  const tr = await call(e, 'GET', `/api/admin/flights/${rawFl.id}/track`, { headers: A });
+  assert.equal(tr.status, 200); assert.equal(tr.headers.get('X-Analyze-Encoding'), 'gzip');
+  const inflated = await new Response(new Blob([await tr.arrayBuffer()]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  assert.ok(inflated.includes('FeatureCollection'));
+  const ev = await call(e, 'GET', `/api/admin/flights/${rawFl.id}/events`, { headers: A });
+  assert.equal(ev.status, 200); assert.equal(await ev.text(), '[{"t":1}]');
+  assert.equal((await call(e, 'GET', `/api/admin/flights/${rawFl.id}/track`)).status, 401, 'needs the Supermaster token');
+  const log2 = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
+  assert.ok(log2.some((l) => l.action === 'flight.rawdata'));
+  await call(e, 'DELETE', `/api/admin/flights/${rawFl.id}`, { headers: A });
   assert.equal((await call(e, 'DELETE', `/api/admin/codes/${c.code}`, { headers: A })).status, 200);
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 401);
   assert.equal((await call(e, 'POST', '/api/admin/logout', { headers: A })).status, 200);
@@ -300,6 +313,9 @@ test('link preview: title/description from master data, HTML page under /v/<id>,
   const H = { 'X-Code': c.code };
   const fd0 = new FormData(); fd0.set('meta', JSON.stringify({ title: 'F', stats: { durationSec: 3600 }, meta: { balloon: 'HB-QWV', event: 'Testfahrt' } })); fd0.set('track', new Blob([await gz('{"type":"FeatureCollection","features":[]}')], { type: 'application/gzip' }), 't.gz');
   const fl = await (await call(e, 'POST', '/api/flights', { body: fd0, headers: H })).json();
+  await call(e, 'PUT', '/api/me', { body: { prefs: { org: 'Ballonclub Test' } }, headers: H });
+  const vw = await (await call(e, 'GET', `/api/view/${fl.id}`)).json();
+  assert.equal(vw.owner.org, 'Ballonclub Test');   // 0.8.6: shown under the app title and on the report in the viewer
   const r1 = await call(e, 'GET', `/v/${fl.id}`);
   assert.equal(r1.status, 200); assert.ok((r1.headers.get('Content-Type') || '').includes('text/html'));
   assert.ok((await r1.text()).includes('HB-QWV – Testfahrt'));

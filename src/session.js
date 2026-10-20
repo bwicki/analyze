@@ -18,6 +18,8 @@ export const session = {
 
 export const hasServer = () => !!config.apiBase;
 export const hasAccess = () => !!session.code || session.guest;
+/** Team / organisation name of the PIN in use (profile → «Team / Organisation»); '' = app default «Wickipartners Ballonteam». */
+export const orgName = () => ((session.me && session.me.prefs && session.me.prefs.org) || '').trim();
 
 export function setCode(code, me = null) {
   session.code = code || null; session.me = me; session.guest = false;

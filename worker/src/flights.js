@@ -182,14 +182,15 @@ export async function viewEvents(env, id) {
 // ---- public viewer (short link /v/<id>) ---------------------------------------------------------------
 async function publicFlight(env, id) {
   if (!isFlightId(id)) throw new HttpError(404, 'not found');
-  const row = await env.DB.prepare('SELECT f.*, c.display_name, c.logo_key, c.blocked FROM flights f JOIN codes c ON c.code = f.code WHERE f.id = ?1').bind(id).first();
+  const row = await env.DB.prepare('SELECT f.*, c.display_name, c.logo_key, c.blocked, c.prefs AS owner_prefs FROM flights f JOIN codes c ON c.code = f.code WHERE f.id = ?1').bind(id).first();
   if (!row || !row.public || row.blocked) throw new HttpError(404, 'not found');
   return row;
 }
 export async function viewFlight(env, id, request) {
   const row = await publicFlight(env, id);
   await logAction(env, '-', 'view', id, request);
-  return { ...flightView(row), owner: { code: row.code, displayName: row.display_name || '', logo: !!row.logo_key } };
+  const prefs = parseJson(row.owner_prefs);
+  return { ...flightView(row), owner: { code: row.code, displayName: row.display_name || '', logo: !!row.logo_key, org: (prefs && prefs.org) || '' } };
 }
 export async function viewTrack(env, id) {
   const row = await publicFlight(env, id);
@@ -218,7 +219,7 @@ export async function viewPreviewImage(env, id) {
   if (obj) return new Response(obj.body, { headers: { 'Content-Type': 'image/jpeg', 'Cache-Control': 'public, max-age=3600', 'Content-Length': String(obj.size) } });
   const logo = await fetch(`${env.APP_URL || 'https://analyze.wicki.aero'}/img/logo.png`).catch(() => null);
   if (!logo || !logo.ok) throw new HttpError(404, 'no preview');
-  return new Response(logo.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=60' } });
+  return new Response(logo.body, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Analyze-Preview': 'fallback' } });
 }
 
 // ---- housekeeping (cron) ----------------------------------------------------------------------------

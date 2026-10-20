@@ -46,11 +46,13 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
 
 /** Link-preview image for messengers (0.8.4): rendered here, stored by the Worker; failures are silent. */
 export async function uploadPreview(id) {
+  state.previewBusy = true; bus.emit('preview', { id, busy: true });
   try {
     const blob = await renderPreview(previewData(flightTitle()));
     if (blob) await api.flights.preview(id, blob);
-    bus.emit('preview', { id, ok: !!blob });
-  } catch (e) { console.warn('preview image failed:', e && e.message); bus.emit('preview', { id, ok: false }); }
+    if (blob && state.flight && state.flight.id === id) state.flight.previewAt = Date.now();   // cache-buster for the thumbnail on the export page
+    state.previewBusy = false; bus.emit('preview', { id, ok: !!blob });
+  } catch (e) { console.warn('preview image failed:', e && e.message); state.previewBusy = false; bus.emit('preview', { id, ok: false }); }
 }
 
 /**

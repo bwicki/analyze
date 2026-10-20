@@ -112,6 +112,8 @@ export const api = {
     team: (code, team) => request('POST', `/api/admin/codes/${code}/team`, { body: { team }, admin: true, code: null }),
     deleteCode: (code) => request('DELETE', `/api/admin/codes/${code}`, { admin: true, code: null }),
     deleteFlight: (id) => request('DELETE', `/api/admin/flights/${id}`, { admin: true, code: null }),
+    flightTrack: (id) => trackText(`/api/admin/flights/${id}/track`, { admin: true, code: null }),
+    flightEvents: (id) => request('GET', `/api/admin/flights/${id}/events`, { admin: true, code: null, raw: true }).then((r) => r.text()),
     cleanup: () => request('POST', '/api/admin/cleanup', { admin: true, code: null }),
     profiles: () => request('GET', '/api/admin/profiles', { admin: true, code: null }),
     deleteProfile: (id) => request('DELETE', `/api/admin/profiles/${encodeURIComponent(id)}`, { admin: true, code: null }),

@@ -10,7 +10,7 @@ import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, createDetailMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
-import { session, logoUrl, DEFAULT_LOGO } from '../session.js';
+import { session, logoUrl, DEFAULT_LOGO, orgName } from '../session.js';
 import { qrSvg } from '../util/qr.js';
 import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
 import { photosForDisplay } from './photos.js';
@@ -89,6 +89,7 @@ export function mountReport(root, ctx) {
     const times = landRef ? ` (${t('rep.titleTimes', { start: fmtTimeUTC(st.takeoff.t), land: sameDay ? fmtTimeUTC(landRef.t) : `${fmtDayUTC(landRef.t)} ${fmtTimeUTC(landRef.t)}` })})` : ` (${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)} UTC)`;
     const title = m.title || `${t('rep.defaultTitle')} ${fmtDateUTC(st.takeoff.t)}${times}${m.balloon ? ' · ' + m.balloon : ''}`;
     const saved = state.flight && state.flight.id ? state.flight : null;
+    const org = state.viewer ? ((state.viewer.owner && state.viewer.owner.org) || '') : orgName();   // team / organisation of the PIN (profile), replaces the fixed Ballonteam wording
     const linkBlock = saved && saved.public !== false ? `<div class="qrhead">${qrSvg(saved.url, { size: 76 })}<span class="mono">${esc(saved.url.replace(/^https?:\/\//, ''))}</span></div>`
       : state.viewer ? '' : `<div class="qrhead placeholder noprint">${esc(saved ? t('rep.qrPrivate') : t('rep.qrPlaceholder'))}</div>`;   // on screen only: what the print will carry once saved
     const nvfr = m.nvfr === 'yes' || (m.nvfr === '' && st.night.totalSec > 60);
@@ -98,7 +99,7 @@ export function mountReport(root, ctx) {
     rep.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
         <div><div class="pk">${esc(t('rep.kicker'))}</div><h1>${esc(title)}</h1><div class="muted" style="font-size:14px">${esc(m.balloon ? m.balloon + ' · ' : '')}${esc(startName)} → ${esc(landName)} · ${fmtDateUTC(st.takeoff.t)}${st.landing && fmtDateUTC(st.landing.t) !== fmtDateUTC(st.takeoff.t) ? ' – ' + fmtDateUTC(st.landing.t) : ''}</div></div>
-        <div class="rep-right"><img src="${esc(state.viewer && state.viewer.owner ? logoUrl(state.viewer.owner.code, state.viewer.owner.logo) : logoUrl(session.code, session.me && session.me.logo))}" alt="Logo" style="height:46px;width:auto;max-width:220px;object-fit:contain" onerror="this.onerror=null;this.src='${DEFAULT_LOGO}'">${linkBlock}</div>
+        <div class="rep-right"><img src="${esc(state.viewer && state.viewer.owner ? logoUrl(state.viewer.owner.code, state.viewer.owner.logo) : logoUrl(session.code, session.me && session.me.logo))}" alt="Logo" style="height:46px;width:auto;max-width:220px;object-fit:contain" onerror="this.onerror=null;this.src='${DEFAULT_LOGO}'">${org ? `<div class="pk" style="text-align:right;margin-top:2px">${esc(org)}</div>` : ''}${linkBlock}</div>
       </div>
       <div class="bar"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('rep.master'))}</h2>
