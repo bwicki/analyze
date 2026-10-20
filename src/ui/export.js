@@ -77,13 +77,11 @@ export function mountExport(root, ctx) {
     },
     gotoStart: () => ctx.goto('start'),
   });
-  /** The printable report lives in step 4: show it, print once the maps have drawn, come back afterwards. */
+  /** The printable report lives in step 4: show it and print once the maps have drawn (the user stays there). */
   function printReport(ctx) {
     toast(t('exp.printPreparing'));
-    const back = () => ctx.goto('export');
-    window.addEventListener('afterprint', back, { once: true });
     ctx.goto('report');
-    setTimeout(() => { try { window.print(); } catch { window.removeEventListener('afterprint', back); back(); } }, 1400);
+    setTimeout(() => { try { window.print(); } catch (e) { console.warn('print failed', e); } }, 1400);
   }
   function card(id, ico, title, sub, cls = '') { return `<div class="exp"><div class="ico">${ico}</div><div class="t"><strong>${esc(title)}</strong><span>${sub}</span></div><button class="btn sm ${cls}" type="button" data-act="${id}">${esc(t('exp.saveBtn'))}</button></div>`; }
   function render() {

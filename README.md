@@ -125,7 +125,7 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    Segmente/Protokoll und Unterschrift, dann Ereignislog und Fotos. Gedruckt wird in Schritt 5 (im Viewer direkt
    hier).
 5. **Speichern/Drucken/Exportieren** – **Fahrt speichern** (oben), **Bericht drucken / PDF** (öffnet Schritt 4 und
-   den Druckdialog des Browsers, «Als PDF sichern»; ist die Fahrt noch nicht gespeichert, fragt die App «Zuerst
+   den Druckdialog des Browsers, «Als PDF sichern»; danach bleibt man im Bericht; ist die Fahrt noch nicht gespeichert, fragt die App «Zuerst
    speichern, dann drucken / Ohne Link drucken / Abbrechen» – nur ein gespeicherter Bericht trägt Kurzlink und
    QR-Code), dann GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen
    als JSON und Text, Stammdaten, Ereignislog, README); Auflösung wählbar. **Fahrt speichern** legt den
