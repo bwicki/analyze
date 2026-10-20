@@ -1,0 +1,24 @@
+// Smoke test (Playwright, headless Chromium). Run all: `npm run smoke` (tests/smoke/run.mjs starts a static server).
+import { chromium } from 'playwright';
+import { env as ENV } from './env.mjs';
+const shots = ENV.shots;
+const browser = await chromium.launch(ENV.launch(['--no-sandbox', '--disable-gpu']));
+const page = await browser.newPage({ viewport: { width: 1300, height: 900 } });
+await page.addInitScript(() => { try { localStorage.setItem('analyze.welcomed', '1'); } catch {} });
+const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+await page.route('**/api/**', (route) => route.fulfill({ status: 404, headers: { 'Access-Control-Allow-Origin': '*' }, body: '{}' }));
+await page.goto(`${ENV.base}/#start`, { waitUntil: 'networkidle' }); await page.waitForTimeout(400);
+console.log('placeholder:', await page.getAttribute('[data-name]', 'placeholder'), '| mailto:', await page.$$eval('a[href^="mailto:"]', (a) => a.map((x) => x.href).join(' ')));
+console.log('formats text:', (await page.textContent('section.card:has(a[href^="mailto:"]) p.small')).slice(0, 90));
+console.log('footer:', (await page.textContent('footer.app')).replace(/\s+/g, ' ').slice(0, 120));
+await page.click('footer.app [data-legal]'); await page.waitForTimeout(300);
+console.log('legal modal:', await page.$$eval('.modal.legal', (m) => m.length), '| h2s:', await page.$$eval('.modal.legal h2', (h) => h.map((x) => x.textContent).join(' | ')));
+await page.screenshot({ path: `${shots}/legal.png` });
+await page.keyboard.press('Escape'); await page.waitForTimeout(200);
+await page.click('details.menu > summary'); await page.waitForTimeout(200);
+console.log('menu legal button:', await page.$$eval('[data-legal]', (b) => b.length));
+await page.click('details.menu [data-legal]'); await page.waitForTimeout(300);
+console.log('legal via menu:', await page.$$eval('.modal.legal', (m) => m.length));
+await page.click('.modal.legal .btn.primary'); await page.waitForTimeout(200);
+console.log('closed:', await page.$$eval('.modal.legal', (m) => m.length), '| errors:', errors.join('; ') || 'none');
+await browser.close();

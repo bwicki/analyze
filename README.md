@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.12.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.12.1 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -321,15 +321,26 @@ Repository `bwicki/gb_flight_data` über den Worker. Ortsnamen, Gelände und 3D 
 ## Tests
 
 ```
-node --test tests/*.test.js
+node --test tests/*.test.js      # Rechentests (52)
+npm run smoke                     # Browser-Durchläufe (Playwright, Chromium)
 ```
 
-44 Tests: Leser und Profile, Zusammenfügen und Konsens, Erkennung, Schnitt in der Fahrt, Kennzahlen auf den
+52 Rechentests: Leser und Profile, Zusammenfügen und Konsens, Erkennung, Schnitt in der Fahrt, Kennzahlen auf den
 verdünnten GB26-Daten (Start 23:31 UTC, Landung 16:34 UTC, 41 h 03 min, ≈ 1 590 km WGS84, 1 Neustart, 2 Nächte),
 Exporte, GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit denselben Segmenten und Kennzahlen), Gelände und MVT,
-Vorschaubild, Fotos/EXIF, QR-Code, Worker-API mit D1/R2-Attrappen (PIN, Fahrten, Viewer, Vorschauseite, Bild,
-Fotos, Supermaster, Rohdaten und Rohdateien, Token-Status) und Vollständigkeit der Übersetzungen. Dazu Browser-Durchläufe mit
-Playwright (nicht im Repo) vor jeder Version.
+Vorschaubild, Fotos/EXIF, QR-Code, Logbuch, Worker-API mit D1/R2-Attrappen (PIN, Fahrten, Viewer, Vorschauseite,
+Bild, Fotos, Supermaster, Rohdaten und Rohdateien, Token-Status), ops-Übergabe und MapShare mit Netz-Attrappen,
+Vollständigkeit der Übersetzungen.
+
+**Browser-Durchläufe** (`tests/smoke/`, ab 0.12.1 im Repo und in der CI): `run.mjs` startet einen statischen Server
+der Arbeitskopie und führt die Skripte nacheinander aus – Einführungsfenster, Legal, Rückweg Bericht → Bereinigen,
+Extremwerte, Viewer/Detailansicht/Fahrtaufzeichnung, Landung von Hand und Fotos, Druckfluss, Schritt 5 und
+Akzentfarbe, Rohdateien und Ereignislog, Logbuch, ops-Übergabe, MapShare. Kacheln, Ortsnamen, Gelände und MapLibre
+sind gesperrt oder durch `leaflet_stub.js` ersetzt, die Worker-API durch Routen im Skript; ein Durchlauf gilt als
+bestanden, wenn er mit 0 endet, «errors: none» meldet und seine Kennzeilen druckt (Tabelle in `run.mjs`).
+Voraussetzung lokal: `npm install --no-save playwright` und `npx playwright install chromium` (oder
+`PW_CHROMIUM=<Pfad zu Chromium>`); Screenshots landen unter `$TMPDIR/analyze-smoke`. Der Workflow `tests.yml`
+führt beide Stufen bei jedem Push aus und hängt die Screenshots als Artefakt an.
 
 ## Neues Trackerprofil
 
