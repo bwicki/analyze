@@ -278,9 +278,9 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 200);
   const stats = await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json();
   assert.equal(stats.codes, 1); assert.equal(stats.retentionDays, 730);
-  assert.deepEqual(stats.secrets, { dataToken: false, pagesToken: false });   // 0.8.4: set/missing only, never values
+  assert.deepEqual(stats.secrets, { dataToken: false, pagesToken: false, opsToken: false });   // 0.8.4: set/missing only, never values
   e.GITHUB_PAGES_TOKEN = 'ghp_x';
-  assert.deepEqual((await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json()).secrets, { dataToken: false, pagesToken: true });
+  assert.deepEqual((await (await call(e, 'GET', '/api/admin/stats', { headers: A })).json()).secrets, { dataToken: false, pagesToken: true, opsToken: false });
   delete e.GITHUB_PAGES_TOKEN;
   const log = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log.some((l) => l.action === 'admin.login') && log.some((l) => l.action === 'code.block'));

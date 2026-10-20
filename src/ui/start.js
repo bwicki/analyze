@@ -45,7 +45,7 @@ export function mountStart(root, ctx) {
           <li><strong>${esc(t('phase.export'))}</strong> – ${esc(t('start.s5'))}</li>
         </ol>
         <h2>${esc(t('start.formats'))}</h2>
-        <p class="small">${esc(t('start.formatsSub'))}</p>
+        <p class="small">${esc(t('start.formatsSub')).replace('{mail}', '<a href="mailto:balthasar@wicki.aero">balthasar@wicki.aero</a>')}</p>
         <p class="muted small">${esc(t('start.privacy'))}</p>
       </section>
     </div>

@@ -46,6 +46,7 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       GH_DATA_TOKEN: ${{ secrets.GH_DATA_TOKEN }}
       GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
+      OPS_HANDOVER_TOKEN: ${{ secrets.OPS_HANDOVER_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -70,3 +71,9 @@ jobs:
         env:
           GH_PAGES_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
         run: printf '%s' "$GH_PAGES_TOKEN" | npx --yes wrangler@4 secret put GITHUB_PAGES_TOKEN
+      - name: Worker secret OPS_HANDOVER_TOKEN (only when the GitHub secret OPS_HANDOVER_TOKEN is set)
+        if: ${{ env.OPS_HANDOVER_TOKEN != '' }}
+        working-directory: worker
+        env:
+          OPS_HANDOVER_TOKEN: ${{ secrets.OPS_HANDOVER_TOKEN }}
+        run: printf '%s' "$OPS_HANDOVER_TOKEN" | npx --yes wrangler@4 secret put OPS_HANDOVER_TOKEN

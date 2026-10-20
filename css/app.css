@@ -407,3 +407,11 @@ table.tbl.rec td.r{text-align:right}
 table.tbl.rec tr.hl td{background:#fff4e0;font-weight:600;border-top:1px solid var(--amber);border-bottom:1px solid var(--amber)}
 table.tbl.rec tr.nofix td{color:var(--muted)}
 .viewer img.big{max-width:100%;max-height:100%;object-fit:contain;border-radius:8px;border:1px solid var(--border);margin:auto}
+
+/* Legal Mambojumbo (0.9.3) */
+.modal.legal{max-width:760px;max-height:calc(100vh - 40px)}
+.modal.legal .legal-body{overflow:auto;font-size:14px;line-height:1.5;padding-right:4px}
+.modal.legal .legal-body h2{font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:12px 0 4px}
+.modal.legal .legal-body h2:first-child{margin-top:0}
+.modal.legal .legal-body p{margin:0 0 6px}
+footer.app a{color:var(--muted);text-decoration:underline}

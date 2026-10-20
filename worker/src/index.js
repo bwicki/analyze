@@ -17,6 +17,7 @@
 //   PUT  /api/flights/<id>/preview (JPEG, owner) · GET /api/view/<id>/preview.jpg   link-preview image for messengers
 //   GET|POST /api/flights/<id>/raw · GET /api/flights/<id>/raw/<n>   raw tracker files as imported (owner; Supermaster: /api/admin/flights/<id>/raw[/<n>])
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code with team, or Supermaster token)
+//   GET  /api/flights/<id>/ops/briefings · POST /api/flights/<id>/ops   Übergabe an ops.wicki.aero (team or Supermaster; secret OPS_HANDOVER_TOKEN)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
 //   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
@@ -30,6 +31,7 @@ import { previewHtml, removePreview } from './preview.js';
 import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage, listOwnRaw, putOwnRaw, getOwnRaw } from './flights.js';
 import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
+import { opsBriefings, opsHandover } from './ops.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
 import { listProfiles, createProfile, deleteProfile } from './profiles.js';
@@ -90,7 +92,7 @@ export async function api(request, env, url, ctx) {
   // ---- code user ---------------------------------------------------------------------------------
   if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
     let user = await codeFromRequest(env, request, url);
-    if (!user && path.startsWith('/api/events')) { const adm = await adminFromRequest(env, request); if (adm) user = { code: `admin:${adm.name}`, team: true, admin: true }; }   // Supermaster without a PIN (0.8.7)
+    if (!user && (path.startsWith('/api/events') || /\/ops(\/briefings)?$/.test(path))) { const adm = await adminFromRequest(env, request); if (adm) user = { code: `admin:${adm.name}`, team: true, admin: true }; }   // Supermaster without a PIN (0.8.7; 0.10.0 also for the ops handover)
     if (!user) {
       if (rateLimited('guess:' + ip, 30)) throw new HttpError(429, 'too many attempts');
       throw new HttpError(401, 'unknown code');
@@ -101,6 +103,11 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));
     if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request, ctx));
+    // Übergabe an ops.wicki.aero (0.10.0): list of the last briefings, then the handover of one saved flight
+    const opsList = seg(/^\/api\/flights\/([^/]+)\/ops\/briefings$/);
+    if (opsList && m === 'GET') return json(await opsBriefings(env, user));
+    const opsId = seg(/^\/api\/flights\/([^/]+)\/ops$/);
+    if (opsId && m === 'POST') return json(await opsHandover(env, user, opsId, await readJson(request), request, ctx));
     const trackId = seg(/^\/api\/flights\/([^/]+)\/track$/);
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
@@ -144,7 +151,7 @@ export async function api(request, env, url, ctx) {
     requireAdmin(admin);
     if (path === '/api/admin/me' && m === 'GET') return json({ name: admin.name });
     if (path === '/api/admin/pin' && m === 'PUT') return json(await changePin(env, admin, await readJson(request), request));
-    if (path === '/api/admin/stats' && m === 'GET') return json({ ...(await adminStats(env)), secrets: { dataToken: !!env.GITHUB_DATA_TOKEN, pagesToken: !!env.GITHUB_PAGES_TOKEN }, apiUrl: env.API_URL || '' });
+    if (path === '/api/admin/stats' && m === 'GET') return json({ ...(await adminStats(env)), secrets: { dataToken: !!env.GITHUB_DATA_TOKEN, pagesToken: !!env.GITHUB_PAGES_TOKEN, opsToken: !!env.OPS_HANDOVER_TOKEN }, apiUrl: env.API_URL || '' });
     if (path === '/api/admin/codes' && m === 'GET') return json(await adminCodes(env));
     if (path === '/api/admin/flights' && m === 'GET') return json(await adminFlights(env, url.searchParams.get('limit')));
     if (path === '/api/admin/log' && m === 'GET') return json(await adminLog(env, url.searchParams.get('limit')));

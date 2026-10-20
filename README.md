@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.9.2 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.9.3 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -222,6 +222,10 @@ Experte: Lückenlänge (30 s), Abstand «andere Fahrt» (12 h), Erkennungsfenste
 *Rechenmodelle*), Trimm-Reserve; Zurücksetzen. Die Schwellen werden im Bericht mitgedruckt.
 
 ---
+
+**Legal Mambojumbo** (☰ und Fusszeile, 0.9.3): private Anwendung ohne kommerzielle Nutzung, keine Haftung von Wicki
+Aero GmbH und Balthasar Wicki, Daten werden gespeichert, aber Dritten nicht zur Verfügung gestellt, Drittanbieter beim
+Laden von Karten/Gelände/Ortsnamen, schweizerisches Recht, Kontakt balthasar@wicki.aero (DE/EN nach Sprache).
 
 ## Rechenmodelle
 
