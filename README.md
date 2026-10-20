@@ -188,7 +188,8 @@ werden einmalig im Cloudflare-Dashboard angelegt.
 7. **Supermaster einrichten:** `https://analyze.wicki.aero/#admin` → Name + PIN (einmalig; danach nur noch Login).
 8. **Ereignislog freischalten (optional):** GitHub → *Settings → Developer settings → Personal access tokens →
    Fine-grained tokens → Generate*: Repository access nur `bwicki/gb_flight_data`, Permission **Contents: Read-only**,
-   Ablauf z. B. 1 Jahr. Token als GitHub-Secret `GITHUB_DATA_TOKEN` im Repo `bwicki/analyze` hinterlegen und
+   Ablauf höchstens 1 Jahr. Token als GitHub-Secret **`GH_DATA_TOKEN`** im Repo `bwicki/analyze` hinterlegen (GitHub
+   erlaubt keine Secret-Namen, die mit `GITHUB_` beginnen; im Worker heisst es dann `GITHUB_DATA_TOKEN`) und
    «Deploy worker» einmal laufen lassen – der Workflow legt es als Worker-Secret ab (`wrangler secret put`); der
    Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs. Danach im Supermaster bei den
    PINs des Ballonteams «Team-Zugang geben» – nur diese sehen den Knopf «Aus gb_flight_data verknüpfen».
@@ -198,8 +199,8 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    Fahrt eine kleine Seite `v/‹ID›/index.html` mit Titel («Fahrtanalyse/Fahrtbericht – HB-QPJ – AMBC26 (Start
    15.10.2026)»), Beschreibung (Start, Landung, Dauer, Strecke) und Weiterleitung in die App im Repo `bwicki/analyze`
    ab – beim Speichern, Ändern, Privat-Schalten (entfernt) und Löschen. Dazu ein zweiter Token: *Fine-grained token*,
-   Repository access nur `bwicki/analyze`, Permission **Contents: Read and write**, als GitHub-Secret
-   `GITHUB_PAGES_TOKEN` hinterlegen und «Deploy worker» einmal laufen lassen. Die Vorschau erscheint ca. eine Minute
+   Repository access nur `bwicki/analyze`, Permission **Contents: Read and write**, Ablauf höchstens 1 Jahr, als
+   GitHub-Secret **`GH_PAGES_TOKEN`** hinterlegen (im Worker: `GITHUB_PAGES_TOKEN`) und «Deploy worker» einmal laufen lassen. Die Vorschau erscheint ca. eine Minute
    nach dem Speichern (GitHub-Pages-Build); ohne Secret bleibt der Kurzlink wie bisher (Vorschau nur mit dem
    allgemeinen Titel). Zum Testen liefert auch der Worker selbst die Seite: `analyze-api.balthasar.workers.dev/v/‹ID›`.
 

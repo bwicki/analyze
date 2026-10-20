@@ -1,7 +1,7 @@
 // Link previews (WhatsApp, Signal, Slack …) for the short link analyze.wicki.aero/v/<id>: messengers read
 // Open-Graph tags without running JavaScript, and the app is a static GitHub Pages site. So for every public
 // flight a tiny page v/<id>/index.html with the tags (and a redirect into the app) is committed to the Pages
-// repository through the GitHub Contents API – needs the Worker secret GITHUB_PAGES_TOKEN (fine-grained token,
+// repository through the GitHub Contents API – needs the Worker secret GITHUB_PAGES_TOKEN (GitHub secret GH_PAGES_TOKEN; fine-grained token,
 // Contents: read & write on PAGES_REPO). Without the token nothing is written; the Worker still serves the same
 // page itself under /v/<id> (workers.dev) for testing. Private or deleted flights get their page removed.
 
