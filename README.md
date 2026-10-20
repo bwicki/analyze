@@ -15,9 +15,9 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.9.3 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.10.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
-Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
+Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
 
 ---
@@ -159,10 +159,16 @@ Erkennung und Unterschrift mit «Daten hochgeladen / letzte Änderung», dann Er
 Schritt 5; im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier. Karte, Detailkarten und
 Höhenprofil des Berichts öffnen per Klick oder ⤢ gross (interaktive Kopie mit Layerwahl und Zoom).
 
-**Spezialfunktionen Balthasar** (unten, nur für den Supermaster und den PIN des Ballonteams): Ereignislog aus
-`gb_flight_data` verknüpfen – Liste der JSON-Dateien im Repository, passende Fahrten nach Zeitraum markiert, «JSON
-auswählen …» – und «Track an ops.wicki.aero übergeben» (folgt mit der ops-Schnittstelle). Der Supermaster braucht
-dafür keinen Team-PIN.
+**Spezialfunktionen Ballonteam** (unten, nur für den Supermaster und PINs mit Team-Freigabe; seit 0.10.0 steht kein
+PIN mehr im Code): Ereignislog aus `gb_flight_data` verknüpfen – Liste der JSON-Dateien im Repository, passende
+Fahrten nach Zeitraum markiert, «JSON auswählen …» – und **«Track übergeben» an ops.wicki.aero** (0.10.0, Phase 3):
+die gespeicherte Fahrt (zuerst Schritt 5) wird mit Trajektorie (GeoJSON, auf ~30 s ausgedünnt), Kennzahlen,
+Stammdaten des Berichts, Viewer-Link und Ereignislog-Verweis – ohne Fotos – an ein Briefing übergeben; man wählt es
+aus der Liste der letzten 20 Briefings, eine zweite Übergabe ersetzt die erste, der Stand («zuletzt übergeben an
+Briefing … am …», Link «in ops öffnen») bleibt in den Stammdaten der Fahrt. Der Worker spricht mit dem ops-Worker
+über das Dienst-Token `OPS_HANDOVER_TOKEN` (beide Repositories, GitHub-Secret; der Browser sieht es nie). In ops
+erscheint die Fahrt als Abschnitt «F · Ist-Trajektorie» mit Soll/Ist-Vergleich. Der Supermaster braucht dafür keinen
+Team-PIN.
 
 ### 5 · Speichern/Drucken/Exportieren
 
@@ -298,6 +304,10 @@ Repository `bwicki/gb_flight_data` über den Worker. Ortsnamen, Gelände und 3D 
    Read and write, Ablauf ≤ 1 Jahr → Secret `GH_PAGES_TOKEN` (im Worker `GITHUB_PAGES_TOKEN`) → «Deploy worker».
    Ohne Token bleibt der Kurzlink ohne Vorschau. Zum Testen liefert der Worker die Seite auch selbst:
    `analyze-api.‹subdomain›.workers.dev/v/‹ID›`.
+10. **Übergabe an ops.wicki.aero (optional, 0.10.0):** ein langer Zufallstext (≥ 32 Zeichen, Passwortmanager) als
+    Secret `OPS_HANDOVER_TOKEN` **in beiden Repositories** (`bwicki/analyze` und `bwicki/ops`) → in beiden «Deploy
+    worker» einmal laufen lassen. Der Supermaster sieht den Status unter «Tokens» (gesetzt/fehlt, nie den Wert);
+    `worker/wrangler.toml` nennt die ops-Adressen (`OPS_API_URL`, `OPS_APP_URL`).
 
 ## Tests
 
@@ -352,6 +362,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 (Rohdaten: multipart `meta` + `files` gzip) · `GET|POST /api/flights/‹id›/photos`, `PUT|DELETE
 /api/flights/‹id›/photos/‹pid›` · `GET /api/profiles` (öffentlich), `POST /api/profiles`, `DELETE
 /api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
+`GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster) ·
 öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg]`, `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|
 flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events|raw`, `GET /api/admin/flights/‹id›/raw/‹n›` (Rohdaten), `DELETE

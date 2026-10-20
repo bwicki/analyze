@@ -23,10 +23,9 @@ import { openViewer, fitBox, expandBtn, onPlainClick } from './viewer.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
-const SPECIAL_CODE = 'ZKKG2L';   // the Ballonteam PIN – with the Supermaster the only ones who see the special functions (0.8.7)
 
 export function mountReport(root, ctx) {
-  const special = !state.viewer && (!!session.adminToken || session.code === SPECIAL_CODE);
+  const special = !state.viewer && (!!session.adminToken || !!(session.me && session.me.team));   // 0.10.0: Supermaster or a PIN with team flag (no PIN in the code any more)
   const m = state.meta;
   // defaults of the Kennung (Meine Fahrten → Vorgaben) prefill empty fields of a new flight
   const prefs = (session.me && session.me.prefs) || {};
