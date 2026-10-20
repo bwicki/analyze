@@ -82,3 +82,15 @@ test('WGS84 geodesic (Vincenty): known distances, symmetry, short legs', async (
   // short leg (10 m) within 1 cm of haversine
   assert.ok(Math.abs(vincenty(50, 10, 50.00009, 10) - haversine(50, 10, 50.00009, 10)) < 0.05);
 });
+
+// 0.9.2: bearing of the 3D view – the main axis of the track runs left → right, start on the left
+test('autoBearing: main axis left to right, start left; round tracks stay north-up', async () => {
+  const { autoBearing } = await import('../src/ui/map3d.js');
+  const mk = (a) => a.map(([lat, lon]) => ({ lat, lon, fix: true }));
+  assert.ok(Math.abs(autoBearing(mk([[47, 7], [47, 7.5], [47, 8], [47.02, 8.5], [47, 9]]))) < 2, 'west → east: north up');
+  assert.ok(Math.abs(autoBearing(mk([[46, 8], [46.5, 8.01], [47, 8], [47.5, 8.02]])) + 90) < 2, 'south → north: west up');
+  assert.ok(Math.abs(autoBearing(mk([[47.5, 8], [47, 8.01], [46.5, 8], [46, 8.02]])) - 90) < 2, 'north → south: east up');
+  assert.ok(Math.abs(autoBearing(mk([[46, 7], [46.5, 7.7], [47, 8.4], [47.5, 9.1]])) + 46) < 3, 'north-east: axis rotated to the right');
+  assert.equal(autoBearing(mk([[47, 8], [47.1, 8.15], [47, 8.3], [46.9, 8.15], [47.05, 8.0]])), 0, 'not elongated: north up');
+  assert.equal(autoBearing(mk([[47, 8]])), 0);
+});

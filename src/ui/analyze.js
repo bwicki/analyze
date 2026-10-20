@@ -90,7 +90,7 @@ export function mountAnalyze(root, ctx) {
     syncLayers3d();
     if (!map3d && !map3dLoading) {
       map3dLoading = true; map3dEl.classList.add('loading');
-      try { map3d = await create3D(map3dEl, { layer: state.settings.mapLayer, exaggeration: exagSel.value, onApplied: () => { exagVal.textContent = `${map3d ? map3d.exaggeration : 1}×`; }, onExpand: () => openGraphic('map3d'), expandLabel: t('vw.expand') }); if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) globalThis.__map3d = map3d; }
+      try { map3d = await create3D(map3dEl, { layer: state.settings.mapLayer, exaggeration: exagSel.value, onApplied: () => { exagVal.textContent = `${map3d ? map3d.exaggeration : 1}×`; }, onExpand: () => openGraphic('map3d'), expandLabel: t('vw.expand'), fitLabel: t('ana.fit') }); if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) globalThis.__map3d = map3d; }
       catch (e) { console.warn(e); toast(t('ana.view3dFailed'), true); map3dLoading = false; map3dEl.classList.remove('loading'); setView(false); return; }
       map3dLoading = false; map3dEl.classList.remove('loading');
       if (pinned) map3d.setPinned(pinned);

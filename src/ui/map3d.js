@@ -68,6 +68,28 @@ export function extentOf(pts) {
 }
 /** Wall thickness from the track extent (looks right at the fitted zoom). */
 export function widthForExtent(pts) { return Math.max(25, extentOf(pts) / 700); }
+const FIT_PITCH = 55, FIT_PAD = 36;
+/**
+ * Bearing of the 3D view for a track (0.9.2): the main axis of the fixes (principal component) runs from left to
+ * right, start on the left. A track that is not elongated (ratio of the axes < 1.4) keeps north up.
+ */
+export function autoBearing(fixes) {
+  const n = fixes.length; if (n < 2) return 0;
+  let lat0 = 0, lon0 = 0; for (const q of fixes) { lat0 += q.lat; lon0 += q.lon; } lat0 /= n; lon0 /= n;
+  const kx = Math.PI / 180 * R * Math.cos(lat0 * Math.PI / 180), ky = Math.PI / 180 * R;
+  let sxx = 0, syy = 0, sxy = 0;
+  for (const q of fixes) { const x = (q.lon - lon0) * kx, y = (q.lat - lat0) * ky; sxx += x * x; syy += y * y; sxy += x * y; }
+  const tr = sxx + syy, det = sxx * syy - sxy * sxy, disc = Math.sqrt(Math.max(0, tr * tr / 4 - det));
+  const l1 = tr / 2 + disc, l2 = Math.max(1e-9, tr / 2 - disc);
+  if (!(l1 > 0) || Math.sqrt(l1 / l2) < 1.4) return 0;
+  const phi = 0.5 * Math.atan2(2 * sxy, sxx - syy);                 // main axis, angle from east (counter-clockwise)
+  const ax = Math.cos(phi), ay = Math.sin(phi);
+  const dx = (fixes[n - 1].lon - fixes[0].lon) * kx, dy = (fixes[n - 1].lat - fixes[0].lat) * ky;
+  const flip = dx * ax + dy * ay < 0 ? 180 : 0;                      // the end of the flight lies ahead
+  const compass = (90 - phi * 180 / Math.PI + flip + 360) % 360;      // direction of the axis as a compass course
+  let b = compass - 90; while (b > 180) b -= 360; while (b <= -180) b += 360;   // screen-right = that course
+  return b;
+}
 /** Vertical exaggeration so that the highest point above ground reads as ~1/12 of the extent (1 … 50). */
 export function autoExaggeration(pts, ground) {
   let maxAgl = 0, minAlt = Infinity;
@@ -97,8 +119,14 @@ export async function create3D(container, opts = {}) {
   };
   const map = new ml.Map({ container, style, center: [8, 47], zoom: 6, pitch: 55, bearing: -15, maxPitch: 80, attributionControl: { compact: true }, antialias: true });
   map.addControl(new ml.NavigationControl({ visualizePitch: true, showZoom: true }), 'top-left');
-  // 0.9.1: button under the navigation control opens the 3D view large in the viewer
-  if (opts.onExpand) map.addControl({ onAdd() { const c = document.createElement('div'); c.className = 'maplibregl-ctrl maplibregl-ctrl-group'; const b = document.createElement('button'); b.type = 'button'; b.className = 'xp3d'; b.title = opts.expandLabel || 'Expand'; b.setAttribute('aria-label', b.title); b.innerHTML = EXPAND_SVG; b.addEventListener('click', () => opts.onExpand()); c.appendChild(b); this._c = c; return c; }, onRemove() { this._c && this._c.remove(); } }, 'top-left');
+  // under the navigation control: ⤢ fits the whole flight again (0.9.2), the second button opens the view large (0.9.1)
+  map.addControl({ onAdd() {
+    const c = document.createElement('div'); c.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const mkBtn = (cls, title, html, fn) => { const b = document.createElement('button'); b.type = 'button'; b.className = cls; b.title = title; b.setAttribute('aria-label', title); b.innerHTML = html; b.addEventListener('click', fn); c.appendChild(b); };
+    mkBtn('fit3d', opts.fitLabel || 'Fit', '<span style="font-size:18px;line-height:1">⤢</span>', () => fit());
+    if (opts.onExpand) mkBtn('xp3d', opts.expandLabel || 'Expand', EXPAND_SVG, () => opts.onExpand());
+    this._c = c; return c;
+  }, onRemove() { this._c && this._c.remove(); } }, 'top-left');
   let xMarkers = [];   // extreme-value symbols as DOM markers (same glyph as 2D map and figures)
   map.on('load', () => { try { map.setTerrain({ source: 'dem', exaggeration: 1 }); } catch (e) { console.warn('terrain', e); } });
   map.on('error', (e) => { if (e && e.error && /dem|terrain/i.test(String(e.error.message || ''))) return; });
@@ -134,7 +162,45 @@ export async function create3D(container, opts = {}) {
     const run = () => { applyData(); if (refit) fit(); };
     if (map.isStyleLoaded()) run(); else map.once('load', run);
   }
-  function fit() { if (bounds) map.fitBounds(bounds, { padding: 48, pitch: 55, bearing: map.getBearing(), duration: 0 }); }
+  /**
+   * Fit (0.9.2): the flight fills the view. Bearing along the main axis of the track (start left, end right;
+   * north-up when the track is not elongated), then the zoom is refined iteratively on the projected points –
+   * ground positions and the tops of the curtain – until they span the viewport minus the padding. MapLibre's
+   * fitBounds only fits the geographic box at pitch 0, which leaves a diagonal flight small in the middle.
+   */
+  function fit() {
+    if (!bounds || !pts.length) return;
+    const W = container.clientWidth, H = container.clientHeight; if (!(W > 0) || !(H > 0)) return;
+    const fixes = pts.filter((q) => q.fix && !Number.isNaN(q.lat));
+    if (fixes.length < 2) { map.jumpTo({ center: [fixes[0] ? fixes[0].lon : bounds[0][0], fixes[0] ? fixes[0].lat : bounds[0][1]], zoom: 11, pitch: FIT_PITCH, bearing: 0 }); return; }
+    const step = Math.max(1, Math.floor(fixes.length / 400));
+    const sample = fixes.filter((q, k) => k % step === 0 || k === fixes.length - 1);
+    const bearing = autoBearing(fixes);
+    let minAlt = Infinity; for (const q of fixes) if (!Number.isNaN(q.alt)) minAlt = Math.min(minAlt, q.alt);
+    const hOf = (q) => { if (Number.isNaN(q.alt)) return 0; const g = lastData && lastData.ground ? lastData.ground(q) : NaN; return Math.max(2, q.alt - (Number.isFinite(g) ? g : (Number.isFinite(minAlt) ? minAlt : 0))) * exag; };
+    const sinP = Math.sin(FIT_PITCH * Math.PI / 180);
+    let center = { lng: (bounds[0][0] + bounds[1][0]) / 2, lat: (bounds[0][1] + bounds[1][1]) / 2 }, zoom = 8;
+    try { const cam = map.cameraForBounds(bounds, { padding: FIT_PAD, bearing, pitch: 0 }); if (cam && Number.isFinite(cam.zoom)) { zoom = cam.zoom; if (cam.center) center = cam.center; } } catch { /* keep the guess */ }
+    for (let it = 0; it < 5; it++) {
+      map.jumpTo({ center, zoom, bearing, pitch: FIT_PITCH });
+      const c = map.project([center.lng, center.lat]), c2 = map.project([center.lng + 0.001, center.lat]);
+      const ppm = Math.hypot(c2.x - c.x, c2.y - c.y) / (0.001 * Math.PI / 180 * R * Math.cos(center.lat * Math.PI / 180));   // pixels per metre at the centre
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, gy0 = Infinity, gy1 = -Infinity;
+      for (const q of sample) {
+        const p = map.project([q.lon, q.lat]); if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+        const top = p.y - hOf(q) * ppm * sinP;
+        if (p.x < x0) x0 = p.x; if (p.x > x1) x1 = p.x; if (p.y > y1) y1 = p.y; if (p.y < gy0) gy0 = p.y; if (p.y > gy1) gy1 = p.y; if (top < y0) y0 = top;
+      }
+      const bw = x1 - x0, bh = y1 - y0; if (!(bw > 0) || !(bh > 0)) break;
+      const s = Math.min((W - 2 * FIT_PAD) / bw, (H - 2 * FIT_PAD) / bh);
+      // shift so that the box sits in the middle: the ground point now under the box centre becomes the centre
+      const cx = (x0 + x1) / 2, cy = Math.min((y0 + y1) / 2, gy1 - 1);
+      try { const ll = map.unproject([cx, cy]); if (ll && Number.isFinite(ll.lng) && Math.abs(ll.lat - center.lat) < 20 && Math.abs(ll.lng - center.lng) < 40) center = { lng: ll.lng, lat: ll.lat }; } catch { /* above the horizon */ }
+      zoom = Math.max(1, Math.min(18, zoom + Math.log2(s)));
+      if (Math.abs(Math.log2(s)) < 0.01 && it > 0) break;
+    }
+    map.jumpTo({ center, zoom, bearing, pitch: FIT_PITCH });
+  }
   function post(q, color, id) {
     const src = map.getSource(id); if (!src) return;
     if (!q || !q.fix) { src.setData({ type: 'FeatureCollection', features: [] }); return; }
@@ -148,5 +214,5 @@ export async function create3D(container, opts = {}) {
   function resize() { map.resize(); }
   function setExaggeration(mode) { exagMode = mode; applyData(); }
   function destroy() { xMarkers.forEach((m) => m.remove()); xMarkers = []; map.remove(); }
-  return { map, setLayer, setTrack, setHover, setPinned, fit, resize, destroy, setExaggeration, get layer() { return current; }, get exaggeration() { return exag; } };
+  return { map, setLayer, setTrack, setHover, setPinned, fit, resize, destroy, setExaggeration, get layer() { return current; }, get exaggeration() { return exag; }, get points() { return pts; } };
 }

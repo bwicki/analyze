@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.9.1 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.9.2 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -98,8 +98,10 @@ neben den Viewer schliessen.
 fällt die Ansicht auf 2D zurück) mit Gelände und Reliefschattierung; die Fahrt steht als **Vorhang** vom Boden bis
 zur Fahrthöhe auf der Karte (Farben wie 2D, Nacht dunkler, dunkle Oberkante = Höhenprofil), Überhöhung **10×**
 (Vorgabe; automatisch oder 1–100×, wird gemerkt), Layerwahl oben rechts, Hover/Pin aus dem Profil als Pfosten,
-Extremwerte als dieselben Symbole ◆ ▲ ▼ ▶ wie in Kennzahlen und 2D. Rechte Maustaste oder Ctrl + Ziehen dreht
-und kippt, Mausrad zoomt.
+Extremwerte als dieselben Symbole ◆ ▲ ▼ ▶ wie in Kennzahlen und 2D. Die Fahrt wird **flächenfüllend eingepasst**
+(ab 0.9.2): Blickrichtung entlang der Hauptachse der Fahrt (Start links, Landung rechts; wenig gestreckte Fahrten
+Nord oben), Zoom iterativ auf die projizierten Punkte samt Vorhang statt auf das geografische Rechteck; Knopf ⤢ unter
+dem Kompass passt erneut ein. Rechte Maustaste oder Ctrl + Ziehen dreht und kippt, Mausrad zoomt.
 Gelände und 3D lassen sich in den Einstellungen abschalten.
 
 **Höhenprofil** (Zeit oder Strecke als x-Achse): Höhe nach Vario gefärbt, Nachtbänder, Zeitmarker, Maximalhöhe,
