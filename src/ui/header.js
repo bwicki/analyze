@@ -42,7 +42,7 @@ export function renderHeader(o) {
   const nav = v ? `<nav class="phases" aria-label="${esc(t('hdr.phases'))}"><span class="ph active"><span class="n">▶</span>${esc(v.title || t('hdr.viewer'))}</span>${PHASES.filter((p) => p === 'analyze' || p === 'report').map((p) => `<button type="button" class="ph ${p === state.phase ? 'active' : ''}" data-act="goto" data-phase="${p}">${esc(phaseLabel(p))}</button>`).join('')}</nav>`
     : `<nav class="phases" aria-label="${esc(t('hdr.phases'))}">${phaseChips(state.phase)}${['start', 'flights', 'admin'].includes(state.phase) ? `<span class="ph active"><span class="n">·</span>${esc(t('view.' + state.phase))}</span>` : ''}</nav>`;
   const el = html(`<header class="top">
-    <div class="brand"><strong>analyze</strong><span>${esc(o.subtitle || t('hdr.subtitle'))}</span></div>
+    <div class="brand"><strong>${esc(t('hdr.title'))}</strong><span>${esc(o.subtitle || t('hdr.subtitle'))}</span></div>
     ${nav}
     <div class="right">${logoImg()}<div class="tools">
       ${who}

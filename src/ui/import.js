@@ -26,6 +26,7 @@ export function mountImport(root, ctx) {
           <div class="muted small" data-progress></div>
           <label class="chk"><input type="checkbox" data-opt="hideOther" ${state.settings.hideOtherFlights ? 'checked' : ''}> ${esc(t('imp.hideOther'))}</label>
         </section>
+        <section class="card" data-devices hidden></section>
         <section class="card">
           <h2>${esc(t('imp.profiles'))}</h2>
           <div data-profiles class="row-wrap" style="gap:8px"></div>
@@ -49,6 +50,8 @@ export function mountImport(root, ctx) {
   const unk = el.querySelector('[data-unknown]');
   const tiles = el.querySelector('[data-tiles]');
   const profs = el.querySelector('[data-profiles]');
+  const devCard = el.querySelector('[data-devices]');
+  let askedOther = new Set();   // segments already asked about (file#part)
 
   ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
@@ -70,6 +73,7 @@ export function mountImport(root, ctx) {
       }
       prog.textContent = '';
       recompute();
+      await askAboutOtherFlights();
       if (state.track) toast(t('imp.done', { n: results.filter((r) => r.points && !r.timeless).length }));
       else if (results.some((r) => r.timeless)) toast(t('imp.timelessToast'), true);
       else if (results.some((r) => r.unknown)) toast(t('imp.unknownToast'), true);
@@ -77,7 +81,21 @@ export function mountImport(root, ctx) {
     state.busy = false; ctx.refreshBars();
   }
 
+  /** Recordings that look like another flight (far from the main cluster): ask once whether to ignore them. */
+  async function askAboutOtherFlights() {
+    const others = state.segments.filter((s) => s.status === 'other' && !askedOther.has(s.file + '#' + s.part));
+    if (!others.length) return;
+    others.forEach((s) => askedOther.add(s.file + '#' + s.part));
+    const list = others.map((s) => `<li><span class="mono">${esc(s.file)}${s.part ? ` (${s.part}/${s.parts})` : ''}</span> · ${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0)} – ${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1)} UTC · ${fmtInt(s.n)} ${esc(t('imp.col.points'))}</li>`).join('');
+    const main = state.stats && state.stats.takeoff ? fmtDateUTC(state.stats.takeoff.t) : '';
+    const ignore = await confirmDialog({ title: t('imp.otherTitle', { n: others.length }), text: `<p>${esc(t('imp.otherText', { main }))}</p><ul class="small" style="margin:8px 0 0 18px">${list}</ul>`, okLabel: t('imp.otherIgnore'), cancelLabel: t('imp.otherKeep') });
+    if (ignore) return;
+    for (const s of others) { s.keep = true; s.status = 'use'; }
+    recompute({ reclassify: false });
+  }
+
   onAct(el, {
+    merge: (b) => { state.settings.merge = { ...state.settings.merge, mode: b.dataset.mode }; ctx.saveSettings(); recompute({ reclassify: false }); },
     reset: async () => { if (await confirmDialog({ title: t('imp.reset'), text: esc(t('imp.resetText')), okLabel: t('imp.reset'), cancelLabel: t('common.cancel'), danger: true })) { resetAll(); } },
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: b.dataset.to !== 'off' && b.dataset.to !== 'use' }); },
     dropfile: (b) => { state.files = state.files.filter((f) => f.name !== b.dataset.name); recompute(); },
@@ -148,6 +166,29 @@ export function mountImport(root, ctx) {
         <div class="tile"><span class="k">${esc(t('imp.tile.points'))}</span><span class="v">${fmtInt(ps.n)}</span><span class="u">${esc(t('imp.tile.pointsSub', { n: fmtInt(tr.collapsed) }))}</span></div>
         <div class="tile"><span class="k">${esc(t('imp.tile.dropped'))}</span><span class="v">${fmtInt(dropped)}</span><span class="u">${esc(t('imp.tile.droppedSub'))}</span></div>`;
     } else tiles.innerHTML = '';
+    renderDevices();
+  }
+
+  /** Card «Mehrere Geräte»: shown when recordings of two or more devices overlap in time. */
+  function renderDevices() {
+    const info = state.track && state.track.merge;
+    if (!info || info.devices.length < 2 || !info.multiSec) { devCard.hidden = true; devCard.innerHTML = ''; return; }
+    const m = state.settings.merge || {}; const mode = m.mode === 'primary' ? 'primary' : 'consensus';
+    const primaryKey = info.primary;
+    devCard.hidden = false;
+    devCard.innerHTML = `<h2>${esc(t('imp.devices'))}</h2>
+      <div class="muted small">${esc(t('imp.devicesSub', { n: info.devices.length, dur: fmtDurationHM(info.multiSec) }))}</div>
+      <table class="tbl"><thead><tr><th>${esc(t('imp.col.device'))}</th><th class="r">${esc(t('imp.col.points'))}</th><th class="r">${esc(t('imp.col.coverage'))}</th></tr></thead><tbody>
+        ${info.devices.map((d) => `<tr><td>${esc(d.name)}${d.key === primaryKey ? ` <span class="tag">${esc(t('imp.primaryTag'))}</span>` : ''}</td><td class="r mono">${fmtInt(d.n)}</td><td class="r mono">${fmtDurationHM(d.coverageSec)}</td></tr>`).join('')}
+      </tbody></table>
+      <div class="seg" style="align-self:flex-start"><button type="button" data-act="merge" data-mode="consensus" class="${mode === 'consensus' ? 'on' : ''}">${esc(t('imp.modeConsensus'))}</button><button type="button" data-act="merge" data-mode="primary" class="${mode === 'primary' ? 'on' : ''}">${esc(t('imp.modePrimary'))}</button></div>
+      <div class="row-wrap" style="gap:12px;align-items:flex-end">
+        <label class="f">${esc(t('imp.primaryDevice'))}<select class="in sm" data-primary style="width:auto">${info.devices.map((d) => `<option value="${esc(d.key)}" ${d.key === primaryKey ? 'selected' : ''}>${esc(d.name)}</option>`).join('')}</select></label>
+        ${mode === 'consensus' ? `<label class="f">${esc(t('imp.gridStep'))}<select class="in sm" data-step style="width:auto">${[5, 10, 20, 30, 60].map((s) => `<option value="${s}" ${(m.stepSec || 10) === s ? 'selected' : ''}>${s} s</option>`).join('')}</select></label>` : ''}
+      </div>
+      <div class="muted small">${esc(mode === 'consensus' ? t('imp.consensusNote', { grid: info.gridPoints, rejected: info.rejected }) : t('imp.primaryNote', { dur: fmtDurationHM(info.filledSec) }))}</div>`;
+    devCard.querySelector('[data-primary]').addEventListener('change', (e) => { state.settings.merge = { ...state.settings.merge, primary: e.target.value }; ctx.saveSettings(); recompute({ reclassify: false }); });
+    const st = devCard.querySelector('[data-step]'); if (st) st.addEventListener('change', (e) => { state.settings.merge = { ...state.settings.merge, stepSec: +e.target.value }; ctx.saveSettings(); recompute({ reclassify: false }); });
   }
 
   const off = bus.on('track', render), off2 = bus.on('profiles', render);

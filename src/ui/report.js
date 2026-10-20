@@ -16,6 +16,7 @@ import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
 import { photosForDisplay } from './photos.js';
 import { api } from '../api.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
+import { mergeLine } from '../process/mergeinfo.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
@@ -138,7 +139,7 @@ export function mountReport(root, ctx) {
       <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('cln.segments'))} · ${esc(t('cln.protocol'))}</h2>
       <table><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th class="r">${esc(t('imp.col.points'))}</th></tr></thead>
         ${state.segments.filter((s) => s.status === 'use').map((s) => `<tr><td class="v">${s.id}</td><td class="v">${esc(s.file)}</td><td class="v">${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="v">${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="v" style="text-align:right">${fmtInt(s.n)}</td></tr>`).join('')}</table>
-      <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}</div></div>
+      <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}${mergeLine(state.track) ? ` ${esc(mergeLine(state.track))}` : ''}</div></div>
       ${eventsSection()}
       ${photosSection()}
       <div class="sigblock"><div class="sig"><div>${esc(t('rep.sigPic'))}</div><div>${esc(t('rep.sigDate'))}</div></div>

@@ -2,13 +2,14 @@
 // The pipeline (recompute) turns parsed files into segments → track → series → events → trim → stats.
 
 import { buildSegments, classifySegments, mergeSegments, DEFAULTS as SEG_DEFAULTS } from './process/segments.js';
+import { MERGE_DEFAULTS } from './process/consensus.js';
 import { deriveSeries } from './process/series.js';
 import { detectEvents, proposeTrim, DETECT_DEFAULTS, dropIgnoredLandings, statesFromEvents } from './process/detect.js';
 import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.7.5';
+export const VERSION = '0.8.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -27,6 +28,7 @@ export const DEFAULT_SETTINGS = {
   mapLayer: 'osm',
   colorBy: 'vario',       // track/profile colour: 'vario' | 'gs' (ground speed)
   hideOtherFlights: true,
+  merge: { mode: MERGE_DEFAULTS.mode, primary: null, stepSec: MERGE_DEFAULTS.stepSec },   // several devices (0.8.0)
 };
 
 const LS_SETTINGS = 'analyze.settings', LS_META = 'analyze.meta';
@@ -67,12 +69,13 @@ export function recompute({ reclassify = true } = {}) {
   const s = state;
   const files = s.files.filter((f) => f.points && f.points.n);
   if (reclassify || !s.segments.length) {
-    const prev = new Map(s.segments.map((x) => [x.file + '#' + x.part, x.status]));
+    const prev = new Map(s.segments.map((x) => [x.file + '#' + x.part, { status: x.status, keep: !!x.keep }]));
     s.segments = buildSegments(files, { gapSec: s.settings.gapSec });
-    for (const sg of s.segments) { const st = prev.get(sg.file + '#' + sg.part); if (st === 'off') sg.status = 'off'; }
+    for (const sg of s.segments) { const p = prev.get(sg.file + '#' + sg.part); if (p && p.status === 'off') sg.status = 'off'; if (p && p.keep) sg.keep = true; }
     classifySegments(s.segments, { otherFlightHours: s.settings.otherFlightHours });
+    for (const sg of s.segments) if (sg.keep && sg.status === 'other') sg.status = 'use';   // "other flight" kept on purpose
   }
-  s.track = mergeSegments(s.segments, { gapSec: s.settings.gapSec });
+  s.track = mergeSegments(s.segments, { gapSec: s.settings.gapSec, merge: s.settings.merge || MERGE_DEFAULTS });
   if (!s.track) { s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; bus.emit('track'); return; }
   s.series = deriveSeries(s.track, { gapSec: s.settings.gapSec });
   const d = detectEvents(s.track, s.series, s.settings.detect);

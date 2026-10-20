@@ -2,6 +2,7 @@
 // "other flight" detection, merge into one track (concept §6 steps 1–3). Pure, no DOM.
 
 import { FIELDS, slicePoints, concatPoints } from '../parse/points.js';
+import { multiDeviceParts } from './consensus.js';
 
 export const DEFAULTS = {
   minYear: 2015,
@@ -111,7 +112,17 @@ export function classifySegments(segs, opts = {}) {
  */
 export function mergeSegments(segs, opts = {}) {
   const o = { ...DEFAULTS, ...opts };
-  const use = segs.filter((s) => s.status === 'use');
+  if (!segs.some((s) => s.status === 'use')) return null;
+  // several devices (0.8.0): consensus grid or primary + gap filling where recordings overlap
+  let parts = segs.filter((s) => s.status === 'use'), info = null;
+  if (opts.merge !== false) { const r = multiDeviceParts(segs, { ...(opts.merge || {}), gapSec: o.gapSec }); parts = r.parts; info = r.info; }
+  const track = assembleTrack(parts, o);
+  if (track) track.merge = info;
+  return track;
+}
+
+/** Parts [{id, points, n}] → track (sorted, identical timestamps collapsed, gaps, segment runs). */
+export function assembleTrack(use, o = DEFAULTS) {
   if (!use.length) return null;
   const all = concatPoints(use.map((s) => s.points));
   const segIdx = new Uint16Array(all.n); let off = 0;

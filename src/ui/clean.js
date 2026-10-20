@@ -5,6 +5,7 @@ import { esc, html, onAct, toast } from '../util/dom.js';
 import { fmtInt, fmtTimeUTC, fmtDayUTC, fmtDateUTC, fmtDateTimeUTC, fmtDurationHM, icaoShort, pad2 } from '../util/format.js';
 import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restoreLandings, saveMeta } from '../state.js';
 import { reverseGeocode } from '../util/places.js';
+import { mergeLine } from '../process/mergeinfo.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
 
 const W = 1180, H = 150, L = 20, R = 20;
@@ -204,6 +205,7 @@ export function mountClean(root, ctx) {
       <div class="row"><span>${esc(t('cln.p.gaps', { sec: state.settings.gapSec }))}</span><span class="val">${tr.gaps.length}</span></div>
       <div class="row"><span>${esc(t('cln.p.restarts'))}</span><span class="val">${restarts}${restarts ? ` (${st.restartList.map((r) => Math.round(r.sec) + ' s').join(', ')})` : ''}</span></div>
       <div class="row"><span>${esc(t('cln.p.altMasked'))}</span><span class="val">${fmtInt(st.altMasked)}</span></div>
+      ${mergeLine(tr) ? `<div class="row"><span>${esc(t('cln.p.devices'))}</span><span class="val" style="white-space:normal;text-align:right;font-family:var(--sans);font-size:13px">${esc(mergeLine(tr))}</span></div>` : ''}
       <span class="muted small">${esc(t('cln.p.note'))}</span>`;
     // segments table
     const rows = state.segments.map((s) => `<tr class="${s.status === 'use' ? '' : 'dim'}"><td class="mono">${s.id}</td><td class="mono">${esc(s.file)}${s.part ? ` <span class="tag">${s.part}/${s.parts}</span>` : ''}</td><td class="mono nowrap">${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="mono nowrap">${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="mono">${fmtDurationHM((s.t1 - s.t0) / 1000)}</td><td class="r mono">${fmtInt(s.n)}</td><td>${esc(t('imp.st.' + s.status, { id: s.dupOf || '' }))}</td><td class="r">${s.status === 'use' ? `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="off">${esc(t('imp.exclude'))}</button>` : `<button class="btn xs" type="button" data-act="seg" data-id="${s.id}" data-to="use">${esc(t('imp.use'))}</button>`}</td></tr>`).join('');
