@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.8.0 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.8.1 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
@@ -79,8 +79,10 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    Ersatz Photon; «Ortsnamen holen» wiederholt den Abruf; ohne erkannte Landung zeigt die Landezeile das Ende der
    Aufzeichnung mit Hinweis). Strecke und Luftlinie werden auf dem WGS84-Ellipsoid gerechnet (Vincenty),
    Höhenprofil mit Nacht, **Geländeprofil** (grau; Höhendaten aus Terrarium-DEM-Kacheln, Ersatz open-meteo) und
-   **Wasserflächen** (blau; Meer aus den Höhendaten, Seen und Flüsse aus OpenFreeMap-Vektorkacheln) sowie Fahrt über
-   Grund; Readout mit «Über Grund»; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt den Ausschnitt
+   **Wasserflächen** (blau; Meer aus den Höhendaten, Seen und Flüsse aus OpenFreeMap-Vektorkacheln; Basislinie über
+   Wasser ist die Oberfläche, der Gewässerboden – Bathymetrie des DEM – lässt sich als braune gestrichelte Linie
+   zuschalten) sowie Fahrt über Grund; Readout mit «Über Grund»; Karte: Knopf ⤢ passt die ganze Fahrt exakt ein
+   (auch Vorgabe), darunter zwei Detailkarten von Startort und Landeort; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt den Ausschnitt
    nach, damit der Marker auch in einer gezoomten Ansicht sichtbar bleibt. **3D** (ab 0.8.0, Knopf 2D/3D): kippbare
    Karte (MapLibre GL, wird beim ersten Aufruf geladen) mit Gelände und Reliefschattierung; die Fahrt steht als
    «Vorhang» vom Boden bis zur Fahrthöhe auf der Karte (Farbe wie 2D, Nacht dunkler, dunkle Oberkante = Höhenprofil),
@@ -109,7 +111,9 @@ Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `
    Kurzlink/QR-Code zeigt die Fotos ebenfalls; der Bericht erhält eine Fotoseite (bis 24 Bilder).
 4. **Bericht** – Stammdaten eintragen (Ballon mit Muster/Volumen und «Ergänzungen zur Ausrüstung», PIC, Co-Pilot,
    Passagiere, Nachfahrer, Command Center, Zweck privat/gewerblich/Wettfahrt/Schulung), «Drucken / PDF» (im Druckdialog
-   «Als PDF sichern»). Seite 1 Stammdaten und Kennzahlen (Start- und Landezeile mit Ort), Seite 2 Übersichtskarte,
+   «Als PDF sichern»). Titel «Fahrt vom ‹Datum› (Start hh:mm UTC – Landung hh:mm UTC)»; bei gespeicherter Fahrt QR-Code
+   und Kurzlink oben rechts; unter der Unterschrift «Daten hochgeladen / letzte Änderung». Seite 1 Stammdaten
+   (zweispaltig, auch im Druck) und Kennzahlen (Start- und Landezeile mit Ort), Seite 2 Übersichtskarte,
    Detailkarten von Startort und Landeort, Höhenprofil, Seite 3 Segmente/Protokoll und Unterschrift, dann Ereignislog
    und Fotos. Gespeicherte Fahrten tragen Kurzlink und QR-Code in der Fusszeile.
 5. **Exportieren** – GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen

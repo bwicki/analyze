@@ -17,7 +17,7 @@ export function renderProfile(container, data) {
   const xs = data.xMode === 'dist' ? (q) => q.dist : (q) => q.t;
   const x0 = xs(pts[0]), x1 = xs(pts[pts.length - 1]), xspan = Math.max(1, x1 - x0);
   const X = (v) => PL + (v - x0) / xspan * (W - PL - PR);
-  const alts = pts.map((q) => q.alt), lows = [...alts, ...((data.terrain || []).map((g) => g.alt).filter((a) => !Number.isNaN(a)))];
+  const alts = pts.map((q) => q.alt), lows = [...alts, ...((data.terrain || []).map((g) => g.alt).filter((a) => !Number.isNaN(a))), ...(data.showBottom ? (data.terrain || []).map((g) => g.bottom).filter((a) => !Number.isNaN(a)) : [])];
   const aMinRaw = Math.min(...lows), aMaxRaw = Math.max(...alts);
   // axis from a nice step below the lowest altitude (ground/terrain) to a nice step above the highest
   const vMin = u.altValue(aMinRaw), vMax = u.altValue(aMaxRaw), span = Math.max(50, vMax - vMin), step = niceStep(span / 5);
@@ -42,6 +42,13 @@ export function renderProfile(container, data) {
     for (let k = 0; k < terr.length; k++) { if (terr[k].water) { if (!run.length && k > 0) run.push(terr[k - 1]); run.push(terr[k]); } else { if (run.length) run.push(terr[k]); flushW(); } }
     flushW();
     out.push(`<path d="M${terr.map((g) => `${X(g.x).toFixed(1)} ${Y(g.alt).toFixed(1)}`).join(' L')}" fill="none" stroke="#7d8b9b" stroke-width="1.2"/>`);
+    // optional: bed of the water bodies crossed (bathymetry), light brown, runs separately
+    if (data.showBottom) {
+      let seg = [];
+      const flushB = () => { if (seg.length > 1) out.push(`<path d="M${seg.map((g) => `${X(g.x).toFixed(1)} ${Y(g.bottom).toFixed(1)}`).join(' L')}" fill="none" stroke="#b08968" stroke-width="1.4" stroke-dasharray="5 3"/>`); seg = []; };
+      for (const g of terr) { if (!Number.isNaN(g.bottom)) seg.push(g); else flushB(); }
+      flushB();
+    }
   }
   // y grid
   const ySteps = niceSteps(u.altValue(aMin), aMax, 5);

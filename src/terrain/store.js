@@ -1,5 +1,7 @@
 // Terrain along the current track (0.8.0): ≤ 1500 sample positions, ground elevation + water flag,
-// cached per position across recomputes; state.terrain = {idx, ground, water, source, waterSource, status}.
+// cached per position across recomputes; state.terrain = {idx, ground, bottom, water, source, waterSource, status}.
+// The DEM carries bathymetry over the sea (negative values): the profile baseline over water is the surface
+// (0 m AMSL, lakes: their DEM level), the sea bed goes to `bottom` and can be shown as an extra line.
 // Emits bus 'terrain' whenever the data changes. Nothing here touches the DOM.
 
 import { state, bus } from '../state.js';
@@ -28,8 +30,8 @@ export async function loadTerrain(force = false) {
   lastTrack = tr;
   const idx = sampleIndices(tr), ps = tr.points;
   const pts = Array.from(idx, (i) => ({ lat: ps.lat[i], lon: ps.lon[i] }));
-  const ground = new Float32Array(idx.length).fill(NaN), water = new Uint8Array(idx.length);
-  const cur = { idx, ground, water, source: '', waterSource: '', status: 'loading', progress: 0 };
+  const ground = new Float32Array(idx.length).fill(NaN), bottom = new Float32Array(idx.length).fill(NaN), water = new Uint8Array(idx.length);
+  const cur = { idx, ground, bottom, water, source: '', waterSource: '', status: 'loading', progress: 0 };
   state.terrain = cur; bus.emit('terrain');
   const token = running = {};
   try {
@@ -41,17 +43,20 @@ export async function loadTerrain(force = false) {
       need.forEach((k, j) => { ground[k] = r.ground[j]; groundCache.set(key(pts[k].lat, pts[k].lon), r.ground[j]); });
       cur.source = r.source;
     } else cur.source = 'cache';
+    // sea: DEM below 0 = sea bed → surface 0 m is the baseline, the bed is kept for the optional bottom line
+    for (let k = 0; k < idx.length; k++) if (ground[k] < 0) { bottom[k] = ground[k]; ground[k] = 0; water[k] = 1; }
     cur.status = 'ground'; bus.emit('terrain');
     // water (best effort)
     try {
       const needW = []; pts.forEach((p, k) => { const w = waterCache.get(key(p.lat, p.lon)); if (w === undefined) needW.push(k); else water[k] = w; });
       if (needW.length) {
-        const r = await fetchWater(needW.map((k) => pts[k]), Float32Array.from(needW, (k) => ground[k]), (f) => { cur.progress = 0.7 + f * 0.3; bus.emit('terrain'); });
+        const r = await fetchWater(needW.map((k) => pts[k]), Float32Array.from(needW, (k) => (Number.isNaN(bottom[k]) ? ground[k] : bottom[k])), (f) => { cur.progress = 0.7 + f * 0.3; bus.emit('terrain'); });
         if (running !== token) return;
-        needW.forEach((k, j) => { water[k] = r.water[j]; waterCache.set(key(pts[k].lat, pts[k].lon), r.water[j]); });
+        needW.forEach((k, j) => { water[k] = water[k] || r.water[j]; waterCache.set(key(pts[k].lat, pts[k].lon), water[k]); });
         cur.waterSource = r.source;
       } else cur.waterSource = 'cache';
     } catch (e) { console.warn('water failed:', e && e.message); cur.waterSource = 'none'; for (let k = 0; k < idx.length; k++) if (ground[k] <= 0.5) water[k] = 1; }
+    cur.hasBottom = Array.prototype.some.call(bottom, (b) => !Number.isNaN(b));
     cur.status = 'ready'; cur.progress = 1;
   } catch (e) { console.warn('terrain failed:', e && e.message); cur.status = 'error'; }
   if (running === token) bus.emit('terrain');
@@ -61,7 +66,7 @@ export async function loadTerrain(force = false) {
 export function terrainForDisplay(xMode = 'time') {
   const tr = state.terrain, s = state; if (!tr || !s.track || !s.series || tr.status === 'loading') return [];
   const out = [];
-  for (let k = 0; k < tr.idx.length; k++) { const i = tr.idx[k]; const g = tr.ground[k]; if (Number.isNaN(g)) continue; out.push({ x: xMode === 'dist' ? s.series.dist[i] : s.track.points.t[i], t: s.track.points.t[i], alt: g, water: tr.water[k] === 1 }); }
+  for (let k = 0; k < tr.idx.length; k++) { const i = tr.idx[k]; const g = tr.ground[k]; if (Number.isNaN(g)) continue; out.push({ x: xMode === 'dist' ? s.series.dist[i] : s.track.points.t[i], t: s.track.points.t[i], alt: g, water: tr.water[k] === 1, bottom: tr.bottom ? tr.bottom[k] : NaN }); }
   return out;
 }
 

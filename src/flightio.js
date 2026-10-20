@@ -36,7 +36,7 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
   let rec;
   if (state.flight && state.flight.id && !state.viewer) rec = await api.flights.update(state.flight.id, p.flight, withTrack ? p.geojson : null, p.events);
   else rec = await api.flights.save(p.flight, p.geojson, p.events);
-  state.flight = { id: rec.id, title: rec.title, url: rec.url, updatedAt: rec.updatedAt, public: rec.public };
+  state.flight = { id: rec.id, title: rec.title, url: rec.url, createdAt: rec.createdAt || (state.flight && state.flight.createdAt) || rec.updatedAt, updatedAt: rec.updatedAt, public: rec.public };
   bus.emit('flight');
   loadPhotos();
   return rec;
@@ -57,7 +57,7 @@ export async function openFlight(rec, geojsonText, { viewer = false, eventRows =
     state.ignoredLandings = Array.isArray(rec.stats && rec.stats.ignoredLandings) ? rec.stats.ignoredLandings.slice() : [];
     recompute({ reclassify: true });
     if (eventRows && eventRows.length) { const src = (rec.stats && rec.stats.events && rec.stats.events.source) || ''; setEventLog({ source: { kind: 'saved', flight: src.replace(/^gb_flight_data\//, ''), name: src }, rows: eventRows, events: normalizeEvents(eventRows) }); }
-    state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, updatedAt: rec.updatedAt, public: rec.public };
+    state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, createdAt: rec.createdAt, updatedAt: rec.updatedAt, public: rec.public };
     state.viewer = viewer ? { id: rec.id, title: rec.title, owner: rec.owner || null } : null;
     state.visited = { import: true, clean: true, analyze: true };
   } finally { state.busy = false; bus.emit('track'); bus.emit('flight'); }

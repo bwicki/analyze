@@ -8,7 +8,7 @@ import { makeUnits } from '../util/units.js';
 import { state, bus, saveMeta, VERSION } from '../state.js';
 import { trackPoints, timeMarkers } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
-import { createMap, VARIO_COLORS, varioClass } from './map.js';
+import { createMap, createDetailMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
 import { session, logoUrl, DEFAULT_LOGO } from '../session.js';
 import { qrSvg } from '../util/qr.js';
@@ -84,7 +84,12 @@ export function mountReport(root, ctx) {
     const startName = startPlace || icaoShort(st.takeoff.lat, st.takeoff.lon);
     const landName = landPlace || (st.landing ? icaoShort(st.landing.lat, st.landing.lon) : '–');
     const placeNote = (place, p) => (place ? `${esc(place)} · ${icaoShort(p.lat, p.lon)}` : icaoShort(p.lat, p.lon));
-    const title = m.title || `${t('rep.defaultTitle')} ${fmtDateUTC(st.takeoff.t)}${m.balloon ? ' · ' + m.balloon : ''}`;
+    const landRef = st.landing || st.endFix;
+    const sameDay = landRef && fmtDateUTC(landRef.t) === fmtDateUTC(st.takeoff.t);
+    const times = landRef ? ` (${t('rep.titleTimes', { start: fmtTimeUTC(st.takeoff.t), land: sameDay ? fmtTimeUTC(landRef.t) : `${fmtDayUTC(landRef.t)} ${fmtTimeUTC(landRef.t)}` })})` : ` (${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)} UTC)`;
+    const title = m.title || `${t('rep.defaultTitle')} ${fmtDateUTC(st.takeoff.t)}${times}${m.balloon ? ' · ' + m.balloon : ''}`;
+    const saved = state.flight && state.flight.id ? state.flight : null;
+    const linkBlock = saved && saved.public !== false ? `<div class="qrhead">${qrSvg(saved.url, { size: 76 })}<span class="mono">${esc(saved.url.replace(/^https?:\/\//, ''))}</span></div>` : '';
     const nvfr = m.nvfr === 'yes' || (m.nvfr === '' && st.night.totalSec > 60);
     const tr = (k, v, note = '', wrap = false) => `<tr><td class="lbl">${esc(k)}</td><td class="v">${v}</td><td class="muted note${wrap ? ' wrap' : ''}">${note}</td></tr>`;
     const interNote = st.intermediate.length ? st.intermediate.map((l) => `${fmtTimeUTC(l.t)} ${esc(state.places.inter[l.t] || icaoShort(l.lat, l.lon))}`).join(' · ') : esc(t('st.noIntermediate'));
@@ -92,7 +97,7 @@ export function mountReport(root, ctx) {
     rep.innerHTML = `
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px">
         <div><div class="pk">${esc(t('rep.kicker'))}</div><h1>${esc(title)}</h1><div class="muted" style="font-size:14px">${esc(m.balloon ? m.balloon + ' · ' : '')}${esc(startName)} → ${esc(landName)} · ${fmtDateUTC(st.takeoff.t)}${st.landing && fmtDateUTC(st.landing.t) !== fmtDateUTC(st.takeoff.t) ? ' – ' + fmtDateUTC(st.landing.t) : ''}</div></div>
-        <img src="${esc(state.viewer && state.viewer.owner ? logoUrl(state.viewer.owner.code, state.viewer.owner.logo) : logoUrl(session.code, session.me && session.me.logo))}" alt="Logo" style="height:46px;width:auto;max-width:220px;object-fit:contain" onerror="this.onerror=null;this.src='${DEFAULT_LOGO}'">
+        <div class="rep-right"><img src="${esc(state.viewer && state.viewer.owner ? logoUrl(state.viewer.owner.code, state.viewer.owner.logo) : logoUrl(session.code, session.me && session.me.logo))}" alt="Logo" style="height:46px;width:auto;max-width:220px;object-fit:contain" onerror="this.onerror=null;this.src='${DEFAULT_LOGO}'">${linkBlock}</div>
       </div>
       <div class="bar"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('rep.master'))}</h2>
@@ -144,7 +149,7 @@ export function mountReport(root, ctx) {
       ${eventsSection()}
       ${photosSection()}
       <div class="sigblock"><div class="sig"><div>${esc(t('rep.sigPic'))}</div><div>${esc(t('rep.sigDate'))}</div></div>
-      ${state.flight && state.flight.public !== false ? `<div class="qrline">${qrSvg(state.flight.url, { size: 84 })}<span>${esc(t('rep.qrNote'))}<br><span class="mono">${esc(state.flight.url.replace(/^https?:\/\//, ''))}</span></span></div>` : ''}
+      <div class="muted" style="font-size:11px;margin-top:6px">${esc(saved ? t('rep.storedLine', { up: fmtDateTimeUTC(saved.createdAt || saved.updatedAt), mod: fmtDateTimeUTC(saved.updatedAt || Date.now()) }) : t('rep.sessionLine', { up: fmtDateTimeUTC(state.importedAt || Date.now()), mod: fmtDateTimeUTC(state.modifiedAt || Date.now()) }))}</div>
       <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${state.flight ? esc(state.flight.url.replace(/^https?:\/\//, '')) : ''}</span></div></div>`;
     // map + profile (static)
     const s = state; const dur = (s.trim.to - s.trim.from) / 1000; const step = Math.max(1, Math.ceil(dur / 1500));
@@ -159,20 +164,14 @@ export function mountReport(root, ctx) {
     // detail maps (zoom 13) around take-off and landing / end of recording, with a short piece of the track
     const detail = (sel, p, color) => { try { detailMap(sel, p, color); } catch (e) { console.warn('detail map', e); } };
     const detailMap = (sel, p, color) => {
-      const dEl = rep.querySelector(sel); if (!dEl || !p || typeof L === 'undefined') return;
-      const dm = L.map(dEl, { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, attributionControl: false, preferCanvas: true });
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(dm);
-      const near = pts.filter((q) => q.fix && Math.abs(q.t - p.t) < 45 * 60000).map((q) => [q.lat, q.lon]);
-      if (near.length > 1) L.polyline(near, { color: '#1f5fbf', weight: 3, opacity: 0.9 }).addTo(dm);
-      L.circleMarker([p.lat, p.lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(dm);
-      dm.setView([p.lat, p.lon], 13);
-      setTimeout(() => dm.invalidateSize(), 120);
-      detailMaps.push(dm);
+      const dEl = rep.querySelector(sel); if (!dEl || !p) return;
+      const dm = createDetailMap(dEl, { lat: p.lat, lon: p.lon, color, near: pts.filter((q) => q.fix && Math.abs(q.t - p.t) < 45 * 60000).map((q) => [q.lat, q.lon]), interactive: false });
+      if (dm) detailMaps.push(dm);
     };
-    map = createMap(mapEl, { layer: 'osm' });
+    map = createMap(mapEl, { layer: 'osm', noControls: true });
     detail('[data-repstart]', st.takeoff, '#1f8a4c'); detail('[data-repland]', st.landing || st.endFix, st.landing ? '#c0392b' : '#d98c00');
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
-    renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
+    renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), showBottom: !!state.settings.showBottom, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
   }
 
   /** Photos page: thumbnails with time and position (when the flight has photos). */

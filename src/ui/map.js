@@ -21,7 +21,8 @@ export const NIGHT_HALO = '#14202e';
 
 export function createMap(container, opts = {}) {
   if (typeof L === 'undefined') { container.innerHTML = '<div class="muted" style="padding:20px">Leaflet not loaded</div>'; return null; }
-  const map = L.map(container, { zoomControl: true, preferCanvas: true });
+  const map = L.map(container, { zoomControl: !opts.noControls, preferCanvas: true, zoomSnap: 0.1, zoomDelta: 1, wheelPxPerZoomLevel: 90 });
+  let userMoved = false;   // once the user zoomed/dragged, container resizes no longer refit
   const layers = Object.fromEntries(Object.entries(LAYERS).map(([k, v]) => [k, L.tileLayer(v.url, { attribution: v.attribution, maxZoom: v.maxZoom, subdomains: 'abc' })]));
   let current = opts.layer && layers[opts.layer] ? opts.layer : 'osm';
   layers[current].addTo(map);
@@ -73,10 +74,23 @@ export function createMap(container, opts = {}) {
     if (radioDiv) radioDiv.querySelectorAll('input').forEach((i) => { i.checked = i.value === k; });
   }
   function onLayerChange(cb) { layerCb = cb; }
-  // the container grows with the neighbouring card: keep Leaflet's size in sync (centre stays, no refit)
+  // «fit» control under the zoom buttons: the whole flight exactly in view (also the default)
+  if (typeof L.control === 'function' && L.DomUtil && !opts.noControls) {
+    const fc = L.control({ position: 'topleft' });
+    fc.onAdd = () => {
+      const div = L.DomUtil.create('div', 'leaflet-bar fit-ctrl');
+      div.innerHTML = `<a href="#" role="button" title="${escHtml(opts.fitLabel || 'Fit')}" aria-label="${escHtml(opts.fitLabel || 'Fit')}">⤢</a>`;
+      if (L.DomEvent) { L.DomEvent.disableClickPropagation(div); L.DomEvent.disableScrollPropagation(div); }
+      div.querySelector('a').addEventListener('click', (e) => { e.preventDefault(); userMoved = false; fit(); });
+      return div;
+    };
+    fc.addTo(map);
+  }
+  ['wheel', 'mousedown', 'touchstart', 'dblclick'].forEach((ev) => container.addEventListener(ev, (e) => { if (!e.target.closest || !e.target.closest('.fit-ctrl')) userMoved = true; }, { passive: true }));
+  // the container grows with the neighbouring card: keep Leaflet's size in sync; refit while the user has not moved the map
   if (typeof ResizeObserver !== 'undefined') {
-    let lastH = container.clientHeight;
-    const ro = new ResizeObserver(() => { const h = container.clientHeight; if (h === lastH) return; lastH = h; map.invalidateSize(); project(); });
+    let lastW = container.clientWidth, lastH = container.clientHeight;
+    const ro = new ResizeObserver(() => { const w = container.clientWidth, h = container.clientHeight; if (h === lastH && w === lastW) return; lastH = h; lastW = w; map.invalidateSize(); if (!userMoved) fit(); project(); });
     ro.observe(container);
     map.on('unload', () => ro.disconnect());
   }
@@ -127,16 +141,31 @@ export function createMap(container, opts = {}) {
     setTimeout(project, 50);
   }
   /** Whole flight in view (also after the container got its real size). */
-  function fit() { if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [28, 28] }); }
+  function fit() { if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [18, 18], animate: false }); }
   // hover (amber) and pinned (blue ring) markers follow the profile; the view pans so they stay visible
   function setHover(q) { if (!q || !q.fix) { if (map.hasLayer(hoverDot)) map.removeLayer(hoverDot); return; } hoverDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(hoverDot)) hoverDot.addTo(map); keepVisible([q.lat, q.lon], false); }
   function setPinned(q) { if (!q || !q.fix) { if (map.hasLayer(pinDot)) map.removeLayer(pinDot); return; } pinDot.setLatLng([q.lat, q.lon]); if (!map.hasLayer(pinDot)) pinDot.addTo(map); keepVisible([q.lat, q.lon], true); }
   function onHover(cb) { hoverCb = cb; }
   function onClick(cb) { clickCb = cb; }
-  function invalidate() { map.invalidateSize(); fit(); project(); }
+  function invalidate() { map.invalidateSize(); if (!userMoved) fit(); project(); }
   function destroy() { map.remove(); }
   return { map, setLayer, onLayerChange, setTrack, setHover, setPinned, onHover, onClick, invalidate, fit, destroy, get layer() { return current; } };
 }
+/**
+ * Small map around one place (take-off / landing): OSM tiles, a short piece of the track, a marker.
+ * near: [[lat, lon], …] of the surrounding track; interactive = false for the printed report.
+ */
+export function createDetailMap(container, { lat, lon, color = '#1f5fbf', near = [], zoom = 13, interactive = true } = {}) {
+  if (typeof L === 'undefined' || !Number.isFinite(lat)) return null;
+  const m = L.map(container, { zoomControl: interactive, dragging: interactive, scrollWheelZoom: false, doubleClickZoom: interactive, touchZoom: interactive, boxZoom: false, keyboard: false, attributionControl: false, preferCanvas: true });
+  L.tileLayer(LAYERS.osm.url, { maxZoom: 19 }).addTo(m);
+  if (near.length > 1) L.polyline(near, { color: '#1f5fbf', weight: 3, opacity: 0.9 }).addTo(m);
+  L.circleMarker([lat, lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(m);
+  m.setView([lat, lon], zoom);
+  setTimeout(() => m.invalidateSize(), 120);
+  return m;
+}
+
 function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 function darken(hex) {
