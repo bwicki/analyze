@@ -2,7 +2,7 @@
 // logo Wicki Partners Ballonteam, Kennzahlen, map, profile, segments protocol.
 
 import { t } from '../i18n.js';
-import { esc, html, onAct } from '../util/dom.js';
+import { esc, html, onAct, toast } from '../util/dom.js';
 import { fmtInt, fmtNum, fmtTimeUTC, fmtDateUTC, fmtDateTimeUTC, fmtDurationHM, fmtBearing, icaoShort, fmtLocalByLon, fmtDayUTC } from '../util/format.js';
 import { makeUnits } from '../util/units.js';
 import { state, bus, saveMeta, VERSION } from '../state.js';
@@ -23,10 +23,9 @@ import { openViewer, fitBox, expandBtn, onPlainClick } from './viewer.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
-const SPECIAL_CODE = 'ZKKG2L';   // the Ballonteam PIN – with the Supermaster the only ones who see the special functions (0.8.7)
 
 export function mountReport(root, ctx) {
-  const special = !state.viewer && (!!session.adminToken || session.code === SPECIAL_CODE);
+  const special = !state.viewer && (!!session.adminToken || !!(session.me && session.me.team));   // 0.10.0: Supermaster or a PIN with team flag (no PIN in the code any more)
   const m = state.meta;
   // defaults of the Kennung (Meine Fahrten → Vorgaben) prefill empty fields of a new flight
   const prefs = (session.me && session.me.prefs) || {};
@@ -80,17 +79,54 @@ export function mountReport(root, ctx) {
       <h2>${esc(t('rep.specialTitle'))}</h2>
       <p class="small muted" style="margin:0">${esc(t('rep.specialSub'))}</p>
       <div class="row"><span>${esc(t('rep.specialEvents'))}<br><span class="muted small" data-evstate></span></span><button class="btn sm primary" type="button" data-act="pickRepo">${esc(t('rep.specialPick'))}</button></div>
-      <div class="row"><span>${esc(t('rep.specialOps'))}<br><span class="muted small">${esc(t('exp.opsSoon'))}</span></span><button class="btn sm" type="button" disabled>${esc(t('exp.opsHandover'))}</button></div>
+      <div class="row"><span>${esc(t('rep.specialOps'))}<br><span class="muted small" data-opsstate></span></span><button class="btn sm primary" type="button" data-act="ops">${esc(t('exp.opsHandover'))}</button></div>
     </section>` : ''}
   </main>`);
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
   let openers = {};   // viewers of the report graphics (set by renderReport)
-  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
+  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo(), ops: () => opsDialog(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
   function renderSpecial() {
     const st = el.querySelector('[data-evstate]'); if (!st) return;
     const lg = state.evlog;
     st.textContent = lg ? t('rep.specialLinked', { name: lg.source && (lg.source.flight || lg.source.name) || '–', n: lg.events ? lg.events.length : 0 }) : t('rep.specialNone');
+    const os = el.querySelector('[data-opsstate]'); if (!os) return;
+    const h = state.meta.opsHandover;
+    os.innerHTML = !state.flight || !state.flight.id ? esc(t('rep.opsSaveFirst')) : h && h.briefingId ? `${esc(t('rep.opsLast', { no: h.no || h.briefingId, date: fmtDateTimeUTC(h.at || Date.now()) }))}${h.url ? ` · <a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(t('rep.opsOpen'))}</a>` : ''}` : esc(t('rep.opsReady'));
+  }
+
+  /**
+   * Übergabe an ops.wicki.aero (0.10.0): the Worker lists the last 20 briefings (decision 20.10.2026: always a list,
+   * no automatic match), the user picks one, the Worker sends track + Kennzahlen + Stammdaten + viewer link.
+   */
+  async function opsDialog() {
+    if (!state.flight || !state.flight.id) { toast(t('rep.opsSaveFirst'), true); return; }
+    let list;
+    try { list = await api.flights.opsBriefings(state.flight.id); } catch (e) { toast(t('rep.opsFailed', { err: e.message || '' }), true); return; }
+    const brs = list.briefings || [];
+    const dateOf = (b) => (Number.isFinite(b.startMs) ? fmtDateUTC(b.startMs) : '–');
+    const rows = brs.map((b, k) => `<label class="dl" style="cursor:pointer"><input type="radio" name="opsb" value="${esc(b.id)}" ${k === 0 ? 'checked' : ''}><div class="t"><strong>${esc(b.no || b.id)} · ${dateOf(b)} · ${esc(b.site || b.icao || '–')}</strong><span>${esc([b.reg, b.balloon, b.kind, b.status].filter(Boolean).join(' · '))}${b.trajectory ? ` · <span class="ok">✓ ${esc(t('rep.opsHas', { date: fmtDateTimeUTC(Date.parse(b.trajectory.receivedAt) || Date.now()) }))}</span>` : ''}</span></div></label>`).join('');
+    const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
+      <div class="head"><h1>${esc(t('rep.opsPick'))}</h1></div>
+      <div class="muted small">${esc(t('rep.opsPickSub', { title: state.flight.title || state.meta.title || state.flight.id }))}</div>
+      <div class="dl-list" style="max-height:min(50vh,420px);overflow:auto">${rows || `<p class="muted">${esc(t('rep.opsNone'))}</p>`}</div>
+      <div class="foot"><button class="btn" data-act="cancel" type="button">${esc(t('common.cancel'))}</button><button class="btn primary" data-act="send" type="button" ${rows ? '' : 'disabled'}>${esc(t('rep.opsSend'))}</button></div>
+    </section></div>`);
+    const close = () => bg.remove();
+    onAct(bg, {
+      cancel: close,
+      send: async (btn) => {
+        const sel = bg.querySelector('input[name=opsb]:checked'); if (!sel) return;
+        const b = brs.find((x) => x.id === sel.value); btn.disabled = true;
+        try {
+          const r = await api.flights.opsHandover(state.flight.id, sel.value);
+          state.meta.opsHandover = { briefingId: sel.value, no: b ? b.no || '' : '', url: r.url || '', at: Date.now(), points: r.points || 0 }; saveMeta();
+          close(); toast(t('rep.opsSent', { no: b ? b.no || b.id : sel.value, n: r.points || 0 })); renderSpecial();
+        } catch (e) { btn.disabled = false; toast(t('rep.opsFailed', { err: e.message || '' }), true); }
+      },
+    });
+    bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
+    document.body.appendChild(bg);
   }
   let map = null, mapEl = null, detailMaps = [];
 
