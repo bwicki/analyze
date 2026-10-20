@@ -46,13 +46,23 @@ export function deriveSeries(track, opts = {}) {
     else if (!Number.isNaN(b)) alt[i] = b + (Number.isNaN(offset) ? 0 : offset);
     else alt[i] = NaN;
   }
-  // altitude outlier mask: jump of > 20 m/s between consecutive points that is undone within 30 s
+  // altitude outlier mask: (1) implausible values (below −500 m / above 15 000 m – e.g. −65536 fill values),
+  // (2) jump of > 20 m/s between consecutive points that is undone within 30 s, (3) points more than 500 m
+  // off the median of their ±5 neighbours (isolated spikes that the jump rule misses at low rates)
   const altMask = new Uint8Array(n);
+  for (let i = 0; i < n; i++) if (!Number.isNaN(alt[i]) && (alt[i] < -500 || alt[i] > 15000)) altMask[i] = 1;
   for (let i = 1; i < n - 1; i++) {
     const dt1 = (t[i] - t[i - 1]) / 1000, dt2 = (t[i + 1] - t[i]) / 1000;
     if (dt1 <= 0 || dt1 > gapSec || dt2 <= 0 || dt2 > gapSec) continue;
     const r1 = (alt[i] - alt[i - 1]) / dt1, r2 = (alt[i + 1] - alt[i]) / dt2;
     if (Math.abs(r1) > 20 && Math.abs(r2) > 20 && Math.sign(r1) !== Math.sign(r2)) altMask[i] = 1;
+  }
+  const win = [];
+  for (let i = 0; i < n; i++) {
+    if (altMask[i] || Number.isNaN(alt[i])) continue;
+    win.length = 0;
+    for (let k = Math.max(0, i - 5); k <= Math.min(n - 1, i + 5); k++) if (k !== i && !altMask[k] && !Number.isNaN(alt[k]) && Math.abs(t[k] - t[i]) <= 5 * 60000) win.push(alt[k]);
+    if (win.length >= 4) { win.sort((a, b) => a - b); const med = win[win.length >> 1]; if (Math.abs(alt[i] - med) > 500) altMask[i] = 1; }
   }
   const altClean = new Float32Array(alt);
   for (let i = 0; i < n; i++) if (altMask[i]) altClean[i] = NaN;

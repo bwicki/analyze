@@ -17,8 +17,12 @@ export function renderProfile(container, data) {
   const xs = data.xMode === 'dist' ? (q) => q.dist : (q) => q.t;
   const x0 = xs(pts[0]), x1 = xs(pts[pts.length - 1]), xspan = Math.max(1, x1 - x0);
   const X = (v) => PL + (v - x0) / xspan * (W - PL - PR);
-  const aMin = Math.min(0, ...pts.map((q) => q.alt)), aMaxRaw = Math.max(...pts.map((q) => q.alt));
-  const aMax = niceCeil(u.altValue(aMaxRaw) * 1.05);
+  const alts = pts.map((q) => q.alt), lows = [...alts, ...((data.terrain || []).map((g) => g.alt).filter((a) => !Number.isNaN(a)))];
+  const aMinRaw = Math.min(...lows), aMaxRaw = Math.max(...alts);
+  // axis from a nice step below the lowest altitude (ground/terrain) to a nice step above the highest
+  const vMin = u.altValue(aMinRaw), vMax = u.altValue(aMaxRaw), span = Math.max(50, vMax - vMin), step = niceStep(span / 5);
+  const aMin = u.altFromValue(Math.floor((vMin - span * 0.02) / (step / 5)) * (step / 5));
+  const aMax = Math.ceil((vMax + span * 0.06) / step) * step;
   const Y = (m) => PT + (1 - (u.altValue(m) - u.altValue(aMin)) / Math.max(1, aMax - u.altValue(aMin))) * (H - PT - PB);
   const gMax = Math.max(1, ...pts.map((q) => (Number.isNaN(q.gs) ? 0 : u.speedValue(q.gs))));
   const gTop = niceCeil(gMax * 1.1);
@@ -104,5 +108,6 @@ export function renderProfile(container, data) {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1e-9, raw)))); const m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; }
 function niceCeil(v) { if (v <= 0) return 10; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; const n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
 function niceSteps(min, max, count) { const span = max - min; if (span <= 0) return [min]; const raw = span / count; const p = Math.pow(10, Math.floor(Math.log10(raw))); const m = raw / p; const step = (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(6)); return out; }

@@ -11,7 +11,7 @@ export function trackPoints(track, series, trim, stepSec = 0) {
   for (let i = i0; i <= i1; i++) {
     const isGap = track.gap[i] === 1;
     if (stepSec > 0 && t[i] < nextT && !isGap && i !== i1) continue;
-    out.push({ i, t: t[i], lat: ps.lat[i], lon: ps.lon[i], alt: series.alt[i], balt: ps.balt[i], press: ps.press[i], vs: series.vs[i], gs: series.gs[i], hdg: ps.hdg[i], batt: ps.batt[i], dist: series.dist[i], fix: ps.fix[i] === 1, gap: isGap || (lastKept >= 0 && hasGapBetween(track, lastKept, i)), seg: track.seg ? track.seg[i] : 0 });
+    out.push({ i, t: t[i], lat: ps.lat[i], lon: ps.lon[i], alt: series.altClean[i], balt: ps.balt[i], press: ps.press[i], vs: series.vs[i], gs: series.gs[i], hdg: ps.hdg[i], batt: ps.batt[i], dist: series.dist[i], fix: ps.fix[i] === 1, gap: isGap || (lastKept >= 0 && hasGapBetween(track, lastKept, i)), seg: track.seg ? track.seg[i] : 0 });
     lastKept = i; nextT = t[i] + stepSec * 1000;
   }
   return out;
@@ -28,7 +28,7 @@ export function timeMarkers(track, series, from, to, intervalMin = 60) {
     let p = i; while (p >= 0 && !ps.fix[p]) p--;
     if (p < 0) continue;
     if (Math.abs(t[i] - m) > 10 * 60000) continue; // inside a long gap
-    out.push({ t: m, lat: ps.lat[p], lon: ps.lon[p], alt: series.alt[i], i });
+    out.push({ t: m, lat: ps.lat[p], lon: ps.lon[p], alt: series.altClean[i], i });
   }
   return out;
 }

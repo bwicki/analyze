@@ -52,7 +52,7 @@ export function mountReport(root, ctx) {
             <label class="f">PIC<input class="in" data-f="pic" value="${esc(m.pic)}"></label>
             <label class="f">${esc(t('rep.copilot'))}<input class="in" data-f="copilot" value="${esc(m.copilot)}"></label>
           </div>
-          <label class="f">${esc(t('rep.pax'))}<textarea class="in" data-f="pax" placeholder="${esc(t('rep.paxPh'))}">${esc(m.pax)}</textarea></label>
+          <label class="f">${esc(t('rep.pax'))}<input class="in" data-f="pax" value="${esc(String(m.pax || '').split(/[\n,]/).map((x) => x.trim()).filter(Boolean).join(', '))}" placeholder="${esc(t('rep.crewGroundPh'))}"></label>
           <div class="g2">
             <label class="f">${esc(t('rep.crewGround'))}<input class="in" data-f="crew" value="${esc(m.crew || '')}" placeholder="${esc(t('rep.crewGroundPh'))}"></label>
             <label class="f">${esc(t('rep.commandCenter'))}<input class="in" data-f="commandCenter" value="${esc(m.commandCenter || '')}" placeholder="${esc(t('rep.optional'))}"></label>
@@ -99,7 +99,7 @@ export function mountReport(root, ctx) {
         <div><div class="pk">${esc(t('rep.purpose'))} · NVFR</div>${esc(t('rep.purpose.' + (m.purpose || 'private')))} · ${nvfr ? esc(t('common.yes')) : esc(t('common.no'))}</div>
         <div><div class="pk">PIC</div>${esc(m.pic || '–')}</div>
         <div><div class="pk">${esc(t('rep.copilot'))}</div>${esc(m.copilot || '–')}</div>
-        <div><div class="pk">${esc(t('rep.pax'))}</div>${esc(m.pax ? m.pax.split(/\n/).filter(Boolean).join(', ') : t('rep.none'))}</div>
+        <div><div class="pk">${esc(t('rep.pax'))}</div>${esc(m.pax ? m.pax.split(/[\n,]/).map((x) => x.trim()).filter(Boolean).join(', ') : t('rep.none'))}</div>
         <div><div class="pk">${esc(t('rep.event'))}</div>${esc(m.event || '–')}</div>
         <div><div class="pk">${esc(t('rep.crewGround'))}</div>${esc(m.crew || '–')}</div>
         ${m.commandCenter ? `<div><div class="pk">${esc(t('rep.commandCenter'))}</div>${esc(m.commandCenter)}</div>` : ''}

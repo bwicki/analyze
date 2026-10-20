@@ -230,7 +230,7 @@
   "rep.crewGroundPh": "names, comma separated",
   "rep.commandCenter": "Command center",
   "rep.optional": "optional",
-  "rep.paxPh": "one name per line",
+  "rep.paxPh": "names, comma separated",
   "rep.nvfrAuto": "automatic (night share > 1 min)",
   "rep.remarks": "Remarks",
   "rep.previewNote": "Preview – the PDF is made with “Print / PDF” (choose “Save as PDF” in the print dialog).",

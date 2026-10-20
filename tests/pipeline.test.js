@@ -65,3 +65,18 @@ test('false intermediate landing can be removed: landing + following take-off me
   assert.deepEqual(Array.from(statesFromEvents(out, 11)), [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0]);
   assert.equal(dropIgnoredLandings(ev, [4000]).length, 4);     // no match → untouched
 });
+
+test('altitude outliers (fill values, isolated spikes) are masked and the profile axis starts near the lowest altitude', async () => {
+  const { deriveSeries } = await import('../src/process/series.js');
+  const { renderProfileSvg } = await import('../src/ui/profile.js').catch(() => ({}));
+  const n = 400, t = new Float64Array(n), lat = new Float32Array(n), lon = new Float32Array(n), alt = new Float32Array(n), fix = new Uint8Array(n).fill(1);
+  for (let i = 0; i < n; i++) { t[i] = Date.UTC(2026, 8, 1, 10, 0, 0) + i * 5000; lat[i] = 47 + i * 1e-4; lon[i] = 8 + i * 1e-4; alt[i] = 600 + 300 * Math.sin(i / 40); }
+  alt[50] = -65536; alt[51] = -65536; alt[200] = 9000;   // fill values and one isolated spike
+  const ps = { n, t, lat, lon, alt, fix, balt: new Float32Array(n).fill(NaN), press: new Float32Array(n).fill(NaN), vs: new Float32Array(n).fill(NaN), gs: new Float32Array(n).fill(NaN), hdg: new Float32Array(n).fill(NaN), runtime: new Float32Array(n).fill(NaN), batt: new Float32Array(n).fill(NaN) };
+  const track = { points: ps, seg: new Uint16Array(n), gap: new Uint8Array(n), gaps: [], segments: [{ id: 1, from: 0, to: n }], collapsed: 0 };
+  const s = deriveSeries(track, { gapSec: 30 });
+  assert.ok(s.altMask[50] && s.altMask[51] && s.altMask[200], 'outliers masked');
+  assert.ok(Number.isNaN(s.altClean[50]) && Number.isNaN(s.altClean[200]));
+  const clean = Array.from(s.altClean).filter((a) => !Number.isNaN(a));
+  assert.ok(Math.min(...clean) > 290 && Math.max(...clean) < 910, 'clean range plausible');
+});

@@ -16,6 +16,7 @@ export function makeUnits(mode) {
     },
     altUnit: icao ? 'ft' : 'm',
     altValue: (m) => (icao ? mToFt(m) : m),
+    altFromValue: (v) => (icao ? v / 3.280839895 : v),
     /** speed in m/s → "37 kt" or "69 km/h" */
     speed: (ms, digits = 0) => (ms === null || ms === undefined || Number.isNaN(ms) ? '–' : icao ? withUnit(fmtNum(msToKt(ms), digits), 'kt') : withUnit(fmtNum(msToKmh(ms), digits), 'km/h')),
     speedUnit: icao ? 'kt' : 'km/h',

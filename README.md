@@ -5,7 +5,7 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.7.4 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
+**Stand: Version 0.7.5 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
 **Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track

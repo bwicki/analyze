@@ -230,7 +230,7 @@
   "rep.crewGroundPh": "Namen, durch Komma getrennt",
   "rep.commandCenter": "Command Center",
   "rep.optional": "optional",
-  "rep.paxPh": "ein Name je Zeile",
+  "rep.paxPh": "Namen, durch Komma getrennt",
   "rep.nvfrAuto": "automatisch (Nachtanteil > 1 min)",
   "rep.remarks": "Bemerkungen",
   "rep.previewNote": "Vorschau – das PDF entsteht über «Drucken / PDF» (im Druckdialog «Als PDF sichern» wählen).",
