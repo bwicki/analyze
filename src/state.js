@@ -8,7 +8,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.7.3';
+export const VERSION = '0.7.4';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
   nightLimitDeg: -6,
   geocode: true,          // fetch place names from OpenStreetMap (Nominatim) for start and landing
   mapLayer: 'osm',
-  colorBy: 'vario',       // profile line colour: 'vario' | 'alt'
+  colorBy: 'vario',       // track/profile colour: 'vario' | 'gs' (ground speed)
   hideOtherFlights: true,
 };
 
@@ -37,7 +37,7 @@ export const state = {
   phase: 'import',
   visited: { import: true },
   settings: { ...DEFAULT_SETTINGS, ...load(LS_SETTINGS, {}), detect: { ...DETECT_DEFAULTS, ...(load(LS_SETTINGS, {}).detect || {}) } },
-  meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
+  meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', crew: '', commandCenter: '', equipment: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
   files: [],        // parser results (one per file / zip entry)
   unknown: [],      // files without profile
   busy: false, progress: '',

@@ -12,6 +12,38 @@ export function haversine(lat1, lon1, lat2, lon2) {
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/**
+ * Geodesic distance on the WGS84 ellipsoid (Vincenty inverse, metres) – the basis for FAI/record
+ * distances. Falls back to haversine for the (practically impossible) non-converging antipodal case.
+ */
+const WGS84 = { a: 6378137, b: 6356752.314245, f: 1 / 298.257223563 };
+export function vincenty(lat1, lon1, lat2, lon2) {
+  if (lat1 === lat2 && lon1 === lon2) return 0;
+  const { a, b, f } = WGS84;
+  const L = rad(lon2 - lon1), U1 = Math.atan((1 - f) * Math.tan(rad(lat1))), U2 = Math.atan((1 - f) * Math.tan(rad(lat2)));
+  const sinU1 = Math.sin(U1), cosU1 = Math.cos(U1), sinU2 = Math.sin(U2), cosU2 = Math.cos(U2);
+  let lambda = L, prev, iter = 0, sinSigma, cosSigma, sigma, sinAlpha, cosSqAlpha, cos2SigmaM;
+  do {
+    const sinL = Math.sin(lambda), cosL = Math.cos(lambda);
+    sinSigma = Math.sqrt((cosU2 * sinL) ** 2 + (cosU1 * sinU2 - sinU1 * cosU2 * cosL) ** 2);
+    if (sinSigma === 0) return 0;
+    cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosL;
+    sigma = Math.atan2(sinSigma, cosSigma);
+    sinAlpha = cosU1 * cosU2 * sinL / sinSigma;
+    cosSqAlpha = 1 - sinAlpha * sinAlpha;
+    cos2SigmaM = cosSqAlpha !== 0 ? cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha : 0;
+    const C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
+    prev = lambda;
+    lambda = L + (1 - C) * f * sinAlpha * (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM)));
+  } while (Math.abs(lambda - prev) > 1e-12 && ++iter < 200);
+  if (iter >= 200) return haversine(lat1, lon1, lat2, lon2);
+  const uSq = cosSqAlpha * (a * a - b * b) / (b * b);
+  const A = 1 + uSq / 16384 * (4096 + uSq * (-768 + uSq * (320 - 175 * uSq)));
+  const B = uSq / 1024 * (256 + uSq * (-128 + uSq * (74 - 47 * uSq)));
+  const dSigma = B * sinSigma * (cos2SigmaM + B / 4 * (cosSigma * (-1 + 2 * cos2SigmaM * cos2SigmaM) - B / 6 * cos2SigmaM * (-3 + 4 * sinSigma * sinSigma) * (-3 + 4 * cos2SigmaM * cos2SigmaM)));
+  return b * A * (sigma - dSigma);
+}
+
 /** Initial (true) bearing from 1 to 2 in degrees 0..360. */
 export function bearing(lat1, lon1, lat2, lon2) {
   const p1 = rad(lat1), p2 = rad(lat2), dl = rad(lon2 - lon1);

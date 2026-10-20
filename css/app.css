@@ -185,6 +185,9 @@ details.exp>div{padding-bottom:10px}
 .report .pk{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
 .report .bar{height:3px;background:var(--amber-light)}
 .report table{border-collapse:collapse;width:100%;font-size:13px}
+.report .rep-detail{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.report .rep-detail .map{border:1px solid #ccc;border-radius:6px}
+.report .rep-detail .pk{margin-bottom:4px}
 .report td{padding:5px 6px;border-bottom:1px solid var(--hair);vertical-align:top}
 .report td.v{font-family:var(--mono);white-space:nowrap}
 .report .sig{display:flex;gap:28px;margin-top:18px}

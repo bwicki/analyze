@@ -5,10 +5,10 @@ Fünf Phasen: **Importieren · Bereinigen · Auswerten · Bericht · Exportieren
 Alles läuft im Browser (Chrome, Edge, Firefox, Safari); es werden keine Daten hochgeladen.
 Konzept: `docs/Konzept_analyze_v0.1.md` · Design-Boards: `design/` (Claude Design, Stand Phase 0).
 
-**Stand: Version 0.7.3 = Phase 1 und 2 komplett, Phase 3 begonnen:** Kennung (6 Buchstaben), eigenes Logo,
+**Stand: Version 0.7.4 = Phase 1 und 2 komplett, Phase 3 begonnen:** persönlicher PIN (6 Zeichen; im Code und in der API weiterhin «Kennung»/`code`), eigenes Logo,
 Fahrtarchiv «Meine Fahrten», Fahrt speichern mit Kurzlink `analyze.wicki.aero/v/‹ID›` und QR-Code, öffentlicher
 Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-Freigabe) oder als JSON/CSV-Datei,
-**Profil-Assistent** für unbekannte Trackerformate (Profile für alle Kennungen geteilt), **Fotos** auf dem Track
+**Profil-Assistent** für unbekannte Trackerformate (Profile für alle PINs geteilt), **Fotos** auf dem Track
 (EXIF-Zeit oder Zeit von Hand, Kamerazeitzone, Viewer/QR, Berichtsseite). Dafür läuft ein kleiner Cloudflare Worker (`worker/`, D1 + R2)
 – Einrichtung in §6. Offen in Phase 3: Stammdaten-Übergabe aus ops.wicki.aero.
 
@@ -24,8 +24,8 @@ Viewer, Supermaster, **Ereignislog** aus `bwicki/gb_flight_data` (Worker, Team-F
 | `src/export/` | GPX, GeoJSON, KML/KMZ, CSV (`formats.js`), Downloads (`download.js`) |
 | `src/ui/` | Die fünf Phasen, Karte (Leaflet), Höhenprofil (SVG) |
 | `src/worker/parse-worker.js` | Parser im Web Worker (80-MB-Logs ohne Einfrieren der Seite) |
-| `src/api.js`, `src/session.js`, `src/flightio.js` | Worker-Client, Kennung im Browser, Speichern/Öffnen von Fahrten (GeoJSON) |
-| `src/ui/start.js`, `flights.js`, `admin.js` | Startseite (Kennung), Meine Fahrten, Supermaster |
+| `src/api.js`, `src/session.js`, `src/flightio.js` | Worker-Client, PIN im Browser, Speichern/Öffnen von Fahrten (GeoJSON) |
+| `src/ui/start.js`, `flights.js`, `admin.js` | Startseite (PIN), Meine Fahrten, Supermaster |
 | `src/util/qr.js` | QR-Code-Erzeuger (eigener Code, kein Fremdcode) für Kurzlinks |
 | `src/events/log.js`, `src/ui/events.js` | Ereignislog: Normalisierung der Reporting-App-Zeilen, Verknüpfung mit dem Track, Karte/Profil/Tabelle |
 | `src/parse/assist.js`, `src/ui/assist.js`, `src/profiles-store.js` | Profil-Assistent: Dateianalyse, Spaltenvorschläge, Profil-JSON, Vorschau; geteilte und lokale Profile |
@@ -52,7 +52,7 @@ Kartenkacheln: OpenStreetMap, OpenTopoMap, Esri World Imagery. Ortsnamen (option
 5. Ab jetzt ist jede Änderung an `main` nach 1–2 Minuten unter **https://analyze.wicki.aero** live
    (Ersatzadresse: `https://bwicki.github.io/analyze/`).
 
-Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` in `src/config.js` leer lassen.
+Die App läuft auch ohne Worker (dann ohne PIN und Speichern) – `apiBase` in `src/config.js` leer lassen.
 
 ---
 
@@ -62,23 +62,28 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    GB-Instrument CSV/JSONL, GPX, KML/KMZ, IGC, aprs.fi-CSV. Doppelte Aufzeichnungen (CSV + JSONL) werden einmal
    verwendet, Aufzeichnungen anderer Fahrten ausgeblendet.
 2. **Bereinigen** – Zeitleiste mit Segmenten, Neustarts und Nacht; Start/Landung erkannt; Schnitt mit Griffen
-   oder Zeiten; Protokoll der Aufbereitung.
+   oder Zeiten; Protokoll der Aufbereitung. Endet die Aufzeichnung in der Fahrt (keine Landung erkannt), setzt
+   «Landung von Hand setzen» sie im App-Dialog: Karte mit dem Ende des Tracks, Zeitfeld/Schieberegler/Klick auf
+   den Track, Landeort (Vorschlag aus OpenStreetMap, überschreibbar).
 3. **Auswerten** – Karte (Layer Strasse/Topo/Satellit als Radiobuttons oben rechts in der Karte, Farbe nach Vario
-   oder Höhe, Zeitmarker; die Karte ist so hoch wie die Kennzahlen daneben), Kennzahlen (ICAO oder metrisch),
+   oder Fahrt über Grund in fünf Stufen, Nachtabschnitte (NVFR) mit dunklem Saum, Zeitmarker; die Karte ist so hoch
+   wie die Kennzahlen daneben), Kennzahlen (ICAO oder metrisch; Ortsnamen `CH-Willisau` von OpenStreetMap Nominatim,
+   Ersatz Photon; «Ortsnamen holen» wiederholt den Abruf; ohne erkannte Landung zeigt die Landezeile das Ende der
+   Aufzeichnung mit Hinweis). Strecke und Luftlinie werden auf dem WGS84-Ellipsoid gerechnet (Vincenty),
    Höhenprofil mit Nacht und Fahrt über Grund; Maus über Profil ↔ gelber Marker auf der Karte – die Karte schiebt
    den Ausschnitt nach, damit der Marker auch in einer gezoomten Ansicht sichtbar bleibt.
    «In Google Earth öffnen» sichert eine KMZ mit Zeitregler. Klick auf den Track (Karte) oder ins Profil hält den
    Zeitpunkt in beiden fest. Ortsnamen im Format `CH-Willisau`. Eine fälschlich erkannte **Zwischenlandung**
    (Richtungsumkehr, Stillstand) entfernt das × am Marker bzw. in der Kennzahlenliste/Bereinigen; die beiden
    Abschnitte werden zusammengefügt (wiederherstellbar). **Ereignislog:** «Aus gb_flight_data verknüpfen»
-   (abgeschlossene Fahrten der Reporting-App, passende nach Zeitraum markiert; braucht Kennung mit Team-Freigabe und Worker-Token) oder
+   (abgeschlossene Fahrten der Reporting-App, passende nach Zeitraum markiert; braucht PIN mit Team-Freigabe und Worker-Token) oder
    «Datei (JSON/CSV)» (Export der Reporting-App). Ereignisse erscheinen als farbige Marker auf Karte und Profil,
    als Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach Typ; Maus über eine Zeile zeigt den Punkt.
    Beim Speichern der Fahrt wird das Log mitgespeichert (Viewer und «Öffnen» zeigen es). Ballast-Restbestand aus
    den Ballast-Einträgen erscheint als gestrichelte Linie im Höhenprofil (rechte Skala).
    **Fotos** (ab 0.7.0, braucht eine gespeicherte Fahrt): «Fotos hinzufügen» nimmt JPEGs von Kamera oder Handy, liest
    die Aufnahmezeit (EXIF) und legt jedes Bild auf den Track (Position, Höhe); Bilder werden im Browser auf 2000 px
-   verkleinert (+ Vorschaubild) und unter der Kennung gespeichert. «Kamerazeit» = Zeitzone der Kamera-Uhr (Heimzeit,
+   verkleinert (+ Vorschaubild) und unter dem PIN gespeichert. «Kamerazeit» = Zeitzone der Kamera-Uhr (Heimzeit,
    Sommerzeit UTC+02:00; EXIF-Zonen neuerer Handys werden direkt verwendet), «Feinkorrektur» für vor-/nachgehende
    Uhren, «Aus GPS-Fotos vorschlagen» bestimmt die Zone aus Fotos mit GPS-Position (Δ = Abstand zum Track).
    **Zeit von Hand:** Fotos ohne EXIF-Zeit (Screenshots, WhatsApp-Bilder) zeigen im Kästchen sofort ein Feld
@@ -88,21 +93,25 @@ Die App läuft auch ohne Worker (dann ohne Kennung und Speichern) – `apiBase` 
    her (ab 0.7.3).
    Bildtext je Foto, Maus über ein Foto → Ort auf Karte/Profil, Klick → Grossansicht. Der Viewer hinter dem
    Kurzlink/QR-Code zeigt die Fotos ebenfalls; der Bericht erhält eine Fotoseite (bis 24 Bilder).
-4. **Bericht** – Stammdaten eintragen, «Drucken / PDF» (im Druckdialog «Als PDF sichern»). Gespeicherte Fahrten
-   tragen Kurzlink und QR-Code in der Fusszeile.
-5. **Exportieren** – GPX, GeoJSON, KMZ, CSV, alles als ZIP; Auflösung wählbar. **Fahrt speichern** legt den
-   geschnittenen Track (volle Auflösung, komprimiert), Kennzahlen und Stammdaten unter der Kennung ab und erzeugt den
+4. **Bericht** – Stammdaten eintragen (Ballon mit Muster/Volumen und «Ergänzungen zur Ausrüstung», PIC, Co-Pilot,
+   Passagiere, Nachfahrer, Command Center, Zweck privat/gewerblich/Wettfahrt/Schulung), «Drucken / PDF» (im Druckdialog
+   «Als PDF sichern»). Seite 1 Stammdaten und Kennzahlen (Start- und Landezeile mit Ort), Seite 2 Übersichtskarte,
+   Detailkarten von Startort und Landeort, Höhenprofil, Seite 3 Segmente/Protokoll und Unterschrift, dann Ereignislog
+   und Fotos. Gespeicherte Fahrten tragen Kurzlink und QR-Code in der Fusszeile.
+5. **Exportieren** – GPX, GeoJSON, KMZ, CSV einzeln oder «Alles als ZIP» (GPX, GeoJSON, KML + KMZ, CSV, Kennzahlen
+   als JSON und Text, Stammdaten, Ereignislog, README); Auflösung wählbar. **Fahrt speichern** legt den
+   geschnittenen Track (volle Auflösung, komprimiert), Kennzahlen und Stammdaten unter dem PIN ab und erzeugt den
    Kurzlink `analyze.wicki.aero/v/‹ID›` (QR-Code daneben; «Kurzlink deaktivieren» macht die Fahrt privat).
 
-**Kennung:** Startseite → «Neue Kennung erzeugen» (einmal notieren) oder vorhandene eingeben. Die Kennung ist das
-einzige Geheimnis – wer sie kennt, sieht und ändert die Fahrten darunter. «Ohne Kennung ausprobieren» = Phase-1-Betrieb.
-**Meine Fahrten** (Klick auf die Kennung oben rechts): Liste, Öffnen ohne Neu-Import, Löschen, Anzeigename, eigenes
+**Persönlicher PIN:** Startseite → «Neuen PIN erzeugen» (einmal notieren) oder vorhandenen eingeben. Der PIN (sechs
+Zeichen) ist das einzige Geheimnis – wer ihn kennt, sieht und ändert die Fahrten darunter. «Ohne PIN ausprobieren» = Phase-1-Betrieb.
+**Meine Fahrten** (Klick auf den PIN oben rechts): Liste, Öffnen ohne Neu-Import, Löschen, Anzeigename, eigenes
 Logo (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst Ballonteam-Logo), Vorgaben (Standard-Ballon, PIC).
-**Viewer:** Der Kurzlink zeigt Auswerten und Bericht ohne Kennung, ohne Bearbeiten.
-**Supermaster** (☰ → Supermaster oder `#admin`): einmalig Name + PIN einrichten; sieht alle Kennungen (sperren,
+**Viewer:** Der Kurzlink zeigt Auswerten und Bericht ohne PIN, ohne Bearbeiten.
+**Supermaster** (☰ → Supermaster oder `#admin`): einmalig Name + Supermaster-PIN einrichten; sieht alle persönlichen PINs (sperren,
 löschen, **Team-Freigabe** für das Ereignislog aus gb_flight_data), alle Fahrten und das Nutzungsprotokoll.
 
-Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen), Kennung wechseln.
+Einstellungen (☰): Einheiten, Zeitmarker, Ortsnamen, Experte (Lücken, Erkennungsschwellen), PIN wechseln.
 
 ---
 
@@ -113,7 +122,7 @@ node --test tests/*.test.js
 ```
 
 Die Tests prüfen Leser, Zusammenfügen, Erkennung, Kennzahlen (GB26: Start 23:31 UTC, Landung 16:34 UTC,
-41 h 03 min, ≈ 1 588 km, 1 Neustart, 2 Nächte), Exporte, den GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit
+41 h 03 min, ≈ 1 590 km (WGS84), 1 Neustart, 2 Nächte), Exporte, den GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit
 denselben Segmenten und Kennzahlen), die Worker-API (mit D1/R2-Attrappen) und die Vollständigkeit der Übersetzungen.
 Der Workflow `.github/workflows/tests.yml` führt sie bei jedem Push aus.
 
@@ -125,8 +134,8 @@ Der Workflow `.github/workflows/tests.yml` führt sie bei jedem Push aus.
 unbekannt» mit dem Knopf **Profil-Assistent öffnen**. Drei Schritte: (1) Datei lesen – Trennzeichen, Kopfzeile,
 Dezimalzeichen werden erkannt und sind änderbar; (2) Spalten zuordnen – Vorschläge je Normfeld aus Spaltennamen und
 Wertebereichen (Zeit als eine Spalte oder Datum + Zeit, Einheiten m/ft, kt/km/h/m/s, cm/s/ft/min, V/%), Vorschau
-mit Zeitraum, Fix-Punkten, Höhen und Trackskizze; (3) Benennen und speichern – mit Kennung wird das Profil über den
-Worker **für alle Kennungen** geteilt, ohne Kennung bleibt es im Browser. Danach wird das Format automatisch erkannt
+mit Zeitraum, Fix-Punkten, Höhen und Trackskizze; (3) Benennen und speichern – mit PIN wird das Profil über den
+Worker **für alle PINs** geteilt, ohne PIN bleibt es im Browser. Danach wird das Format automatisch erkannt
 (geteilte Profile werden beim Start geladen). Eigene Profile lassen sich unter «Erkannte Trackerprofile» entfernen,
 der Supermaster sieht alle unter «Profile». Erkannt werden CSV/TSV, JSON Lines und JSON-Arrays; GPX/KML/IGC sind
 fest eingebaut.
@@ -164,19 +173,19 @@ werden einmalig im Cloudflare-Dashboard angelegt.
    Ablauf z. B. 1 Jahr. Token als GitHub-Secret `GITHUB_DATA_TOKEN` im Repo `bwicki/analyze` hinterlegen und
    «Deploy worker» einmal laufen lassen – der Workflow legt es als Worker-Secret ab (`wrangler secret put`); der
    Token verlässt den Worker nie. Ohne Secret bleibt nur der Datei-Upload des Logs. Danach im Supermaster bei den
-   Kennungen des Ballonteams «Team-Zugang geben» – nur diese sehen den Knopf «Aus gb_flight_data verknüpfen».
+   PINs des Ballonteams «Team-Zugang geben» – nur diese sehen den Knopf «Aus gb_flight_data verknüpfen».
 
 Secrets liegen ausschliesslich in GitHub Secrets; `wrangler.toml` enthält keine. Aufbewahrung: Fahrten werden
-730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro Kennung: 300 MB
+730 Tage nach der letzten Änderung vom täglichen Cron gelöscht (`RETENTION_DAYS`). Speicher pro PIN: 300 MB
 (`QUOTA_MB`), Track ≤ 25 MB komprimiert, Logo ≤ 1 MB. CORS: nur die Origins aus `APP_ORIGINS`.
 
 **API (Worker):** `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
 `GET /api/view/‹id›[/track|/events]` (öffentlich) · `GET /api/events/flights`, `/api/events/‹Fahrt›`,
-`/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-Kennungen, 5 min Cache) · `GET /api/profiles`
+`/api/events/media/‹Datei›` (Ereignislog aus gb_flight_data, Team-PINs, 5 min Cache) · `GET /api/profiles`
 (öffentlich), `POST /api/profiles`, `DELETE /api/profiles/‹id›` (eigene) · `GET|POST /api/flights/‹id›/photos`,
 `PUT|DELETE /api/flights/‹id›/photos/‹pid›` (PUT: `caption`, `manualTime` = UTC von Hand bzw. `null`, `cameraTime` = Kamera-Uhr), `GET /api/view/‹id›/photos`, `GET /api/photos/‹pid›[/thumb]` (Bild;
-öffentlich bei öffentlicher Fahrt) · `/api/admin/…` (Supermaster, Bearer-Token). Kennung als Header `X-Code`.
+öffentlich bei öffentlicher Fahrt) · `/api/admin/…` (Supermaster, Bearer-Token). PIN als Header `X-Code`.
 Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON); Foto = multipart `meta` + `image` + `thumb` (JPEG).
 Tabellen und Spalten, die nach der ersten Migration dazukamen (`codes.team`, `photos`, `photos.manual`, `photos.manual_at`), legt der Worker beim ersten Aufruf selbst an.
 

@@ -67,3 +67,16 @@ test('i18n: EN covers DE, placeholders match', () => {
     assert.equal(pe, pd, `placeholders differ in ${k}`);
   }
 });
+
+test('WGS84 geodesic (Vincenty): known distances, symmetry, short legs', async () => {
+  const { vincenty, haversine } = await import('../src/util/geo.js');
+  // Flinders Peak → Buninyong (Vincenty 1975 test case): 54 972.271 m
+  assert.ok(Math.abs(vincenty(-37.95103342, 144.42486789, -37.65282114, 143.92649554) - 54972.271) < 0.01);
+  // Gladbeck → Zurich: ellipsoid vs sphere differ by a few hundred metres on ~550 km
+  const d = vincenty(51.57, 6.98, 47.38, 8.54), h = haversine(51.57, 6.98, 47.38, 8.54);
+  assert.ok(d > 470000 && d < 480000 && Math.abs(d - h) < 2000, `${d} vs ${h}`);
+  assert.ok(Math.abs(vincenty(51.57, 6.98, 47.38, 8.54) - vincenty(47.38, 8.54, 51.57, 6.98)) < 1e-6);
+  assert.equal(vincenty(50, 10, 50, 10), 0);
+  // short leg (10 m) within 1 cm of haversine
+  assert.ok(Math.abs(vincenty(50, 10, 50.00009, 10) - haversine(50, 10, 50.00009, 10)) < 0.05);
+});

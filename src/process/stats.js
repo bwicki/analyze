@@ -1,7 +1,7 @@
 // Kennzahlen der Fahrt (concept §7) from the merged track, derived series, events and the trim.
 // Everything in SI (m, m/s, s); the UI converts to ICAO units.
 
-import { haversine, bearing, nightIntervals } from '../util/geo.js';
+import { vincenty, bearing, nightIntervals } from '../util/geo.js';
 import { movingMean, derivative, indexAt, positionAt } from './series.js';
 
 function maxOf(t, v, i0, i1, sign = 1) {
@@ -36,7 +36,7 @@ export function computeStats(track, series, events, trim, opts = {}) {
   const distanceM = series.dist[a1] - series.dist[a0];
   let firstFix = a0; while (firstFix < a1 && !ps.fix[firstFix]) firstFix++;
   let lastFix = a1; while (lastFix > a0 && !ps.fix[lastFix]) lastFix--;
-  const straightM = ps.fix[firstFix] && ps.fix[lastFix] ? haversine(ps.lat[firstFix], ps.lon[firstFix], ps.lat[lastFix], ps.lon[lastFix]) : NaN;
+  const straightM = ps.fix[firstFix] && ps.fix[lastFix] ? vincenty(ps.lat[firstFix], ps.lon[firstFix], ps.lat[lastFix], ps.lon[lastFix]) : NaN;
   const bearingDeg = ps.fix[firstFix] && ps.fix[lastFix] ? bearing(ps.lat[firstFix], ps.lon[firstFix], ps.lat[lastFix], ps.lon[lastFix]) : NaN;
   // altitude
   const altMax = maxOf(t, series.altClean, a0, a1);
@@ -66,8 +66,10 @@ export function computeStats(track, series, events, trim, opts = {}) {
   let nFix = 0; for (let i = i0; i <= i1; i++) nFix += ps.fix[i];
   // tracker extras
   const battMin = maxOf(t, ps.batt, i0, i1, -1), battMax = maxOf(t, ps.batt, i0, i1, 1);
+  let lf = i1; while (lf > i0 && !ps.fix[lf]) lf--;
+  const endFix = ps.fix[lf] ? { t: t[lf], lat: ps.lat[lf], lon: ps.lon[lf], alt: series.altClean[lf], idx: lf } : null;   // end of recording (shown when no landing was detected)
   return {
-    trim: { from: trim.from, to: trim.to, i0, i1 }, takeoff, landing, landings: landings.length, intermediate, takeoffs: takeoffs.length,
+    trim: { from: trim.from, to: trim.to, i0, i1 }, takeoff, landing, endFix, landings: landings.length, intermediate, takeoffs: takeoffs.length,
     durationSec, airSec, distanceM, straightM, bearingDeg,
     altMax, altMean, altSource: series.altSource, baroMax: hasBaro ? baroMax : null,
     vsMax, vsMin, vsSource: series.vsSource, gsMax, gsMean, gsSource: series.gsSource,

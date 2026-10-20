@@ -3,7 +3,8 @@
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast } from '../util/dom.js';
 import { fmtInt, fmtTimeUTC, fmtDayUTC, fmtDateUTC, fmtDateTimeUTC, fmtDurationHM, icaoShort, pad2 } from '../util/format.js';
-import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restoreLandings } from '../state.js';
+import { state, bus, setTrim, setManualLanding, recompute, ignoreLanding, restoreLandings, saveMeta } from '../state.js';
+import { reverseGeocode } from '../util/places.js';
 import { DETECT_DEFAULTS } from '../process/detect.js';
 
 const W = 1180, H = 150, L = 20, R = 20;
@@ -42,12 +43,86 @@ export function mountClean(root, ctx) {
   onAct(el, {
     apply: () => { const a = parseUtc(inFrom.value), b = parseUtc(inTo.value); if (Number.isNaN(a) || Number.isNaN(b)) { toast(t('cln.badTime'), true); return; } setTrim(a, b, false); },
     auto: () => setTrim(0, 0, true),
-    landing: () => { const v = prompt(t('cln.landingPrompt'), fmtUtcInput(state.stats.landing ? state.stats.landing.t : state.trim.to)); if (v === null) return; const ms = parseUtc(v); if (Number.isNaN(ms)) { toast(t('cln.badTime'), true); return; } setManualLanding(ms); },
+    landing: () => landingDialog(),
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: false }); },
     redetect: () => recompute({ reclassify: false }),
     ignore: (b) => { ignoreLanding(+b.dataset.t); toast(t('ana.landingIgnored')); },
     restore: () => restoreLandings(),
   });
+
+  /**
+   * Landing by hand: in-app dialog with a map of the end of the recording (last 45 min of the track, marker
+   * follows the chosen time), time (UTC) with a slider, and the landing place name (prefilled by reverse geocoding).
+   */
+  function landingDialog() {
+    const tr = state.track, st = state.stats; if (!tr || !st) return;
+    const ps = tr.points, n = ps.n;
+    const tEnd = state.trim.to, tStart = Math.max(state.trim.from, tEnd - 4 * 3600000);
+    let ms = st.landing ? st.landing.t : tEnd;
+    const toInput = (v) => new Date(v).toISOString().slice(0, 19);
+    const fromInput = (s) => { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(s || ''); return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)) : NaN; };
+    const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:640px">
+      <div class="head"><h1>${esc(t('cln.setLanding'))}</h1></div>
+      <div class="muted small">${esc(t('cln.landingDialogSub'))}</div>
+      <div class="map" data-lmap style="height:240px;min-height:0;flex:none"></div>
+      <label class="f">${esc(t('cln.landingTime'))}<input class="in" type="datetime-local" step="1" data-ltime value="${toInput(ms)}" min="${toInput(ps.t[0])}" max="${toInput(ps.t[n - 1])}"></label>
+      <input type="range" data-lrange min="${tStart}" max="${tEnd}" step="1000" value="${ms}" style="width:100%">
+      <div class="row-wrap" style="gap:8px;align-items:center"><span class="mono small" data-lpos></span><button class="btn sm" type="button" data-act="last">${esc(t('cln.lastPoint'))}</button></div>
+      <label class="f">${esc(t('cln.landingPlace'))}<input class="in" data-lplace value="${esc(state.meta.landName || state.places.landing || '')}" placeholder="${esc(t('cln.landingPlacePh'))}"></label>
+      <div class="foot"><button class="btn" data-act="cancel" type="button">${esc(t('common.cancel'))}</button><button class="btn primary" data-act="ok" type="button">${esc(t('cln.applyLanding'))}</button></div>
+    </section></div>`);
+    const timeIn = bg.querySelector('[data-ltime]'), range = bg.querySelector('[data-lrange]'), pos = bg.querySelector('[data-lpos]'), placeIn = bg.querySelector('[data-lplace]');
+    let map = null, marker = null;
+    const pointAt = (v) => { let i = 0; while (i < n - 1 && ps.t[i] < v) i++; let p = i; while (p > 0 && !ps.fix[p]) p--; return ps.fix[p] ? { lat: ps.lat[p], lon: ps.lon[p], t: ps.t[i] } : null; };
+    let geoTimer = null;
+    const update = (v, from) => {
+      ms = Math.min(ps.t[n - 1], Math.max(ps.t[0], v));
+      if (from !== 'time') timeIn.value = toInput(ms);
+      if (from !== 'range') range.value = String(Math.min(tEnd, Math.max(tStart, ms)));
+      const p = pointAt(ms);
+      pos.textContent = p ? `${fmtDateTimeUTC(p.t, true)} · ${icaoShort(p.lat, p.lon)}` : '–';
+      if (map && p) { marker.setLatLng([p.lat, p.lon]); if (!map.getBounds().pad(-0.1).contains([p.lat, p.lon])) map.panTo([p.lat, p.lon]); }
+      // place name proposal for the chosen point (only when the field was not typed by hand)
+      clearTimeout(geoTimer);
+      if (p && !placeIn.dataset.typed) geoTimer = setTimeout(async () => { const name = await reverseGeocode(p.lat, p.lon, document.documentElement.lang || 'de'); if (name && !placeIn.dataset.typed) placeIn.value = name; }, 400);
+    };
+    timeIn.addEventListener('change', () => { const v = fromInput(timeIn.value); if (!Number.isNaN(v)) update(v, 'time'); });
+    range.addEventListener('input', () => update(+range.value, 'range'));
+    placeIn.addEventListener('input', () => { placeIn.dataset.typed = '1'; });
+    const close = () => { if (map) { map.remove(); map = null; } bg.remove(); };
+    onAct(bg, {
+      cancel: close,
+      last: () => update(ps.t[n - 1], 'btn'),
+      ok: () => {
+        setManualLanding(ms);
+        const name = placeIn.value.trim();
+        if (name) { state.meta.landName = name; state.places.landing = name; saveMeta(); bus.emit('places'); }
+        close(); toast(t('cln.landingSet', { time: fmtDateTimeUTC(ms, true) }));
+      },
+    });
+    bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
+    document.body.appendChild(bg);
+    // map of the end of the recording (last 45 min before the chosen time + what follows)
+    const Lf = globalThis.L;   // Leaflet (the module-level L here is the timeline's left margin)
+    if (Lf && typeof Lf.map === 'function') {
+      const mEl = bg.querySelector('[data-lmap]');
+      map = Lf.map(mEl, { zoomControl: true, preferCanvas: true, attributionControl: false });
+      Lf.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      const line = []; for (let i = 0; i < n; i++) if (ps.fix[i] && ps.t[i] >= tStart) line.push([ps.lat[i], ps.lon[i]]);
+      if (line.length > 1) Lf.polyline(line, { color: '#1f5fbf', weight: 3 }).addTo(map);
+      const p0 = pointAt(ms) || { lat: ps.lat[n - 1], lon: ps.lon[n - 1] };
+      marker = Lf.circleMarker([p0.lat, p0.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#c0392b', fillOpacity: 1 }).addTo(map);
+      const tail = line.slice(-60);
+      if (tail.length > 1) map.fitBounds(Lf.latLngBounds(tail), { padding: [24, 24], maxZoom: 14 }); else map.setView([p0.lat, p0.lon], 13);
+      map.on('click', (e) => { // click on the track picks the nearest point in time
+        let best = -1, bd = Infinity; for (let i = 0; i < n; i++) { if (!ps.fix[i] || ps.t[i] < tStart) continue; const d = (ps.lat[i] - e.latlng.lat) ** 2 + ((ps.lon[i] - e.latlng.lng) * Math.cos(ps.lat[i] * Math.PI / 180)) ** 2; if (d < bd) { bd = d; best = i; } }
+        if (best >= 0) update(ps.t[best], 'map');
+      });
+      setTimeout(() => map && map.invalidateSize(), 80);
+    }
+    update(ms, 'init');
+    timeIn.focus();
+  }
 
   function render() {
     const tr = state.track, st = state.stats;

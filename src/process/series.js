@@ -2,7 +2,7 @@
 // cumulative distance – each from the sensor when present, else derived from positions.
 // Outliers (GPS jumps) are masked before anything is smoothed (concept §6 step 6).
 
-import { haversine } from '../util/geo.js';
+import { haversine, vincenty } from '../util/geo.js';
 import { hasField } from '../parse/points.js';
 
 /** Centred moving mean over ±halfWin seconds on an irregular time base (NaN-aware). */
@@ -79,11 +79,11 @@ export function deriveSeries(track, opts = {}) {
     gs = movingMean(t, gs, 5);
   }
   const speedMask = new Uint8Array(n); for (let i = 0; i < n; i++) if (gs[i] > 60) { speedMask[i] = 1; gs[i] = NaN; } // > 117 kt: GPS glitch
-  // --- cumulative distance (m), skipping gaps and no-fix points
-  const dist = new Float32Array(n); let acc = 0, last = -1;
+  // --- cumulative distance (m) on the WGS84 ellipsoid (Vincenty), skipping gaps and no-fix points
+  const dist = new Float64Array(n); let acc = 0, last = -1;
   for (let i = 0; i < n; i++) {
     if (!ps.fix[i]) { dist[i] = acc; continue; }
-    if (last >= 0 && !track.gap[i] && (t[i] - t[last]) <= gapSec * 1000) acc += haversine(ps.lat[last], ps.lon[last], ps.lat[i], ps.lon[i]);
+    if (last >= 0 && !track.gap[i] && (t[i] - t[last]) <= gapSec * 1000) acc += vincenty(ps.lat[last], ps.lon[last], ps.lat[i], ps.lon[i]);
     dist[i] = acc; last = i;
   }
   return { alt, altClean, altSource, altMask, vs, vsSource, gs, gsSource, speedMask, warmMask, dist };

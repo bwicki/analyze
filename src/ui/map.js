@@ -12,8 +12,12 @@ export const LAYERS = {
 export const VARIO_COLORS = ['#c0392b', '#e39b92', '#8b98a8', '#8fb6e6', '#1f5fbf'];
 export const VARIO_LIMITS = [-0.5, -0.15, 0.15, 0.5];
 export function varioClass(v) { if (Number.isNaN(v)) return 2; if (v <= VARIO_LIMITS[0]) return 0; if (v <= VARIO_LIMITS[1]) return 1; if (v < VARIO_LIMITS[2]) return 2; if (v < VARIO_LIMITS[3]) return 3; return 4; }
-export const ALT_COLORS = ['#c9dcf7', '#8fb6e6', '#4f86d6', '#1f5fbf', '#0f3570'];
-export function altClass(a, min, max) { if (Number.isNaN(a) || max <= min) return 2; return Math.min(4, Math.max(0, Math.floor((a - min) / (max - min) * 5))); }
+// ground speed classes in knots: < 10, 10–20, 20–30, 30–40, > 40 kt (sequential, light → dark)
+export const GS_COLORS = ['#c9dcf7', '#8fb6e6', '#4f86d6', '#1f5fbf', '#0f3570'];
+export const GS_LIMITS_KT = [10, 20, 30, 40];
+const KT = 0.514444;
+export function gsClass(ms) { if (Number.isNaN(ms)) return 2; const kt = ms / KT; let c = 0; while (c < GS_LIMITS_KT.length && kt >= GS_LIMITS_KT[c]) c++; return c; }
+export const NIGHT_HALO = '#14202e';
 
 export function createMap(container, opts = {}) {
   if (typeof L === 'undefined') { container.innerHTML = '<div class="muted" style="padding:20px">Leaflet not loaded</div>'; return null; }
@@ -87,7 +91,12 @@ export function createMap(container, opts = {}) {
     const nightAt = (t) => data.night.some((iv) => t >= iv.from && t <= iv.to);
     // runs of same colour class; gaps as dashed grey lines
     let run = [], runCls = -1, runNight = false, prev = null;
-    const flush = () => { if (run.length > 1) L.polyline(run, { color: runNight ? darken(data.colors[runCls]) : data.colors[runCls], weight: runNight ? 3.5 : 3, opacity: 1, lineJoin: 'round' }).addTo(trackLayer); };
+    // night (NVFR) runs get a broad dark halo under the coloured line – visible on every base layer
+    const flush = () => {
+      if (run.length < 2) return;
+      if (runNight) L.polyline(run, { color: NIGHT_HALO, weight: 11, opacity: 0.4, lineJoin: 'round', lineCap: 'round', interactive: false }).addTo(trackLayer);
+      L.polyline(run, { color: runNight ? darken(data.colors[runCls]) : data.colors[runCls], weight: 3, opacity: 1, lineJoin: 'round' }).addTo(trackLayer);
+    };
     for (const q of pts) {
       if (!q.fix) continue;
       const cls = q.cls, nt = nightAt(q.t);
@@ -132,6 +141,6 @@ function escHtml(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': 
 
 function darken(hex) {
   const n = parseInt(hex.slice(1), 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-  const f = (x) => Math.round(x * 0.55).toString(16).padStart(2, '0');
+  const f = (x) => Math.round(x * 0.7).toString(16).padStart(2, '0');
   return `#${f(r)}${f(g)}${f(b)}`;
 }

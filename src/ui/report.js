@@ -17,7 +17,7 @@ import { photosForDisplay } from './photos.js';
 import { api } from '../api.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 
-const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'pic', 'copilot', 'pax', 'startName', 'landName', 'remarks'];
+const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
 export function mountReport(root, ctx) {
   const m = state.meta;
@@ -41,9 +41,10 @@ export function mountReport(root, ctx) {
           <h2>${esc(t('rep.balloon'))}</h2>
           <div class="g3">
             <label class="f">${esc(t('rep.reg'))}<input class="in" data-f="balloon" value="${esc(m.balloon)}" placeholder="HB-QWV"></label>
-            <label class="f">${esc(t('rep.type'))}<input class="in" data-f="type" value="${esc(m.type)}" placeholder="${esc(t('rep.typePh'))}"></label>
+            <label class="f">${esc(t('rep.type'))}<input class="in" data-f="type" value="${esc(m.type)}" placeholder="NL-STU71000"></label>
             <label class="f">${esc(t('rep.volume'))}<input class="in" data-f="volume" value="${esc(m.volume || '')}" placeholder="${esc(t('rep.volumePh'))}"></label>
           </div>
+          <label class="f">${esc(t('rep.equipment'))}<textarea class="in" data-f="equipment" placeholder="${esc(t('rep.equipmentPh'))}">${esc(m.equipment || '')}</textarea></label>
         </section>
         <section class="card">
           <h2>${esc(t('rep.crew'))}</h2>
@@ -52,6 +53,10 @@ export function mountReport(root, ctx) {
             <label class="f">${esc(t('rep.copilot'))}<input class="in" data-f="copilot" value="${esc(m.copilot)}"></label>
           </div>
           <label class="f">${esc(t('rep.pax'))}<textarea class="in" data-f="pax" placeholder="${esc(t('rep.paxPh'))}">${esc(m.pax)}</textarea></label>
+          <div class="g2">
+            <label class="f">${esc(t('rep.crewGround'))}<input class="in" data-f="crew" value="${esc(m.crew || '')}" placeholder="${esc(t('rep.crewGroundPh'))}"></label>
+            <label class="f">${esc(t('rep.commandCenter'))}<input class="in" data-f="commandCenter" value="${esc(m.commandCenter || '')}" placeholder="${esc(t('rep.optional'))}"></label>
+          </div>
           <label class="f">NVFR<select class="in" data-f="nvfr"><option value="" ${!m.nvfr ? 'selected' : ''}>${esc(t('rep.nvfrAuto'))}</option><option value="yes" ${m.nvfr === 'yes' ? 'selected' : ''}>${esc(t('common.yes'))}</option><option value="no" ${m.nvfr === 'no' ? 'selected' : ''}>${esc(t('common.no'))}</option></select></label>
         </section>
         <section class="card">
@@ -68,7 +73,7 @@ export function mountReport(root, ctx) {
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
   onAct(el, { print: () => window.print() });
-  let map = null, mapEl = null;
+  let map = null, mapEl = null, detailMaps = [];
 
   function renderReport() {
     const st = state.stats, un = makeUnits(state.settings.units), m = state.meta, rep = el.querySelector('[data-report]');
@@ -96,11 +101,15 @@ export function mountReport(root, ctx) {
         <div><div class="pk">${esc(t('rep.copilot'))}</div>${esc(m.copilot || '–')}</div>
         <div><div class="pk">${esc(t('rep.pax'))}</div>${esc(m.pax ? m.pax.split(/\n/).filter(Boolean).join(', ') : t('rep.none'))}</div>
         <div><div class="pk">${esc(t('rep.event'))}</div>${esc(m.event || '–')}</div>
+        <div><div class="pk">${esc(t('rep.crewGround'))}</div>${esc(m.crew || '–')}</div>
+        ${m.commandCenter ? `<div><div class="pk">${esc(t('rep.commandCenter'))}</div>${esc(m.commandCenter)}</div>` : ''}
+        ${m.equipment ? `<div style="grid-column:1 / -1"><div class="pk">${esc(t('rep.equipment'))}</div><span style="white-space:pre-line">${esc(m.equipment)}</span></div>` : ''}
       </div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('ana.stats'))}</h2>
       <table class="stats"><colgroup><col style="width:24%"><col style="width:40%"><col style="width:36%"></colgroup>
         ${tr(t('st.takeoff'), `${fmtDateTimeUTC(st.takeoff.t)} (${fmtLocalByLon(st.takeoff.t, st.takeoff.lon).replace(' (', ' ').replace(')', '')})`, placeNote(startPlace, st.takeoff))}
-        ${st.landing ? tr(t('st.landingAt'), `${fmtDateTimeUTC(st.landing.t)} (${fmtLocalByLon(st.landing.t, st.landing.lon).replace(' (', ' ').replace(')', '')})`, placeNote(landPlace, st.landing)) : ''}
+        ${st.landing ? tr(t('st.landingAt'), `${fmtDateTimeUTC(st.landing.t)} (${fmtLocalByLon(st.landing.t, st.landing.lon).replace(' (', ' ').replace(')', '')})`, placeNote(landPlace, st.landing))
+          : (st.endFix ? tr(t('st.landingAt'), `${fmtDateTimeUTC(st.endFix.t)} (${fmtLocalByLon(st.endFix.t, st.endFix.lon).replace(' (', ' ').replace(')', '')})`, `${esc(t('st.noLandingNote'))} · ${icaoShort(st.endFix.lat, st.endFix.lon)}`, true) : '')}
         ${tr(t('st.durationLandings'), `${fmtDurationHM(st.durationSec)} · ${st.landings}`, interNote, st.intermediate.length > 0)}
         ${tr(t('st.distanceLine'), `${un.dist(st.distanceM)} · ${un.dist(st.straightM)} · ${fmtBearing(st.bearingDeg)}`)}
         ${tr(t('st.altMaxGps'), st.altMax ? un.alt(st.altMax.v, true) : '–', st.altMax ? fmtDateTimeUTC(st.altMax.t) : '')}
@@ -114,23 +123,27 @@ export function mountReport(root, ctx) {
         ${tr(t('rep.source'), esc(files || '–'), esc(t('rep.sourceSub', { files: state.segments.filter((s) => s.status === 'use').length, restarts: st.restarts, points: fmtInt(st.nPoints) })), true)}
       </table>
       ${m.remarks ? `<h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('rep.remarks'))}</h2><div style="font-size:13px;white-space:pre-line">${esc(m.remarks)}</div>` : ''}
-      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}${state.flight ? ` · ${esc(state.flight.url.replace(/^https?:\/\//, ''))}` : ''}</span><span>${esc(t('rep.page', { n: 1 }))}</span></div>
+      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}${state.flight ? ` · ${esc(state.flight.url.replace(/^https?:\/\//, ''))}` : ''}</span><span></span></div>
       <div style="break-before:page"></div>
       <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:8px">${esc(t('ana.map'))} · ${esc(t('rep.mapSub', { min: state.settings.markerMin }))}</h2>
-      <div class="map" data-repmap style="height:440px;min-height:0;flex:none"></div>
+      <div class="map" data-repmap style="height:360px;min-height:0;flex:none"></div>
       <div class="muted" style="font-size:11px">${esc(t('ana.mapLegend'))} · © OpenStreetMap</div>
-      <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('ana.profile'))}</h2>
+      <div class="rep-detail">
+        <div><div class="pk">${esc(t('wp.takeoff'))} · ${esc(startName)} · ${fmtTimeUTC(st.takeoff.t)} UTC</div><div class="map" data-repstart style="height:200px;min-height:0;flex:none"></div></div>
+        ${(st.landing || st.endFix) ? `<div><div class="pk">${esc(st.landing ? t('wp.landing') : t('st.endOfRecording'))} · ${esc(landName)} · ${fmtTimeUTC((st.landing || st.endFix).t)} UTC</div><div class="map" data-repland style="height:200px;min-height:0;flex:none"></div></div>` : ''}
+      </div>
+      <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('ana.profile'))}</h2>
       <div data-repprofile></div>
-      <div class="muted" style="font-size:11px">${esc(t('rep.profileLegend'))}</div>
-      <h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('cln.segments'))} · ${esc(t('cln.protocol'))}</h2>
+      <div class="muted" style="font-size:11px">${esc(t('rep.profileLegend'))}</div></div>
+      <div style="break-inside:avoid"><h2 style="font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em">${esc(t('cln.segments'))} · ${esc(t('cln.protocol'))}</h2>
       <table><thead><tr><th>#</th><th>${esc(t('imp.col.file'))}</th><th>${esc(t('cln.col.from'))}</th><th>${esc(t('cln.col.to'))}</th><th class="r">${esc(t('imp.col.points'))}</th></tr></thead>
         ${state.segments.filter((s) => s.status === 'use').map((s) => `<tr><td class="v">${s.id}</td><td class="v">${esc(s.file)}</td><td class="v">${fmtDateUTC(s.t0)} ${fmtTimeUTC(s.t0, true)}</td><td class="v">${fmtDateUTC(s.t1)} ${fmtTimeUTC(s.t1, true)}</td><td class="v" style="text-align:right">${fmtInt(s.n)}</td></tr>`).join('')}</table>
-      <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}</div>
+      <div style="font-size:12px">${esc(t('rep.protocolLine', { from: fmtDateTimeUTC(state.trim.from, true), to: fmtDateTimeUTC(state.trim.to, true), auto: state.trim.auto ? t('rep.autoTrim', { sec: state.settings.detect.trimReserveSec }) : t('rep.manualTrim'), restarts: st.restarts, collapsed: fmtInt(state.track.collapsed), masked: fmtInt(st.altMasked), gaps: st.gaps.length, win: state.settings.detect.windowSec, gs: (state.settings.detect.gsAir / 0.514444).toFixed(1), vs: state.settings.detect.vsAir }))}</div></div>
       ${eventsSection()}
       ${photosSection()}
       <div class="sigblock"><div class="sig"><div>${esc(t('rep.sigPic'))}</div><div>${esc(t('rep.sigDate'))}</div></div>
       ${state.flight && state.flight.public !== false ? `<div class="qrline">${qrSvg(state.flight.url, { size: 84 })}<span>${esc(t('rep.qrNote'))}<br><span class="mono">${esc(state.flight.url.replace(/^https?:\/\//, ''))}</span></span></div>` : ''}
-      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${esc(t('rep.page', { n: state.evlog && state.evlog.linked && state.evlog.linked.length ? 3 : 2 }))}</span></div></div>`;
+      <div class="foot"><span>analyze.wicki.aero v${VERSION} · ${esc(t('rep.generated'))} ${fmtDateTimeUTC(Date.now())}</span><span>${state.flight ? esc(state.flight.url.replace(/^https?:\/\//, '')) : ''}</span></div></div>`;
     // map + profile (static)
     const s = state; const dur = (s.trim.to - s.trim.from) / 1000; const step = Math.max(1, Math.ceil(dur / 1500));
     const pts = trackPoints(s.track, s.series, s.trim, step); const vsS = movingMean(s.track.points.t, s.series.vs, Math.max(15, step / 2));
@@ -139,8 +152,23 @@ export function mountReport(root, ctx) {
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
     const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, name: state.places.inter[l.t] || '' })), night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: [...eventsForDisplay(), ...photosForDisplay()], ballast: ballastSeries() };
     if (map) { map.destroy(); map = null; }
+    detailMaps.forEach((d) => d.remove()); detailMaps = [];
     mapEl = rep.querySelector('[data-repmap]');
+    // detail maps (zoom 13) around take-off and landing / end of recording, with a short piece of the track
+    const detail = (sel, p, color) => { try { detailMap(sel, p, color); } catch (e) { console.warn('detail map', e); } };
+    const detailMap = (sel, p, color) => {
+      const dEl = rep.querySelector(sel); if (!dEl || !p || typeof L === 'undefined') return;
+      const dm = L.map(dEl, { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false, attributionControl: false, preferCanvas: true });
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(dm);
+      const near = pts.filter((q) => q.fix && Math.abs(q.t - p.t) < 45 * 60000).map((q) => [q.lat, q.lon]);
+      if (near.length > 1) L.polyline(near, { color: '#1f5fbf', weight: 3, opacity: 0.9 }).addTo(dm);
+      L.circleMarker([p.lat, p.lon], { radius: 8, color: '#fff', weight: 2, fillColor: color, fillOpacity: 1 }).addTo(dm);
+      dm.setView([p.lat, p.lon], 13);
+      setTimeout(() => dm.invalidateSize(), 120);
+      detailMaps.push(dm);
+    };
     map = createMap(mapEl, { layer: 'osm' });
+    detail('[data-repstart]', st.takeoff, '#1f8a4c'); detail('[data-repland]', st.landing || st.endFix, st.landing ? '#c0392b' : '#d98c00');
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
     renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
   }
@@ -172,5 +200,5 @@ export function mountReport(root, ctx) {
   const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport), off4 = bus.on('photos', renderReport);
   renderReport();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); off3(); off4(); map && map.destroy(); } };
+  return { unmount: () => { off(); off2(); off3(); off4(); map && map.destroy(); detailMaps.forEach((d) => d.remove()); } };
 }
