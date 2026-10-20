@@ -11,7 +11,7 @@ const L = {
   marker(ll, o) { window.__markers = (window.__markers || []); window.__markers.push(o || {}); const m = mk({}); m.addTo = function (target) { if (target && target.addLayer) target.addLayer(this); return this; }; return m; },
   divIcon(o) { return o; },
   latLngBounds(a) { return { isValid: () => a.length > 0 }; },
-  control(o) { return { onAdd: null, addTo(map) { const div = this.onAdd(map); const corner = document.createElement('div'); corner.className = 'leaflet-top leaflet-right'; corner.style.cssText = 'position:absolute;top:10px;right:10px;z-index:5'; corner.appendChild(div); map._el.appendChild(corner); return this; } }; },
+  control(o) { return { onAdd: null, addTo(map) { const div = this.onAdd(map); const corner = document.createElement('div'); const k = map._el.querySelectorAll('.leaflet-top').length; corner.className = 'leaflet-top ' + (o && o.position === 'topleft' ? 'leaflet-left' : 'leaflet-right'); corner.style.cssText = `position:absolute;top:${10 + 90 * k}px;${o && o.position === 'topleft' ? 'left' : 'right'}:10px;z-index:5`; corner.appendChild(div); map._el.appendChild(corner); return this; } }; },
   DomUtil: { create(tag, cls) { const d = document.createElement(tag); d.className = cls; return d; } },
   DomEvent: { disableClickPropagation() {}, disableScrollPropagation() {} },
 };
