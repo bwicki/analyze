@@ -82,6 +82,9 @@ export const api = {
     raw: (id) => request('GET', `/api/flights/${id}/raw`),
     putRaw: (id, formData) => request('POST', `/api/flights/${id}/raw`, { body: formData }),
     rawFile: (id, n) => request('GET', `/api/flights/${id}/raw/${n}`, { raw: true }),
+    // Übergabe an ops.wicki.aero (0.10.0): the Worker talks to ops with the service token; the Supermaster may do it without a PIN
+    opsBriefings: (id) => request('GET', `/api/flights/${id}/ops/briefings`, evAuth()),
+    opsHandover: (id, briefingId) => request('POST', `/api/flights/${id}/ops`, { body: { briefingId }, ...evAuth() }),
   },
   view: {
     get: (id) => request('GET', `/api/view/${id}`, { code: null }),

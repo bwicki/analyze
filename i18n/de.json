@@ -332,7 +332,7 @@
   "exp.selectHint": "Mindestens ein Format ankreuzen.",
   "exp.multiHint": "Der Browser fragt beim ersten Mal, ob mehrere Dateien geladen werden dürfen.",
   "exp.zipHint": "Die einzelnen Formate sind im ZIP enthalten.",
-  "exp.opsSoon": "Folgt mit der ops-Schnittstelle (Phase 3).",
+  "exp.opsSoon": "Übergabe an ops.wicki.aero: im Bericht unter «Spezialfunktionen» (Ballonteam-PIN, Supermaster).",
   "exp.fmt.gpx": "Track mit Zeit, Höhe, Vario, Fahrt über Grund; Wegpunkte Start/Landung/Zeitmarker",
   "exp.fmt.geojson": "Track und Wegpunkte, Kennzahlen und Stammdaten als properties",
   "exp.fmt.kml": "Track mit Zeitregler, KMZ = komprimiert",

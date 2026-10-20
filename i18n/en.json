@@ -332,7 +332,7 @@
   "exp.selectHint": "Tick at least one format.",
   "exp.multiHint": "The browser asks once whether several files may be downloaded.",
   "exp.zipHint": "The single formats are part of the ZIP.",
-  "exp.opsSoon": "Comes with the ops interface (phase 3).",
+  "exp.opsSoon": "Handover to ops.wicki.aero: in the report under “Special functions” (Ballonteam PIN, Supermaster).",
   "exp.fmt.gpx": "track with time, altitude, vario, ground speed; waypoints launch/landing/time markers",
   "exp.fmt.geojson": "track and waypoints, key figures and master data as properties",
   "exp.fmt.kml": "track with time slider, KMZ = compressed",
