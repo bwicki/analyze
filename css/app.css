@@ -415,3 +415,23 @@ table.tbl.rec tr.nofix td{color:var(--muted)}
 .modal.legal .legal-body h2:first-child{margin-top:0}
 .modal.legal .legal-body p{margin:0 0 6px}
 footer.app a{color:var(--muted);text-decoration:underline}
+
+/* Logbuch (0.11.0) */
+.modal.logbook{max-width:min(1600px,calc(100vw - 40px));max-height:calc(100vh - 40px);display:flex;flex-direction:column}
+.modal.logbook .lb-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.modal.logbook .lb-brand{display:flex;align-items:center;gap:12px}
+.modal.logbook .lb-brand img{height:40px;width:auto;max-width:160px;object-fit:contain}
+.modal.logbook .lb-body{overflow:auto;min-height:0;flex:1}
+table.tbl.lb{font-size:12.5px;white-space:nowrap}
+table.tbl.lb td,table.tbl.lb th{padding:5px 8px}
+table.tbl.lb tfoot td{border-top:2px solid var(--border-strong);border-bottom:0}
+table.tbl.lb td.lb-title{white-space:normal;min-width:160px}
+@media print{
+  body.print-logbook>*:not(.modal-bg.logbook){display:none !important}
+  body.print-logbook .modal-bg.logbook{display:block !important;position:static;background:#fff;padding:0}
+  body.print-logbook .modal.logbook{max-width:none;max-height:none;overflow:visible;padding:0;box-shadow:none;border-radius:0}
+  body.print-logbook .modal.logbook .lb-body{overflow:visible}
+  body.print-logbook table.tbl.lb{font-size:10px}
+  body.print-logbook table.tbl.lb td,body.print-logbook table.tbl.lb th{padding:3px 5px}
+  body.print-logbook .modal.logbook thead{display:table-header-group}
+}

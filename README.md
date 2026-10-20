@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.10.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.11.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -206,7 +206,10 @@ nach dem Speichern (GitHub-Pages-Build).
 ### Meine Fahrten und Profil
 
 Klick auf den PIN oben rechts: Liste der eigenen Fahrten (Öffnen ohne Neu-Import, Kurzlink kopieren, **Rohdaten (n)**
-= die importierten Trackerdateien als ZIP zurückholen, Löschen),
+= die importierten Trackerdateien als ZIP zurückholen, Löschen). **Logbuch** (0.11.0): alle gespeicherten Fahrten
+als Tabelle (Datum, Start/Landung UTC mit Ort, Dauer, Nacht, Strecke, Luftlinie, Höhe max., Landungen, Ballon,
+PIC/Copilot, Pax, Zweck, Fahrt) mit Jahresfilter und Summen – **CSV** für Excel (Semikolon, UTF-8 BOM) oder
+**Drucken/PDF** (A4 quer mit Logo und Teamname); aus den gespeicherten Kennzahlen, ohne Track zu laden.
 **Profil** mit Anzeigename, **Team / Organisation** (ersetzt «Wickipartners Ballonteam» unter dem App-Titel, im
 Viewer und im Bericht), **Akzentfarbe** (Farbwähler oder Hex-Wert; Linie unter dem Berichtskopf und die Markierung des aktiven Schritts in
 der Kopfzeile, Vorgabe das Ballonteam-Gelb; gilt auch im Viewer und im Druck), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
@@ -343,7 +346,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 | `src/terrain/` | Gelände und Wasser: DEM-Kacheln/open-meteo (`terrain.js`), MVT-Leser (`mvt.js`), Cache und Anzeige (`store.js`) |
 | `src/events/log.js`, `src/photos/` | Ereignislog (Normalisierung, Verknüpfung), Fotos (EXIF, Verkleinern, Platzierung, Speicher) |
 | `src/export/` | GPX/GeoJSON/KML/KMZ/CSV (`formats.js`), Downloads und ZIP (`download.js`), Vorschaubild (`preview.js`) |
-| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`), Viewer für Grossansicht, Detailansicht und Fahrtaufzeichnung (`viewer.js`) |
+| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`), Viewer für Grossansicht, Detailansicht und Fahrtaufzeichnung (`viewer.js`), Logbuch (`logbook.js`), Legal (`legal.js`) |
 | `src/util/` | DOM-Helfer und Dialoge, Formate, Einheiten, Geodäsie (Vincenty, Dämmerung), Ortsnamen, QR-Code (eigener Code) |
 | `src/worker/parse-worker.js` | Parser im Web Worker |
 | `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten) |

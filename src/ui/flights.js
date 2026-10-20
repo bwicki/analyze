@@ -11,12 +11,13 @@ import { session, setMe, clearSession, logoUrl, DEFAULT_LOGO, accentColor, isHex
 import { openFlight } from '../flightio.js';
 import { config } from '../config.js';
 import { downloadRawSet } from '../export/rawdl.js';
+import { openLogbook } from './logbook.js';
 
 export function mountFlights(root, ctx) {
   const me = session.me || {};
   const el = html(`<main class="page">
       <section class="card">
-        <div class="card-head"><h2>${esc(t('fl.saved'))}</h2><div class="row-wrap" style="gap:8px"><span class="muted small" data-summary></span><button class="btn sm primary" type="button" data-act="new">+ ${esc(t('fl.new'))}</button></div></div>
+        <div class="card-head"><h2>${esc(t('fl.saved'))}</h2><div class="row-wrap" style="gap:8px"><span class="muted small" data-summary></span><button class="btn sm" type="button" data-act="logbook" title="${esc(t('lb.btnTitle'))}">${esc(t('lb.btn'))}</button><button class="btn sm primary" type="button" data-act="new">+ ${esc(t('fl.new'))}</button></div></div>
         <div class="scroll-x" data-table><p class="muted">${esc(t('fl.loading'))}</p></div>
         <span class="muted small">${esc(t('fl.hint'))}</span>
       </section>
@@ -114,6 +115,7 @@ export function mountFlights(root, ctx) {
 
   onAct(el, {
     new: () => { ctx.goto('import'); },
+    logbook: () => { if (!flights.length) { toast(t('lb.empty'), true); return; } openLogbook(flights); },   // 0.11.0
     accentReset: () => { hexIn.value = DEFAULT_ACCENT; pick.value = DEFAULT_ACCENT; swatch.style.background = DEFAULT_ACCENT; hexIn.dispatchEvent(new Event('input', { bubbles: true })); },
     raw: async (b) => {   // the imported tracker files of an own flight, as stored (0.8.8)
       b.disabled = true;
