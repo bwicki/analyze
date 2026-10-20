@@ -11,6 +11,7 @@ import { createMap, VARIO_COLORS, GS_COLORS, GS_LIMITS_KT, varioClass, gsClass }
 import { renderProfile } from './profile.js';
 import { downloadKmz } from '../export/download.js';
 import { reverseGeocode } from '../util/places.js';
+import { terrainForDisplay, groundAt } from '../terrain/store.js';
 import { mountEventsCard, eventsForDisplay, ballastSeries } from './events.js';
 import { mountPhotosCard, photosForDisplay } from './photos.js';
 
@@ -111,23 +112,29 @@ export function mountAnalyze(root, ctx) {
   function renderProfileCard() {
     if (!display) return;
     const un = u();
-    profile = renderProfile(el.querySelector('[data-profile]'), { ...display, xMode, units: un, pinned, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') }, onHover: (q) => { map && map.setHover(q); readout(q || pinned); }, onClick: (q) => pin(q) });
+    profile = renderProfile(el.querySelector('[data-profile]'), { ...display, xMode, units: un, pinned, terrain: terrainForDisplay(xMode), labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') }, onHover: (q) => { map && map.setHover(q); readout(q || pinned); }, onClick: (q) => pin(q) });
   }
 
   function readout(q) {
     const r = el.querySelector('[data-readout]'); const un = u();
     if (!q) { r.innerHTML = `<span class="muted">${esc(t('ana.readoutHint'))}</span>`; return; }
-    r.innerHTML = `<span>${esc(t('ana.r.time'))} <b>${fmtDayUTC(q.t)} ${fmtTimeUTC(q.t, true)} UTC</b></span><span>${esc(t('ana.r.alt'))} <b>${un.alt(q.alt, true)}</b></span><span>${esc(t('ana.r.vs'))} <b>${un.vs(q.vsS)}</b></span><span>${esc(t('ana.r.gs'))} <b>${un.speed(q.gs, 1)}</b></span><span>${esc(t('ana.r.pos'))} <b>${icaoShort(q.lat, q.lon)}</b></span><span>${esc(t('ana.r.dist'))} <b>${un.dist(q.dist - display.pts[0].dist)}</b></span>`;
+    r.innerHTML = `<span>${esc(t('ana.r.time'))} <b>${fmtDayUTC(q.t)} ${fmtTimeUTC(q.t, true)} UTC</b></span><span>${esc(t('ana.r.alt'))} <b>${un.alt(q.alt, true)}</b></span><span>${esc(t('ana.r.vs'))} <b>${un.vs(q.vsS)}</b></span><span>${esc(t('ana.r.gs'))} <b>${un.speed(q.gs, 1)}</b></span><span>${esc(t('ana.r.pos'))} <b>${icaoShort(q.lat, q.lon)}</b></span><span>${esc(t('ana.r.dist'))} <b>${un.dist(q.dist - display.pts[0].dist)}</b></span>${Number.isFinite(groundAt(q.i)) ? `<span>${esc(t('ana.r.agl'))} <b>${un.alt(Math.max(0, q.alt - groundAt(q.i)))}</b></span>` : ''}`;
   }
 
+  function terrainNote() {
+    const tr = state.terrain; if (!tr || state.settings.terrain === false) return '';
+    if (tr.status === 'loading' || tr.status === 'ground') return ` · ${esc(t('ana.terrainLoading', { pct: Math.round((tr.progress || 0) * 100) }))}`;
+    if (tr.status === 'error') return ` · ${esc(t('ana.terrainFailed'))}`;
+    return ` · ${esc(t('ana.terrainLegend'))}${tr.waterSource === 'none' ? ` (${esc(t('ana.waterSeaOnly'))})` : ''}`;
+  }
   function renderLegend() {
     const lg = el.querySelector('[data-legend]');
     if (state.settings.colorBy === 'gs') {
       const un = u(), lim = GS_LIMITS_KT.map((kt) => Math.round(un.speedValue(kt * 0.514444)));
       const lab = [`&lt; ${lim[0]}`, `${lim[0]}–${lim[1]}`, `${lim[1]}–${lim[2]}`, `${lim[2]}–${lim[3]}`, `&gt; ${lim[3]} ${un.speedUnit}`];
-      lg.innerHTML = `<span>${esc(t('ana.legendGs'))}</span>` + GS_COLORS.map((c, i) => `<span><span class="sw" style="background:${c}"></span> ${lab[i]}</span>`).join('') + `<span style="margin-left:auto">${esc(t('ana.legendNote'))}</span>`;
+      lg.innerHTML = `<span>${esc(t('ana.legendGs'))}</span>` + GS_COLORS.map((c, i) => `<span><span class="sw" style="background:${c}"></span> ${lab[i]}</span>`).join('') + `<span style="margin-left:auto">${esc(t('ana.legendNote'))}${terrainNote()}</span>`;
     }
-    else lg.innerHTML = [`<span><span class="sw" style="background:${VARIO_COLORS[0]}"></span> ${esc(t('ana.sink'))} &lt; −0.5 m/s</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[1]}"></span> −0.5 … −0.15</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[2]}"></span> ${esc(t('ana.neutral'))}</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[3]}"></span> +0.15 … +0.5</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[4]}"></span> ${esc(t('ana.climb'))} &gt; +0.5 m/s</span>`, `<span style="margin-left:auto">${esc(t('ana.legendNote'))}</span>`].join('');
+    else lg.innerHTML = [`<span><span class="sw" style="background:${VARIO_COLORS[0]}"></span> ${esc(t('ana.sink'))} &lt; −0.5 m/s</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[1]}"></span> −0.5 … −0.15</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[2]}"></span> ${esc(t('ana.neutral'))}</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[3]}"></span> +0.15 … +0.5</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[4]}"></span> ${esc(t('ana.climb'))} &gt; +0.5 m/s</span>`, `<span style="margin-left:auto">${esc(t('ana.legendNote'))}${terrainNote()}</span>`].join('');
   }
 
   function renderTiles() {
@@ -206,10 +213,11 @@ export function mountAnalyze(root, ctx) {
 
   const off = bus.on('track', render);
   const off2 = bus.on('events', render), off3 = bus.on('events-filter', render), off4 = bus.on('photos', render);
+  const off5 = bus.on('terrain', () => { if (display) { renderProfileCard(); renderLegend(); } });
   render();
   root.appendChild(el);
   setTimeout(() => map && map.invalidate(), 50);
-  return { unmount: () => { off(); off2(); off3(); off4(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; } };
+  return { unmount: () => { off(); off2(); off3(); off4(); off5(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; } };
 }
 
 export function analyzeStatus() {

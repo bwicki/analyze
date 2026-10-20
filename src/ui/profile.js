@@ -31,6 +31,18 @@ export function renderProfile(container, data) {
   // area + night
   out.push(`<path d="M${pts.map((q) => `${X(xs(q)).toFixed(1)} ${Y(q.alt).toFixed(1)}`).join(' L')} L${X(xs(pts[pts.length - 1])).toFixed(1)} ${Y(aMin).toFixed(1)} L${X(xs(pts[0])).toFixed(1)} ${Y(aMin).toFixed(1)} Z" fill="#eef1f5"/>`);
   if (data.xMode === 'time') for (const iv of data.night) { const a = X(iv.from), b = X(iv.to); out.push(`<rect x="${a.toFixed(1)}" y="${PT}" width="${(b - a).toFixed(1)}" height="${H - PT - PB}" fill="#14202e" fill-opacity="0.07"/>`); if (b - a > 90) out.push(`<text x="${((a + b) / 2).toFixed(1)}" y="${PT + 12}" text-anchor="middle" font-size="11" fill="#5b6b7f">${esc(data.labels.night)} ${fmtTimeUTC(iv.from)}–${fmtTimeUTC(iv.to)} UTC</text>`); }
+  // terrain (ground profile) with water surfaces shaded blue – drawn above the night band, below the grid
+  const terr = (data.terrain || []).filter((g) => !Number.isNaN(g.alt) && g.x >= x0 && g.x <= x1).sort((a, b) => a.x - b.x);
+  if (terr.length > 1) {
+    const yb = Y(aMin);
+    out.push(`<path d="M${terr.map((g) => `${X(g.x).toFixed(1)} ${Y(g.alt).toFixed(1)}`).join(' L')} L${X(terr[terr.length - 1].x).toFixed(1)} ${yb.toFixed(1)} L${X(terr[0].x).toFixed(1)} ${yb.toFixed(1)} Z" fill="#cfd6de" fill-opacity="0.85"/>`);
+    // water: runs of samples on water → blue fill from the ground line down
+    let run = [];
+    const flushW = () => { if (run.length > 1) { out.push(`<path d="M${run.map((g) => `${X(g.x).toFixed(1)} ${Y(g.alt).toFixed(1)}`).join(' L')} L${X(run[run.length - 1].x).toFixed(1)} ${yb.toFixed(1)} L${X(run[0].x).toFixed(1)} ${yb.toFixed(1)} Z" fill="#8fbdeb" fill-opacity="0.9"/><path d="M${run.map((g) => `${X(g.x).toFixed(1)} ${Y(g.alt).toFixed(1)}`).join(' L')}" fill="none" stroke="#2f7fd6" stroke-width="2"/>`); } run = []; };
+    for (let k = 0; k < terr.length; k++) { if (terr[k].water) { if (!run.length && k > 0) run.push(terr[k - 1]); run.push(terr[k]); } else { if (run.length) run.push(terr[k]); flushW(); } }
+    flushW();
+    out.push(`<path d="M${terr.map((g) => `${X(g.x).toFixed(1)} ${Y(g.alt).toFixed(1)}`).join(' L')}" fill="none" stroke="#7d8b9b" stroke-width="1.2"/>`);
+  }
   // y grid
   const ySteps = niceSteps(u.altValue(aMin), aMax, 5);
   for (const v of ySteps) { const y = PT + (1 - (v - u.altValue(aMin)) / Math.max(1, aMax - u.altValue(aMin))) * (H - PT - PB); out.push(`<line x1="${PL}" y1="${y.toFixed(1)}" x2="${W - PR}" y2="${y.toFixed(1)}" stroke="#e4e8ee"/><text x="${PL - 6}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#5b6b7f" font-family="IBM Plex Mono, monospace">${fmtInt(v)}</text>`); }

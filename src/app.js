@@ -19,6 +19,7 @@ import { session, hasAccess, hasServer, setMe, clearSession } from './session.js
 import { api, ApiError } from './api.js';
 import { openFlight } from './flightio.js';
 import { refreshSharedProfiles } from './profiles-store.js';
+import { loadTerrain } from './terrain/store.js';
 
 const root = document.getElementById('app');
 const slots = { header: null, action: null, view: null, footer: null };
@@ -93,6 +94,7 @@ function settingsPanel() {
       <label class="f">${esc(t('settings.markers'))}<select class="in sm" data-s="markerMin"><option value="15" ${s.markerMin === 15 ? 'selected' : ''}>15 min</option><option value="30" ${s.markerMin === 30 ? 'selected' : ''}>30 min</option><option value="60" ${s.markerMin === 60 ? 'selected' : ''}>60 min</option><option value="180" ${s.markerMin === 180 ? 'selected' : ''}>3 h</option></select></label>
     </div>
     <label class="chk"><input type="checkbox" data-s="geocode" ${s.geocode ? 'checked' : ''}> ${esc(t('settings.geocode'))}</label>
+    <label class="chk"><input type="checkbox" data-s="terrain" ${s.terrain !== false ? 'checked' : ''}> ${esc(t('settings.terrain'))}</label>
     <details class="exp"><summary>${esc(t('settings.expert'))}</summary><div class="g2" style="padding-top:8px">
       ${num('gapSec', t('settings.gapSec'), s.gapSec, 's')}
       ${num('otherFlightHours', t('settings.otherHours'), s.otherFlightHours, 'h')}
@@ -110,7 +112,7 @@ function settingsPanel() {
   const bind = (body, details) => {
     body.querySelectorAll('[data-s]').forEach((inp) => inp.addEventListener('change', () => {
       const k = inp.dataset.s, v = inp.type === 'checkbox' ? inp.checked : inp.value;
-      if (k === 'units') s.units = v; else if (k === 'markerMin') s.markerMin = +v; else if (k === 'geocode') s.geocode = v;
+      if (k === 'units') s.units = v; else if (k === 'markerMin') s.markerMin = +v; else if (k === 'geocode') s.geocode = v; else if (k === 'terrain') { s.terrain = v; saveSettings(); loadTerrain(true); return; }
       else if (k === 'gapSec') s.gapSec = Math.max(1, +v); else if (k === 'otherFlightHours') s.otherFlightHours = Math.max(0, +v);
       else if (k === 'detect.gsAirKt') d.gsAir = +v * 0.514444; else if (k === 'detect.gsGroundKt') d.gsGround = +v * 0.514444;
       else if (k.startsWith('detect.')) d[k.slice(7)] = +v;

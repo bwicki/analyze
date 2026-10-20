@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
   colorBy: 'vario',       // track/profile colour: 'vario' | 'gs' (ground speed)
   hideOtherFlights: true,
   merge: { mode: MERGE_DEFAULTS.mode, primary: null, stepSec: MERGE_DEFAULTS.stepSec },   // several devices (0.8.0)
+  terrain: true,          // ground profile + water along the track (DEM tiles / open-meteo, OpenFreeMap)
 };
 
 const LS_SETTINGS = 'analyze.settings', LS_META = 'analyze.meta';
@@ -47,6 +48,7 @@ export const state = {
   places: { takeoff: null, landing: null, inter: {} }, // reverse-geocoded names ('CH-Willisau'); inter keyed by landing time
   ignoredLandings: [],  // times (ms) of auto-detected intermediate landings the user removed (false touchdowns)
   hover: null,      // index on the track under the cursor (map ↔ profile)
+  terrain: null,    // {idx, ground, water, source, status} – see terrain/store.js
   evlog: null,      // Ereignislog: {source: {kind: 'repo'|'file'|'saved', flight, name}, rows (raw), events (normalised), linked}
   userProfiles: [], // tracker profiles from the assistant (shared via the Worker + local), ahead of the built-in ones
   photos: [],       // photos of the saved flight (server rows); photosPlaced = on the track (photos/store.js)

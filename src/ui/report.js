@@ -17,6 +17,7 @@ import { photosForDisplay } from './photos.js';
 import { api } from '../api.js';
 import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 import { mergeLine } from '../process/mergeinfo.js';
+import { terrainForDisplay } from '../terrain/store.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
@@ -171,7 +172,7 @@ export function mountReport(root, ctx) {
     map = createMap(mapEl, { layer: 'osm' });
     detail('[data-repstart]', st.takeoff, '#1f8a4c'); detail('[data-repland]', st.landing || st.endFix, st.landing ? '#c0392b' : '#d98c00');
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
-    renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
+    renderProfile(rep.querySelector('[data-repprofile]'), { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } });
   }
 
   /** Photos page: thumbnails with time and position (when the flight has photos). */
@@ -199,7 +200,8 @@ export function mountReport(root, ctx) {
   }
 
   const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport), off4 = bus.on('photos', renderReport);
+  let terrTimer = null; const off5 = bus.on('terrain', () => { if (state.terrain && state.terrain.status === 'ready') { clearTimeout(terrTimer); terrTimer = setTimeout(renderReport, 300); } });
   renderReport();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); off3(); off4(); map && map.destroy(); detailMaps.forEach((d) => d.remove()); } };
+  return { unmount: () => { off(); off2(); off3(); off4(); off5(); map && map.destroy(); detailMaps.forEach((d) => d.remove()); } };
 }
