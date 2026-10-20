@@ -301,6 +301,11 @@ table.tbl.events tr[data-sel]:hover td{background:#f4f8ff;cursor:default}
 
 /* ---- Profil-Assistent ---- */
 .modal.assist{max-width:1000px;max-height:calc(100vh - 40px);overflow:auto}
+.modal.pick{max-width:min(1100px,calc(100vw - 24px));max-height:calc(100vh - 40px);overflow:auto}   /* gb_flight_data picker: whole width so «Verknüpfen» is visible (0.14.0) */
+.modal.pick .tbl{width:100%}
+.modal.pick .tbl td:last-child{text-align:right}
+.modal.pick .pick-phone{display:none}
+@media (max-width:640px){.modal.pick{padding:14px 10px}.modal.pick .pick-phone{display:block;margin-top:3px}.modal.pick .tbl th:nth-child(2),.modal.pick .tbl td:nth-child(2),.modal.pick .tbl th:nth-child(4),.modal.pick .tbl td:nth-child(4),.modal.pick .tbl th:nth-child(5),.modal.pick .tbl td:nth-child(5){display:none}.modal.pick .tbl td,.modal.pick .tbl th{padding-left:4px;padding-right:4px}.modal.pick .tbl td.small{font-size:11px}}   /* phones: registration and row count hidden so «Verknüpfen» stays on screen */
 .modal.assist .head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .modal.assist .head h1{font-size:16px;font-weight:600}
 .steps-nav{display:flex;gap:4px;flex-wrap:wrap}
@@ -363,6 +368,22 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 /* extremes on map and profile, symbol buttons in the figures (0.9.0 / 0.9.1: same glyph, same size everywhere) */
 .xmark{display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;pointer-events:auto;cursor:pointer}
 .xmark3d{width:20px;height:20px;margin:0;cursor:pointer}
+/* event markers (0.14.0): dot in the type colour with white ring; 📷 for photos; hover window on map and profile */
+.evmark-w{display:flex;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer}
+.evmark{display:block;width:14px;height:14px;border-radius:50%;background:var(--c,#1f5fbf);border:2px solid #fff;box-shadow:0 0 0 1px rgba(20,32,46,.45),0 1px 3px rgba(0,0,0,.35);transition:transform .12s}
+.evmark-w:hover .evmark{transform:scale(1.35)}
+.evmark.photo{background:none;border:0;box-shadow:none;font-size:15px;line-height:1;width:auto;height:auto;text-shadow:0 0 2px #fff,0 0 3px #fff}
+.evmark3d{width:16px;height:16px;margin:0}
+.leaflet-tooltip.tt-ev{max-width:320px;white-space:normal;line-height:1.35;padding:6px 9px}
+.leaflet-tooltip.tt-ev .txt{margin-top:2px}
+.evlegend{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:12px;margin:2px 0 0 54px}
+.evlegend .item{display:inline-flex;align-items:center;gap:5px}
+.evlegend .dot{width:10px;height:10px;border-radius:50%;display:inline-block;border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(20,32,46,.4)}
+.evlegend .hint{margin-left:auto}
+.evtip{position:absolute;z-index:5;max-width:min(360px,90%);background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,.18);padding:7px 10px;font-size:12px;line-height:1.35;pointer-events:none}
+.evtip .ev+.ev{margin-top:6px;padding-top:6px;border-top:1px solid var(--border)}
+.evtip .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:5px;vertical-align:middle}
+.evtip .txt{margin-top:2px;white-space:pre-wrap}
 .loc{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:16px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;margin-left:2px;color:var(--text)}
 .loc:hover{border-color:var(--border-strong);background:var(--hair)}
 .loc.list{font-size:12px}

@@ -180,7 +180,7 @@ export function mountAnalyze(root, ctx) {
   }
   const detailOpeners = {};
 
-  const profileLabels = () => ({ max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') });
+  const profileLabels = () => ({ max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile'), events: t('ev.legend'), eventsHint: t('ev.legendHint') });
   const layerLabels = () => ({ osm: t('ana.layer.osm'), topo: t('ana.layer.topo'), sat: t('ana.layer.sat') });
   function renderProfileCard() {
     if (!display) return;

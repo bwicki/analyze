@@ -17,7 +17,7 @@ export const PHOTO_COLOR = '#0f766e';
 
 /** Photos for map/profile: placed on the track and inside the trim. */
 export function photosForDisplay() {
-  return (state.photosPlaced || []).filter((p) => p.onTrack && p.inTrim).map((p) => ({ t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, color: PHOTO_COLOR, label: `📷 ${fmtTimeUTC(p.t)} UTC${p.caption ? ' · ' + p.caption.slice(0, 60) : ''}`, type: 'photo', id: p.id }));
+  return (state.photosPlaced || []).filter((p) => p.onTrack && p.inTrim).map((p) => ({ t: p.t, lat: p.lat, lon: p.lon, alt: p.alt, dist: p.dist, color: PHOTO_COLOR, label: `📷 ${fmtTimeUTC(p.t)} UTC${p.caption ? ' · ' + p.caption.slice(0, 60) : ''}`, type: 'photo', typeLabel: t('ph.title'), text: p.caption || '', id: p.id }));
 }
 
 const tzLabel = (min) => { const s = min < 0 ? '−' : '+'; const a = Math.abs(min); return `UTC${s}${String(Math.floor(a / 60)).padStart(2, '0')}:${String(a % 60).padStart(2, '0')}`; };

@@ -79,7 +79,9 @@ export function renderProfile(container, data) {
   vline(data.landing, '#c0392b', data.labels.landing, 'end');
   for (const e of data.extremes || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<text x="${X(ex).toFixed(1)}" y="${(Y(e.alt) + 5).toFixed(1)}" text-anchor="middle" font-size="14" fill="${e.color}" paint-order="stroke" stroke="#fff" stroke-width="3" data-x="${esc(e.kind)}" style="cursor:pointer"><title>${esc(e.label || '')}</title>${e.symbol}</text>`); }
   if (data.altMax) { const q = data.altMax; const x = X(xq(q)); out.push(`<circle cx="${x.toFixed(1)}" cy="${Y(q.alt).toFixed(1)}" r="3.5" fill="#14202e"/><text x="${(x + (x > W - 160 ? -6 : 6)).toFixed(1)}" y="${(Y(q.alt) - 5).toFixed(1)}" font-size="11" fill="#14202e" font-weight="600" text-anchor="${x > W - 160 ? 'end' : 'start'}">${esc(data.labels.max)} ${u.alt(q.alt)} · ${fmtTimeUTC(q.t)}</text>`); }
-  for (const e of data.events || []) { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) continue; out.push(`<line x1="${X(ex).toFixed(1)}" y1="${(H - PB)}" x2="${X(ex).toFixed(1)}" y2="${(H - PB - 10)}" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/><circle cx="${X(ex).toFixed(1)}" cy="${Y(e.alt).toFixed(1)}" r="4" fill="#fff" stroke="${e.color || '#1f5fbf'}" stroke-width="2"><title>${esc(e.label || '')}</title></circle>`); }
+  // events from the log and photos (0.14.0): filled dot in the type colour on the track, tick at the axis, hover window (see below)
+  const evPos = [];   // [{i, x, y}] of the drawn events – for the hover window and its grouping
+  (data.events || []).forEach((e, i) => { const ex = data.xMode === 'dist' ? e.dist : e.t; if (Number.isNaN(e.alt) || Number.isNaN(ex) || ex < x0 || ex > x1) return; const x = X(ex), y = Y(e.alt); evPos.push({ i, x, y }); out.push(`<line x1="${x.toFixed(1)}" y1="${(H - PB)}" x2="${x.toFixed(1)}" y2="${(H - PB - 10)}" stroke="${e.color || '#1f5fbf'}" stroke-width="2"/><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="5" fill="${e.color || '#1f5fbf'}" stroke="#fff" stroke-width="1.8"/>`); });
   // ballast remaining (kg) from the event log: step line on a right-hand scale
   const bl = (data.ballast || []).filter((b) => !Number.isNaN(data.xMode === 'dist' ? b.dist : b.t) && !Number.isNaN(b.kg));
   if (bl.length) {
@@ -101,14 +103,38 @@ export function renderProfile(container, data) {
   out.push(`<path d="${gd.trim()}" stroke="#5b6b7f" stroke-width="1.3" fill="none"/><text x="${W - PR}" y="${H + 16}" text-anchor="end" font-size="10" fill="#5b6b7f">${esc(data.labels.gs)} ${u.speedUnit}</text>`);
   // pinned + hover groups (filled by setPinned / setHover)
   out.push(`<g data-pinned pointer-events="none"></g><g data-hover pointer-events="none"></g>`);   // never in the way of a click on a symbol
+  // invisible hit areas of the events on top of everything (dot and axis tick)
+  for (const p of evPos) out.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="11" fill="transparent" data-ev="${p.i}" style="cursor:pointer"/><rect x="${(p.x - 6).toFixed(1)}" y="${H - PB - 12}" width="12" height="14" fill="transparent" data-ev="${p.i}" style="cursor:pointer"/>`);
   const total = H + GH;
-  container.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${total}" role="img" aria-label="${esc(data.labels.aria)}" font-family="IBM Plex Sans, sans-serif">${out.join('')}</svg>`;
+  container.innerHTML = `<svg class="chart" viewBox="0 0 ${W} ${total}" role="img" aria-label="${esc(data.labels.aria)}" font-family="IBM Plex Sans, sans-serif">${out.join('')}</svg>${eventLegend(data)}<div class="evtip" hidden></div>`;
   const svg = container.querySelector('svg'), hg = svg.querySelector('[data-hover]'), pg = svg.querySelector('[data-pinned]');
+  // hover window of the events (0.14.0): all events within a few pixels of the one under the pointer, full text
+  const tip = container.querySelector('.evtip');
+  if (getComputedStyle(container).position === 'static') container.style.position = 'relative';
+  let tipFor = null, tipPinned = false;   // pinned = opened by click/tap (touch has no hover); hover alone closes on leave
+  const showTip = (i) => {
+    const p = evPos.find((q) => q.i === i); if (!p) return;
+    const group = evPos.filter((q) => Math.abs(q.x - p.x) <= 9).map((q) => data.events[q.i]).sort((a, b) => a.t - b.t);
+    tip.innerHTML = group.map((e) => `<div class="ev"><span class="dot" style="background:${esc(e.color || '#1f5fbf')}"></span><b>${esc(fmtTimeUTC(e.t))} UTC</b> · ${esc(e.typeLabel || e.type || '')}${e.place ? ` · ${esc(e.place)}` : ''}${e.text ? `<div class="txt">${esc(e.text)}${e.reporter ? ` <span class="muted">· ${esc(e.reporter)}</span>` : ''}</div>` : (!e.typeLabel && e.label ? `<div class="txt">${esc(e.label)}</div>` : '')}</div>`).join('');
+    const r = svg.getBoundingClientRect(), c = container.getBoundingClientRect();
+    const px = (r.left - c.left) + p.x / W * r.width, py = (r.top - c.top) + p.y / total * r.height;
+    tip.hidden = false; tipFor = i;
+    const tw = tip.offsetWidth, th = tip.offsetHeight, cw = container.clientWidth;
+    tip.style.left = `${Math.max(4, Math.min(cw - tw - 4, px - tw / 2))}px`;
+    tip.style.top = `${py - th - 14 >= 0 ? py - th - 14 : py + 14}px`;
+  };
+  const hideTip = () => { tip.hidden = true; tipFor = null; tipPinned = false; };
+  svg.addEventListener('mouseover', (e) => { const el = e.target.closest && e.target.closest('[data-ev]'); if (el && !tipPinned) showTip(+el.dataset.ev); });
+  svg.addEventListener('mouseout', (e) => { const el = e.target.closest && e.target.closest('[data-ev]'); if (el && !tipPinned && (!e.relatedTarget || !e.relatedTarget.closest || !e.relatedTarget.closest('[data-ev]'))) hideTip(); });
+  svg.addEventListener('mouseleave', () => { if (!tipPinned) hideTip(); });
   const xsArr = pts.map((q) => xs(q));
   const nearest = (clientX) => { const r = svg.getBoundingClientRect(); const px = (clientX - r.left) / r.width * W; const v = x0 + (px - PL) / (W - PL - PR) * xspan; let lo = 0, hi = xsArr.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (xsArr[m] < v) lo = m + 1; else hi = m; } return pts[lo]; };
   svg.addEventListener('mousemove', (e) => { const q = nearest(e.clientX); setHover(q); data.onHover && data.onHover(q); });
   svg.addEventListener('mouseleave', () => { setHover(null); data.onHover && data.onHover(null); });
   svg.addEventListener('click', (e) => {
+    const ev = e.target.closest && e.target.closest('[data-ev]');   // 0.14.0: tap/click on an event toggles its window (touch has no hover)
+    if (ev) { e.stopPropagation(); if (tipPinned && tipFor === +ev.dataset.ev) hideTip(); else { showTip(+ev.dataset.ev); tipPinned = true; } return; }
+    if (tipPinned) hideTip();   // a click elsewhere on the chart closes a pinned window
     const xs = e.target.closest && e.target.closest('text[data-x]');   // 0.9.1: a symbol opens the detail viewer
     if (xs && data.onExtreme) { const x = (data.extremes || []).find((k) => k.kind === xs.dataset.x); if (x) { e.stopPropagation(); data.onExtreme(x); return; } }
     const q = nearest(e.clientX); data.onClick && data.onClick(q);
@@ -132,6 +158,14 @@ export function renderProfile(container, data) {
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+/** Legend of the event types on the profile (0.14.0): one chip per type present, with count; photos as 📷. */
+function eventLegend(data) {
+  const evs = (data.events || []).filter((e) => !Number.isNaN(e.alt));
+  if (!evs.length) return '';
+  const types = new Map();
+  for (const e of evs) { const k = e.type || 'Other'; const cur = types.get(k) || { label: e.typeLabel || e.label || k, color: e.color || '#1f5fbf', n: 0, photo: k === 'photo' }; cur.n++; types.set(k, cur); }
+  return `<div class="evlegend noprint-keep"><span class="muted">${esc(data.labels.events || '')}</span>${[...types.values()].map((ty) => `<span class="item">${ty.photo ? '📷' : `<span class="dot" style="background:${esc(ty.color)}"></span>`}${esc(ty.label)} <span class="muted">${ty.n}</span></span>`).join('')}<span class="muted hint">${esc(data.labels.eventsHint || '')}</span></div>`;
+}
 function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(Math.max(1e-9, raw)))); const m = raw / p; return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; }
 function niceCeil(v) { if (v <= 0) return 10; const p = Math.pow(10, Math.floor(Math.log10(v))); const m = v / p; const n = m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10; return n * p; }
 function niceSteps(min, max, count) { const span = max - min; if (span <= 0) return [min]; const raw = span / count; const p = Math.pow(10, Math.floor(Math.log10(raw))); const m = raw / p; const step = (m <= 1 ? 1 : m <= 2 ? 2 : m <= 2.5 ? 2.5 : m <= 5 ? 5 : 10) * p; const out = []; for (let v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) out.push(+v.toFixed(6)); return out; }

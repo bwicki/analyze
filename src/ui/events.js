@@ -14,7 +14,7 @@ export const typeLabel = (ty) => t(`ev.type.${ty}`);
 /** Events for map and profile: those inside the trim with a position. */
 export function eventsForDisplay() {
   const lg = state.evlog; if (!lg || !lg.linked) return [];
-  return lg.linked.filter((e) => e.inTrim && !Number.isNaN(e.lat)).map((e) => ({ t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, color: EVENT_COLORS[e.type], label: `${fmtTimeUTC(e.t)} UTC · ${typeLabel(e.type)}${e.text ? ' · ' + e.text.slice(0, 80) : ''}`, type: e.type, id: e.id }));
+  return lg.linked.filter((e) => e.inTrim && !Number.isNaN(e.lat)).map((e) => ({ t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: e.dist, color: EVENT_COLORS[e.type], label: `${fmtTimeUTC(e.t)} UTC · ${typeLabel(e.type)}${e.text ? ' · ' + e.text.slice(0, 80) : ''}`, type: e.type, typeLabel: typeLabel(e.type), text: e.text || '', place: e.place || '', reporter: e.reporter || '', id: e.id }));
 }
 
 /** Ballast remaining over time (Ballast events with an absolute figure, on the track). */
@@ -32,11 +32,11 @@ export async function pickFromRepo() {
   catch (ex) { toast(ex instanceof ApiError && ex.status === 503 ? t('ev.notConfigured') : ex instanceof ApiError && ex.status === 502 ? t('ev.githubError') : ex instanceof ApiError && ex.status === 403 ? t('ev.notTeam') : t('start.errNetwork'), true); return; }
   const t0 = st ? st.trim.from : 0, t1 = st ? st.trim.to : 0;
   const scored = list.map((f) => ({ ...f, score: st ? scoreFlightMatch(f, t0, t1) : 0 })).sort((a, b) => b.score - a.score || String(b.first || '').localeCompare(String(a.first || '')));
-  const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
+  const bg = html(`<div class="modal-bg"><section class="modal pick" role="dialog" aria-modal="true">
     <div class="head"><h1>${esc(t('ev.pickTitle'))}</h1></div>
     <p class="small">${esc(t('ev.pickSub'))}</p>
     <div class="scroll-x"><table class="tbl"><thead><tr><th>${esc(t('ev.col.flight'))}</th><th>${esc(t('rep.reg'))}</th><th>${esc(t('ev.col.span'))}</th><th class="r">${esc(t('ev.col.rows'))}</th><th>${esc(t('ev.col.match'))}</th><th></th></tr></thead><tbody>
-      ${scored.map((f) => `<tr><td><strong>${esc(f.flight)}</strong></td><td>${esc(f.callsign || '–')}</td><td class="mono small nowrap">${f.first ? fmtDateTimeUTC(Date.parse(f.first)) : '–'} – ${f.last ? fmtDateTimeUTC(Date.parse(f.last)) : '–'}</td><td class="r mono">${f.rows}</td><td>${f.score > 0.5 ? `<span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('ev.matchGood'))}</span>` : f.score > 0 ? `<span class="tag">${esc(t('ev.matchPart'))}</span>` : '<span class="muted">–</span>'}</td><td><button class="btn xs primary" type="button" data-act="pick" data-flight="${esc(f.flight)}">${esc(t('ev.link'))}</button></td></tr>`).join('') || `<tr><td colspan="6" class="muted">${esc(t('ev.noFlights'))}</td></tr>`}
+      ${scored.map((f) => { const tag = f.score > 0.5 ? `<span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('ev.matchGood'))}</span>` : f.score > 0 ? `<span class="tag">${esc(t('ev.matchPart'))}</span>` : '<span class="muted">–</span>'; return `<tr><td><strong>${esc(f.flight)}</strong><div class="pick-phone">${tag}</div></td><td>${esc(f.callsign || '–')}</td><td class="mono small nowrap">${f.first ? fmtDateTimeUTC(Date.parse(f.first)) : '–'}<br>${f.last ? fmtDateTimeUTC(Date.parse(f.last)) : '–'}</td><td class="r mono">${f.rows}</td><td>${tag}</td><td class="r nowrap"><button class="btn xs primary" type="button" data-act="pick" data-flight="${esc(f.flight)}">${esc(t('ev.link'))}</button></td></tr>`; }).join('') || `<tr><td colspan="6" class="muted">${esc(t('ev.noFlights'))}</td></tr>`}
     </tbody></table></div>
     <div class="foot"><button class="btn" type="button" data-act="cancel">${esc(t('common.cancel'))}</button></div></section></div>`);
   onAct(bg, {

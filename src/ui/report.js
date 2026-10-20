@@ -26,7 +26,7 @@ const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume'
 
 
 export function mountReport(root, ctx) {
-  const special = !state.viewer && (!!session.adminToken || !!(session.me && session.me.team));   // 0.10.0: Supermaster or a PIN with team flag (no PIN in the code any more)
+  const special = !state.viewer && !!(session.me && session.me.team);   // 0.14.0: only PINs the Supermaster flagged as team (the Supermaster token alone does not show the card)
   const m = state.meta;
   // defaults of the Kennung (Meine Fahrten → Vorgaben) prefill empty fields of a new flight
   const prefs = (session.me && session.me.prefs) || {};
@@ -72,7 +72,7 @@ export function mountReport(root, ctx) {
         </section>
       </div>
       <div style="flex:1 1 560px;min-width:0;display:flex;flex-direction:column;gap:10px">
-        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(state.viewer ? t('rep.previewNote') : t('rep.printMoved'))}</span>${state.viewer ? `<span class="row-wrap" style="gap:8px">${config.apiBase ? `<a class="btn" href="${esc(`${config.apiBase}/api/view/${state.viewer.id}/report.pdf`)}" target="_blank" rel="noopener" title="${esc(t('rep.pdfServerSub'))}">${esc(t('rep.pdfServer'))} ↗</a>` : ''}<button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button></span>` : `<button class="btn sm" type="button" data-act="toExport">${esc(t('rep.toExport'))} →</button>`}</div>
+        <div class="row-wrap noprint" style="justify-content:space-between;align-items:center"><span class="muted small">${esc(state.viewer ? t('rep.previewNote') : t('rep.printMoved'))}</span>${state.viewer ? `<span class="row-wrap" style="gap:8px">${config.apiBase ? `<a class="btn" href="${esc(`${config.apiBase}/api/view/${state.viewer.id}/report.pdf`)}" target="_blank" rel="noopener" title="${esc(t('rep.pdfServerSub'))}">${esc(t('rep.pdfServer'))} ↗</a>` : ''}<button class="btn primary" type="button" data-act="print">${esc(t('rep.print'))}</button></span>` : ''}</div>
         <article class="report" data-report></article>
       </div>
     </div>
@@ -86,7 +86,7 @@ export function mountReport(root, ctx) {
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
   let openers = {};   // viewers of the report graphics (set by renderReport)
-  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo(), ops: () => opsDialog(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
+  onAct(el, { print: () => window.print(), pickRepo: () => pickFromRepo(), ops: () => opsDialog(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
   function renderSpecial() {
     const st = el.querySelector('[data-evstate]'); if (!st) return;
     const lg = state.evlog;
@@ -233,7 +233,7 @@ export function mountReport(root, ctx) {
     map = createMap(mapEl, { layer: 'osm', noControls: true });
     detail('[data-repstart]', st.takeoff, '#1f8a4c'); detail('[data-repland]', st.landing || st.endFix, st.landing ? '#c0392b' : '#d98c00');
     if (map) { map.map.dragging.disable(); map.map.scrollWheelZoom.disable(); map.setTrack({ ...data, labelEvery: 3, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(st.takeoff.t)}`, landingLabel: st.landing ? `${t('wp.landing')} ${fmtTimeUTC(st.landing.t)}` : '', intermediateLabel: t('wp.intermediate') }); setTimeout(() => map && map.invalidate(), 80); }
-    const profileData = { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), showBottom: !!state.settings.showBottom, labels: { max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } };
+    const profileData = { ...data, xMode: 'time', units: un, terrain: terrainForDisplay('time'), showBottom: !!state.settings.showBottom, labels: { events: t('ev.legend'), max: t('ana.max'), night: t('ana.night'), takeoff: t('wp.takeoff'), landing: t('wp.landing'), gs: t('ana.gs'), ballast: t('ev.type.Ballast'), aria: t('ana.profile') } };
     renderProfile(rep.querySelector('[data-repprofile]'), profileData);
     // 0.9.1: every graphic of the report opens large (click or ⤢) – interactive copies in the viewer
     const near = (p) => pts.filter((q) => q.fix && Math.abs(q.t - p.t) < 45 * 60000).map((q) => [q.lat, q.lon]);

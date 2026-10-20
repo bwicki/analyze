@@ -37,7 +37,7 @@ console.log('phase chips:', await page.$$eval('nav.phases .ph', (b) => b.map((x)
 await page.click('button[data-phase=report]'); await page.waitForTimeout(800);
 console.log('report print button:', !!(await page.$('[data-act=print]')), '| note:', (await txt('.noprint .muted.small')).slice(0, 80), '| placeholder:', (await txt('[data-report] .qrhead.placeholder')).slice(0, 80));
 console.log('next label:', (await txt('.actionbar .btn.primary')).slice(0, 60));
-await page.click('[data-act=toExport]'); await page.waitForTimeout(400);
+await page.click('button[data-phase=export]'); await page.waitForTimeout(400);
 console.log('export cards order:', await page.$$eval('main.page .col:first-child section.card h2', (h) => h.map((x) => x.textContent.trim()).join(' | ')));
 // 1) print without saving → dialog; cancel
 await page.click('[data-act=print]'); await page.waitForTimeout(300);

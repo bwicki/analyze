@@ -151,6 +151,13 @@ export async function create3D(container, opts = {}) {
       if (d.onExtreme) el.addEventListener('click', (e) => { e.stopPropagation(); d.onExtreme(x); });
       xMarkers.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([x.lon, x.lat]).addTo(map));
     }
+    // events from the log and photos (0.14.0): the same dots as on the 2D map, message as tooltip
+    for (const e of d.events || []) {
+      if (Number.isNaN(e.lat)) continue;
+      const el = document.createElement('div'); el.className = 'evmark-w evmark3d'; el.innerHTML = e.type === 'photo' ? '<span class="evmark photo">📷</span>' : `<span class="evmark" style="--c:${e.color || '#1f5fbf'}"></span>`;
+      el.title = `${e.label || ''}${e.text && !(e.label || '').includes(e.text) ? ' – ' + e.text : ''}`;
+      xMarkers.push(new ml.Marker({ element: el, anchor: 'center' }).setLngLat([e.lon, e.lat]).addTo(map));
+    }
     let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
     for (const q of pts) if (q.fix) { minLat = Math.min(minLat, q.lat); maxLat = Math.max(maxLat, q.lat); minLon = Math.min(minLon, q.lon); maxLon = Math.max(maxLon, q.lon); }
     bounds = minLat <= maxLat ? [[minLon, minLat], [maxLon, maxLat]] : null;

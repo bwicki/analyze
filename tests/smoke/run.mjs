@@ -25,6 +25,7 @@ const SMOKES = [
   ['smoke_logbook.mjs', [/modal: 1 \| rows: 2/, /csv: Logbuch_2025_KQZMWB\.csv/, /print called: \[ 1, 'print-logbook' \]/]],
   ['smoke_ops.mjs', [/special card \(team PIN\): 1/, /toast: An Briefing 2026-004 übergeben \(241 Punkte\)/]],
   ['smoke_mapshare.mjs', [/90 Positionen geladen/, /1 Segment\(e\) verwendet · 90 Punkte/]],
+  ['smoke_events.mjs', [/legend: Ereignisse:ATC \d.*Ballast \d/, /tip after hover: true \| .*23:40 UTC · ATC/, /tip after leave: false/, /tap toggles: shown true \| hidden again true/, /map markers in events pane: [1-9]/, /report legend: Ereignisse:/]],
   ['smoke_pdf.mjs', [/pdf link after save: 1 \| .*\/api\/view\/NEWFLJGH\/report\.pdf/, /pdf mode: hash #report \| html\.pdf: true \| print-ready: 1/, /print media hides chrome: true/]],
 ];
 

@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.13.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.14.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -137,9 +137,15 @@ denen die Kennzahlen stammen), Kurs, Breite/Länge, Fix und Batterie; die Zeile 
 Zeitregler.
 
 **Ereignislog:** «Aus gb_flight_data verknüpfen» (abgeschlossene Fahrten der Reporting-App; nur PINs mit
-Team-Freigabe, Worker-Token nötig) oder «Datei (JSON/CSV)». Ereignisse erscheinen als farbige Marker auf Karte und
-Profil und als Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach Typ; Maus über eine Zeile zeigt
-den Punkt. Das Log wird mit der Fahrt gespeichert (Viewer und «Öffnen» zeigen es).
+Team-Freigabe, Worker-Token nötig) oder «Datei (JSON/CSV)». Ereignisse erscheinen als **farbige Punkte** (Farbe je
+Typ: ATC blau, Ballast orange, Ressourcen grün, Position grau, PIC violett, Sonstiges hellgrau; Fotos als 📷) auf
+der 2D-Karte (eigene Ebene über den Zeitmarkern), in der 3D-Ansicht und im Höhenprofil (Punkt auf der Linie,
+Strich an der Zeitachse), dazu seit 0.14.0 eine **Legende** unter dem Profil (Typen mit Anzahl) und ein
+**Meldungsfenster**: Zeiger über einen Punkt zeigt Zeit, Typ, Ort, Meldung und Melder – eng beieinander liegende
+Ereignisse in einem Fenster; Tippen/Klick hält das Fenster fest (Touch), ein Klick daneben schliesst es. Die Karte
+zeigt dieselbe Meldung als Tooltip. Darunter die Tabelle mit Δ (Abstand gemeldete Position ↔ Track), filterbar nach
+Typ (ausgeblendete Typen verschwinden auch aus Karte, Profil und Legende); Maus über eine Zeile zeigt den Punkt.
+Das Log wird mit der Fahrt gespeichert (Viewer und «Öffnen» zeigen es; der Bericht trägt die Legende mit).
 
 **Fotos** (braucht eine gespeicherte Fahrt): «Fotos hinzufügen» nimmt JPEGs von Kamera oder Handy, liest die
 Aufnahmezeit (EXIF) und legt jedes Bild auf den Track; Bilder werden im Browser auf 2000 px verkleinert
@@ -162,19 +168,20 @@ Team-/Organisationsname, bei gespeicherter Fahrt **QR-Code und Kurzlink oben rec
 am Bildschirm ein Platzhalter, im Druck nichts). Seite 1 Stammdaten (zweispaltig) und Kennzahlen, Seite 2
 Übersichtskarte, Detailkarten von Startort und Landeort, Höhenprofil, Seite 3 Segmente/Protokoll, Regeln der
 Erkennung und Unterschrift mit «Daten hochgeladen / letzte Änderung», dann Ereignislog und Fotos. Gedruckt wird in
-Schritt 5; im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier. Karte, Detailkarten und
+Schritt 5 (der Hinweis über der Vorschau sagt das; der Knopf «Zu Speichern/Drucken» entfiel in 0.14.0); im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier. Karte, Detailkarten und
 Höhenprofil des Berichts öffnen per Klick oder ⤢ gross (interaktive Kopie mit Layerwahl und Zoom).
 
-**Spezialfunktionen Ballonteam** (unten, nur für den Supermaster und PINs mit Team-Freigabe; seit 0.10.0 steht kein
-PIN mehr im Code): Ereignislog aus `gb_flight_data` verknüpfen – Liste der JSON-Dateien im Repository, passende
-Fahrten nach Zeitraum markiert, «JSON auswählen …» – und **«Track übergeben» an ops.wicki.aero** (0.10.0, Phase 3):
+**Spezialfunktionen** (unten; seit 0.14.0 nur für PINs, die der Supermaster für das Team freigegeben hat – der
+Supermaster-Token allein zeigt das Kästchen nicht; seit 0.10.0 steht kein PIN mehr im Code): Ereignislog aus
+`gb_flight_data` verknüpfen – Auswahlfenster in voller Breite mit den Fahrten des Repositories, passende Fahrten
+nach Zeitraum markiert, «Verknüpfen» – und **«Track übergeben» an ops.wicki.aero** (0.10.0, Phase 3):
 die gespeicherte Fahrt (zuerst Schritt 5) wird mit Trajektorie (GeoJSON, auf ~30 s ausgedünnt), Kennzahlen,
 Stammdaten des Berichts, Viewer-Link und Ereignislog-Verweis – ohne Fotos – an ein Briefing übergeben; man wählt es
 aus der Liste der letzten 20 Briefings, eine zweite Übergabe ersetzt die erste, der Stand («zuletzt übergeben an
 Briefing … am …», Link «in ops öffnen») bleibt in den Stammdaten der Fahrt. Der Worker spricht mit dem ops-Worker
 über das Dienst-Token `OPS_HANDOVER_TOKEN` (beide Repositories, GitHub-Secret; der Browser sieht es nie). In ops
-erscheint die Fahrt als Abschnitt «F · Ist-Trajektorie» mit Soll/Ist-Vergleich. Der Supermaster braucht dafür keinen
-Team-PIN.
+erscheint die Fahrt als Abschnitt «F · Ist-Trajektorie» mit Soll/Ist-Vergleich (die Worker-Routen nehmen weiterhin
+auch den Supermaster-Token an).
 
 ### 5 · Speichern/Drucken/Exportieren
 

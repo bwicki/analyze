@@ -21,6 +21,12 @@ export const NIGHT_HALO = '#14202e';
 const EXPAND_SVG = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
 /** Marker markup of an extreme value (same glyph in the 2D map, the 3D view and the figures). */
 export const extremeHtml = (x) => `<span style="color:${x.color}">${x.symbol}</span>`;
+/** Tooltip of an event on the map (0.14.0): time · type · place, then the message and the reporter. */
+export function eventTip(e) {
+  const head = `<b>${escHtml(fmtTimeUTC(e.t))} UTC</b> · ${escHtml(e.typeLabel || e.type || '')}${e.place ? ` · ${escHtml(e.place)}` : ''}`;
+  const body = e.text ? `<div class="txt">${escHtml(e.text)}${e.reporter ? ` <span class="muted">· ${escHtml(e.reporter)}</span>` : ''}</div>` : (!e.typeLabel && e.label ? `<div class="txt">${escHtml(e.label)}</div>` : '');
+  return head + body;
+}
 
 export function createMap(container, opts = {}) {
   if (typeof L === 'undefined') { container.innerHTML = '<div class="muted" style="padding:20px">Leaflet not loaded</div>'; return null; }
@@ -30,6 +36,7 @@ export function createMap(container, opts = {}) {
   let current = opts.layer && layers[opts.layer] ? opts.layer : 'osm';
   layers[current].addTo(map);
   const trackLayer = L.layerGroup().addTo(map), markerLayer = L.layerGroup().addTo(map);
+  if (map.createPane) { map.createPane('events'); map.getPane('events').style.zIndex = 640; }   // 0.14.0: event dots above time markers, below tooltips
   const hoverDot = L.circleMarker([0, 0], { radius: 6, color: '#14202e', weight: 1.5, fillColor: '#f6b03d', fillOpacity: 1 });
   const pinDot = L.circleMarker([0, 0], { radius: 8, color: '#1f5fbf', weight: 3, fillColor: '#fff', fillOpacity: 1 });
   let pts = [], hoverCb = null, clickCb = null, layerCb = null, lastHover = -1, bounds = null, radioDiv = null;
@@ -139,7 +146,13 @@ export function createMap(container, opts = {}) {
       big(l, '#d98c00', lab, !!(ignoreCb && l.t));
     }
     big(data.landing, '#c0392b', data.landingLabel);
-    for (const e of data.events || []) L.circleMarker([e.lat, e.lon], { radius: 5, color: e.color || '#1f5fbf', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(markerLayer).bindTooltip(e.label);
+    // events from the log and photos (0.14.0): coloured dots in their own pane, hover window with the full message
+    for (const e of data.events || []) {
+      if (Number.isNaN(e.lat)) continue;
+      const html = e.type === 'photo' ? '<span class="evmark photo">📷</span>' : `<span class="evmark" style="--c:${escHtml(e.color || '#1f5fbf')}"></span>`;
+      L.marker([e.lat, e.lon], { icon: L.divIcon({ className: 'evmark-w', html, iconSize: [16, 16], iconAnchor: [8, 8] }), pane: 'events', interactive: true, keyboard: false }).addTo(markerLayer)
+        .bindTooltip(eventTip(e), { direction: 'top', offset: [0, -9], className: 'tt-ev', opacity: 1 });
+    }
     // extremes (0.9.0): altitude max ◆, ground-speed max ▶, strongest climb ▲ and sink ▼ as symbols with a tooltip
     for (const x of data.extremes || []) {
       if (Number.isNaN(x.lat)) continue;
