@@ -10,6 +10,7 @@ import { api, ApiError } from '../api.js';
 import { session, setMe, clearSession, logoUrl, DEFAULT_LOGO } from '../session.js';
 import { openFlight } from '../flightio.js';
 import { config } from '../config.js';
+import { downloadRawSet } from '../export/rawdl.js';
 
 export function mountFlights(root, ctx) {
   const me = session.me || {};
@@ -76,7 +77,7 @@ export function mountFlights(root, ctx) {
         <td class="r mono">${st.durationSec ? fmtDurationClock(st.durationSec) : '–'}</td>
         <td class="r mono">${st.distanceM ? u.dist(st.distanceM) : '–'}</td>
         <td class="nowrap"><a href="${esc(shortUrl(f.id))}" target="_blank" rel="noopener" class="mono small">/v/${esc(f.id)}</a> <button class="btn xs" type="button" data-act="copy" data-id="${f.id}" title="${esc(t('exp.copyLink'))}">⧉</button>${f.public ? '' : ` <span class="tag">${esc(t('fl.private'))}</span>`}</td>
-        <td class="nowrap"><button class="btn xs primary" type="button" data-act="open" data-id="${f.id}">${esc(t('fl.open'))}</button> <button class="btn xs" type="button" data-act="del" data-id="${f.id}">${esc(t('common.remove'))}</button></td></tr>`;
+        <td class="nowrap"><button class="btn xs primary" type="button" data-act="open" data-id="${f.id}">${esc(t('fl.open'))}</button>${f.rawFiles ? ` <button class="btn xs" type="button" data-act="raw" data-id="${f.id}" data-title="${esc(f.title || f.id)}" title="${esc(t('fl.rawTitle'))}">${esc(t('fl.rawBtn', { n: f.rawFiles }))}</button>` : ''} <button class="btn xs" type="button" data-act="del" data-id="${f.id}">${esc(t('common.remove'))}</button></td></tr>`;
     }).join('');
     table.innerHTML = `<table class="tbl flights"><thead><tr><th>${esc(t('fl.col.date'))}</th><th>${esc(t('fl.col.title'))}</th><th>${esc(t('rep.reg'))}</th><th>${esc(t('fl.col.route'))}</th><th class="r">${esc(t('st.duration'))}</th><th class="r">${esc(t('st.distance'))}</th><th>${esc(t('fl.col.viewer'))}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`;
   }
@@ -106,6 +107,11 @@ export function mountFlights(root, ctx) {
 
   onAct(el, {
     new: () => { ctx.goto('import'); },
+    raw: async (b) => {   // the imported tracker files of an own flight, as stored (0.8.8)
+      b.disabled = true;
+      try { const list = await api.flights.raw(b.dataset.id); if (!list.length) { toast(t('adm.rawNoFiles'), true); return; } toast(t('adm.rawLoading', { n: list.length })); await downloadRawSet({ list, fetchFile: (n) => api.flights.rawFile(b.dataset.id, n), title: b.dataset.title, id: b.dataset.id }); }
+      catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); } finally { b.disabled = false; }
+    },
     open: async (b) => {
       const f = flights.find((x) => x.id === b.dataset.id); if (!f) return;
       if (state.track && !(state.flight && state.flight.id === f.id)) {

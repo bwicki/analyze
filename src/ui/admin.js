@@ -4,8 +4,8 @@
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast, confirmDialog } from '../util/dom.js';
 import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtDateUTC } from '../util/format.js';
-import { api, ApiError, gunzipToBytes } from '../api.js';
-import { zip } from '../parse/zip.js';
+import { api, ApiError } from '../api.js';
+import { downloadRawSet } from '../export/rawdl.js';
 import { session, setAdmin, hasServer } from '../session.js';
 import { config } from '../config.js';
 import { saveBlob } from '../export/download.js';
@@ -117,10 +117,7 @@ export function mountAdmin(root, ctx) {
         const list = await api.admin.raw(b.dataset.id);
         if (!list.length) { toast(t('adm.rawNoFiles'), true); return; }
         toast(t('adm.rawLoading', { n: list.length }));
-        const entries = [];
-        for (const f of list) { const res = await api.admin.rawFile(b.dataset.id, f.n); entries.push({ name: f.name, data: await gunzipToBytes(await res.blob()) }); }
-        if (entries.length === 1) saveBlob(new Blob([entries[0].data]), entries[0].name);
-        else saveBlob(new Blob([await zip(entries)], { type: 'application/zip' }), `${safeName(b.dataset.title)}_${b.dataset.id}_rohdaten.zip`);
+        await downloadRawSet({ list, fetchFile: (n) => api.admin.rawFile(b.dataset.id, n), title: b.dataset.title, id: b.dataset.id });
       } catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); } finally { b.disabled = false; }
     },
     dlTrack: async (b) => {

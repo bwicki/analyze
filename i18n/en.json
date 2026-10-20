@@ -440,6 +440,8 @@
   "fl.empty": "No saved flight yet. Import a flight and save it under “Export”.",
   "fl.files": "files",
   "fl.rawFiles": "raw files {n}",
+  "fl.rawBtn": "Raw data ({n})",
+  "fl.rawTitle": "Download the imported tracker files of this flight (as ZIP, a single file directly)",
   "fl.points": "points",
   "fl.private": "private",
   "fl.open": "Open",

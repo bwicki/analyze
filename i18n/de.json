@@ -440,6 +440,8 @@
   "fl.empty": "Noch keine gespeicherte Fahrt. Importiere eine Fahrt und speichere sie unter «Exportieren».",
   "fl.files": "Dateien",
   "fl.rawFiles": "Rohdaten {n}",
+  "fl.rawBtn": "Rohdaten ({n})",
+  "fl.rawTitle": "Die importierten Trackerdateien dieser Fahrt herunterladen (als ZIP, eine Datei direkt)",
   "fl.points": "Punkte",
   "fl.private": "privat",
   "fl.open": "Öffnen",
