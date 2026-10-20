@@ -3,7 +3,7 @@
 import { HttpError, hashPin, verifyPin, createToken, isCode, normalizeCode, isFlightId } from './auth.js';
 import { logAction, listLog } from './log.js';
 import { meView } from './codes.js';
-import { flightView, removeFlightRow } from './flights.js';
+import { flightView, removeFlightRow, withRawCounts } from './flights.js';
 
 const PIN_MIN = 6;
 
@@ -62,7 +62,7 @@ export async function setTeam(env, admin, codeRaw, team, request) {
 
 export async function adminFlights(env, limit = 500) {
   const r = await env.DB.prepare('SELECT * FROM flights ORDER BY updated_at DESC LIMIT ?1').bind(Math.min(2000, Number(limit) || 500)).all();
-  return (r.results || []).map((row) => flightView(row, { withOwner: true }));
+  return withRawCounts(env, (r.results || []).map((row) => flightView(row, { withOwner: true })));
 }
 
 export async function adminStats(env) {

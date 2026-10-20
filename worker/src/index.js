@@ -15,7 +15,8 @@
 //   GET  /api/flights/<id>/events · /api/view/<id>/events   stored event log (JSON array)
 //   GET  /api/view/<id> · /api/view/<id>/track   public viewer data (short link /v/<id>)
 //   PUT  /api/flights/<id>/preview (JPEG, owner) · GET /api/view/<id>/preview.jpg   link-preview image for messengers
-//   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code, team)
+//   GET|POST /api/flights/<id>/raw · GET /api/flights/<id>/raw/<n>   raw tracker files as imported (owner; Supermaster: /api/admin/flights/<id>/raw[/<n>])
+//   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code with team, or Supermaster token)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
 //   GET  /api/photos/<pid>[/thumb]   image (owner, or anyone when the flight is public)
@@ -26,7 +27,8 @@
 import { HttpError, codeFromRequest, requireCode, adminFromRequest, requireAdmin, deleteToken } from './auth.js';
 import { createCode, meView, counts, touch, updateMe, putLogo, deleteLogo, getLogo } from './codes.js';
 import { previewHtml, removePreview } from './preview.js';
-import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage } from './flights.js';
+import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage, listOwnRaw, putOwnRaw, getOwnRaw } from './flights.js';
+import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
@@ -87,7 +89,8 @@ export async function api(request, env, url, ctx) {
 
   // ---- code user ---------------------------------------------------------------------------------
   if (path === '/api/me' || path === '/api/me/logo' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
-    const user = await codeFromRequest(env, request, url);
+    let user = await codeFromRequest(env, request, url);
+    if (!user && path.startsWith('/api/events')) { const adm = await adminFromRequest(env, request); if (adm) user = { code: `admin:${adm.name}`, team: true, admin: true }; }   // Supermaster without a PIN (0.8.7)
     if (!user) {
       if (rateLimited('guess:' + ip, 30)) throw new HttpError(429, 'too many attempts');
       throw new HttpError(401, 'unknown code');
@@ -102,6 +105,11 @@ export async function api(request, env, url, ctx) {
     if (trackId && m === 'GET') return getTrack(env, user, trackId);
     const eventsId = seg(/^\/api\/flights\/([^/]+)\/events$/);
     if (eventsId && m === 'GET') return getEvents(env, user, eventsId);
+    const rawId = seg(/^\/api\/flights\/([^/]+)\/raw$/);
+    if (rawId && m === 'GET') return json(await listOwnRaw(env, user, rawId));
+    if (rawId && m === 'POST') return json(await putOwnRaw(env, user, rawId, request));
+    const rawOne = /^\/api\/flights\/([^/]+)\/raw\/(\d+)$/.exec(path);
+    if (rawOne && m === 'GET') return getOwnRaw(env, user, decodeURIComponent(rawOne[1]), rawOne[2], request);
     const previewId = seg(/^\/api\/flights\/([^/]+)\/preview$/);
     if (previewId && m === 'PUT') return json(await putPreview(env, user, previewId, request));
     const photosId = seg(/^\/api\/flights\/([^/]+)\/photos$/);
@@ -151,6 +159,10 @@ export async function api(request, env, url, ctx) {
     if (teamCode && m === 'POST') return json(await setTeam(env, admin, teamCode, !!(await readJson(request)).team, request));
     const delCode = seg(/^\/api\/admin\/codes\/([^/]+)$/);
     if (delCode && m === 'DELETE') return json(await adminDeleteCode(env, admin, delCode, request));
+    const admRaw = seg(/^\/api\/admin\/flights\/([^/]+)\/raw$/);
+    if (admRaw && m === 'GET') return json(await listRaw(env, admRaw));
+    const admRawOne = /^\/api\/admin\/flights\/([^/]+)\/raw\/(\d+)$/.exec(path);
+    if (admRawOne && m === 'GET') return getRaw(env, decodeURIComponent(admRawOne[1]), admRawOne[2], `admin:${admin.name}`, request);
     const admFile = /^\/api\/admin\/flights\/([^/]+)\/(track|events)$/.exec(path);
     if (admFile && m === 'GET') return adminFlightFile(env, admin, decodeURIComponent(admFile[1]), admFile[2], request);
     const delFlight = seg(/^\/api\/admin\/flights\/([^/]+)$/);
@@ -169,6 +181,8 @@ const MIGRATIONS = [
   { test: 'SELECT id FROM photos LIMIT 1', apply: 'CREATE INDEX IF NOT EXISTS photos_flight ON photos(flight_id, taken_at)', always: true },
   { test: 'SELECT manual FROM photos LIMIT 1', apply: 'ALTER TABLE photos ADD COLUMN manual INTEGER NOT NULL DEFAULT 0' },
   { test: 'SELECT manual_at FROM photos LIMIT 1', apply: 'ALTER TABLE photos ADD COLUMN manual_at INTEGER' },
+  { test: 'SELECT n FROM raw_files LIMIT 1', apply: 'CREATE TABLE IF NOT EXISTS raw_files (flight_id TEXT NOT NULL, n INTEGER NOT NULL, code TEXT NOT NULL, name TEXT NOT NULL, bytes INTEGER NOT NULL DEFAULT 0, gz_bytes INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, PRIMARY KEY (flight_id, n))' },
+  { test: 'SELECT n FROM raw_files LIMIT 1', apply: 'CREATE INDEX IF NOT EXISTS raw_files_code ON raw_files(code)', always: true },
 ];
 let migrated = null;
 function ensureSchema(env) {

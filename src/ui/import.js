@@ -59,10 +59,14 @@ export function mountImport(root, ctx) {
   fileIn.addEventListener('change', () => { if (fileIn.files.length) addFiles(fileIn.files); fileIn.value = ''; });
   el.querySelector('[data-opt="hideOther"]').addEventListener('change', (e) => { state.settings.hideOtherFlights = e.target.checked; ctx.saveSettings(); render(); });
 
-  async function addFiles(list) {
+  async function addFiles(fileList) {
+    const list = Array.from(fileList);   // snapshot – the <input> is cleared right after the call and its FileList would empty
     state.busy = true; prog.textContent = t('imp.reading', { n: list.length }); ctx.refreshBars();
     try {
       const results = await parseFiles(list, (m) => { prog.textContent = m.stage === 'parse' ? t('imp.parsing', { name: m.name, profile: m.profile }) : t('imp.readingFile', { name: m.name }); }, state.userProfiles);
+      // keep the dropped files themselves (raw data, stored with the flight on save – 0.8.7); unreadable ones not
+      const failed = new Set(results.filter((r) => r.error).map((r) => r.name));
+      for (const f of list) if (!failed.has(f.name) && !state.rawFiles.some((x) => x.name === f.name && x.size === f.size)) { state.rawFiles.push({ name: f.name, size: f.size, file: f }); state.rawUploadedFor = null; }
       for (const r of results) {
         if (r.error) { toast(`${r.name}: ${r.error}`, true); continue; }
         if (r.unknown) { if (!state.unknown.some((u) => u.name === r.name)) state.unknown.push(r); continue; }
@@ -98,7 +102,7 @@ export function mountImport(root, ctx) {
     merge: (b) => { state.settings.merge = { ...state.settings.merge, mode: b.dataset.mode }; ctx.saveSettings(); recompute({ reclassify: false }); },
     reset: async () => { if (await confirmDialog({ title: t('imp.reset'), text: esc(t('imp.resetText')), okLabel: t('imp.reset'), cancelLabel: t('common.cancel'), danger: true })) { resetAll(); } },
     seg: (b) => { const s = state.segments.find((x) => x.id === +b.dataset.id); if (!s) return; s.status = b.dataset.to; recompute({ reclassify: b.dataset.to !== 'off' && b.dataset.to !== 'use' }); },
-    dropfile: (b) => { state.files = state.files.filter((f) => f.name !== b.dataset.name); recompute(); },
+    dropfile: (b) => { state.files = state.files.filter((f) => f.name !== b.dataset.name); state.rawFiles = state.rawFiles.filter((f) => f.name !== b.dataset.name); state.rawUploadedFor = null; recompute(); },
     dropunknown: (b) => { state.unknown = state.unknown.filter((f) => f.name !== b.dataset.name); render(); },
     assist: async (b) => {
       const u = state.unknown.find((f) => f.name === b.dataset.name); if (!u || !u.text) return;

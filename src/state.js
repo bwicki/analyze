@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.8.6';
+export const VERSION = '0.8.7';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -59,6 +59,9 @@ export const state = {
   flight: null,     // {id, title, url, updatedAt, public} once the current analysis is saved under the Kennung
   viewer: null,     // {id, title, owner:{code, displayName, logo}} when opened through a short link (read-only)
   previewBusy: false, // link-preview image being rendered / uploaded (export page shows a placeholder meanwhile)
+  rawFiles: [],       // the files as dropped into Importieren [{name, size, file}] – stored with the flight on save (0.8.7)
+  rawUploadedFor: null, // flight id whose stored raw set matches rawFiles (no re-upload on «Nochmals speichern»)
+  rawBusy: false,
 };
 
 export function saveSettings() { save(LS_SETTINGS, state.settings); bus.emit('settings'); }
@@ -154,7 +157,7 @@ export function setManualLanding(ms, flag = 'manual') {
 export function resetAll() {
   const s = state;
   s.files = []; s.unknown = []; s.segments = []; s.track = null; s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; s.places = { takeoff: null, landing: null, inter: {} }; s.hover = null; s.ignoredLandings = []; s.importedAt = null; s.modifiedAt = null;
-  s.flight = null; s.viewer = null; s.evlog = null; s.photos = []; s.photosPlaced = [];
+  s.flight = null; s.viewer = null; s.evlog = null; s.photos = []; s.photosPlaced = []; s.rawFiles = []; s.rawUploadedFor = null; s.rawBusy = false;
   s.visited = { import: true };
   bus.emit('track');
 }

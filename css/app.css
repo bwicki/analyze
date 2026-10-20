@@ -337,3 +337,20 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .msgpreview{margin-top:10px;max-width:360px}
 .msgpreview-busy{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1200/630;border:1px dashed var(--border-strong);border-radius:8px;margin:4px 0;background:#f4f6f9}
 .msgpreview img{display:block;width:100%;aspect-ratio:1200/630;object-fit:cover;border:1px solid var(--border);border-radius:8px;margin:4px 0;background:#e9eef3}
+
+/* Bericht: special functions (Supermaster / Ballonteam PIN) */
+.card.special{border-color:var(--amber-light);background:#fffaf0}
+.card.special .row{align-items:center;gap:12px}
+
+/* first-visit window (0.8.7) */
+.welcome-bg{position:fixed;inset:0;z-index:60;display:flex;align-items:flex-end;justify-content:center;padding:16px;background:rgba(20,32,46,.18);backdrop-filter:blur(1px)}
+.welcome{width:min(560px,100%);background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:0 18px 50px rgba(20,32,46,.25);padding:16px 18px;display:flex;flex-direction:column;gap:10px;animation:welcome-in .3s ease-out}
+.welcome .head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.welcome h1{font-size:18px;margin:0}
+.welcome p{margin:0;font-size:14px;line-height:1.45}
+.welcome .foot{display:flex;align-items:center;gap:12px}
+.welcome .bar{flex:1;height:4px;border-radius:2px;background:var(--hair);overflow:hidden}
+.welcome .bar span{display:block;height:100%;width:100%;background:var(--primary)}
+.seg.sm button{padding:4px 10px;font-size:12px;min-height:28px}
+@keyframes welcome-in{from{transform:translateY(16px);opacity:0}to{transform:none;opacity:1}}
+@media (min-width:700px){.welcome-bg{align-items:center}}

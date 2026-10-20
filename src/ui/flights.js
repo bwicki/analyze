@@ -70,7 +70,7 @@ export function mountFlights(root, ctx) {
       const st = f.stats || {}; const route = [st.startPlace, st.landPlace].filter(Boolean).join(' → ');
       const cur = state.flight && state.flight.id === f.id;
       return `<tr class="${cur ? 'cur' : ''}"><td class="mono nowrap">${f.startTs ? fmtDateUTC(f.startTs) : '–'}</td>
-        <td style="min-width:200px"><strong>${esc(f.title || '–')}</strong><br><span class="muted small">${esc((st.trackers || []).join(', '))}${st.files ? ` · ${st.files} ${esc(t('fl.files'))}` : ''} · ${fmtInt(f.points)} ${esc(t('fl.points'))}</span></td>
+        <td style="min-width:200px"><strong>${esc(f.title || '–')}</strong><br><span class="muted small">${esc((st.trackers || []).join(', '))}${st.files ? ` · ${st.files} ${esc(t('fl.files'))}` : ''} · ${fmtInt(f.points)} ${esc(t('fl.points'))}${f.rawFiles ? ` · ${esc(t('fl.rawFiles', { n: f.rawFiles }))}` : ''}</span></td>
         <td class="nowrap">${esc((f.meta && f.meta.balloon) || '–')}</td>
         <td style="min-width:160px">${esc(route || '–')}</td>
         <td class="r mono">${st.durationSec ? fmtDurationClock(st.durationSec) : '–'}</td>

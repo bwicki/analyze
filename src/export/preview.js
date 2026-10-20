@@ -18,13 +18,18 @@ const TILE = 256, PAD = 56, CAPTION_H = 64;
 const lon2x = (lon, z) => (lon + 180) / 360 * TILE * 2 ** z;
 const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * TILE * 2 ** z; };
 
-/** Zoom and world-pixel origin so the bounds fit the image (map area above the caption). */
+/**
+ * Exact (fractional) fit of the bounds into the map area above the caption: zf = fractional zoom, tiles are
+ * drawn at the integer zoom zt = ceil(zf) and scaled by s = 2^(zf − zt) ≤ 1 – so the flight fills the picture
+ * up to the padding instead of the next integer zoom leaving it small. left/top are world pixels at zt.
+ */
 export function fitView(bounds, w = PREVIEW_W, h = PREVIEW_H - CAPTION_H, maxZoom = 16) {
   const aw = w - 2 * PAD, ah = h - 2 * PAD;
-  let z = maxZoom;
-  for (; z > 1; z--) { const dx = lon2x(bounds.east, z) - lon2x(bounds.west, z), dy = lat2y(bounds.south, z) - lat2y(bounds.north, z); if (dx <= aw && dy <= ah) break; }
-  const cx = (lon2x(bounds.east, z) + lon2x(bounds.west, z)) / 2, cy = (lat2y(bounds.south, z) + lat2y(bounds.north, z)) / 2;
-  return { z, left: cx - w / 2, top: cy - h / 2, w, h };
+  const dx0 = Math.max(1e-9, lon2x(bounds.east, 0) - lon2x(bounds.west, 0)), dy0 = Math.max(1e-9, lat2y(bounds.south, 0) - lat2y(bounds.north, 0));
+  const zf = Math.max(1, Math.min(maxZoom, Math.log2(aw / dx0), Math.log2(ah / dy0)));
+  const zt = Math.min(maxZoom, Math.ceil(zf)), s = 2 ** (zf - zt);
+  const cx = (lon2x(bounds.east, zt) + lon2x(bounds.west, zt)) / 2, cy = (lat2y(bounds.south, zt) + lat2y(bounds.north, zt)) / 2;
+  return { z: zt, zf, s, left: cx - w / 2 / s, top: cy - h / 2 / s, w, h };
 }
 
 /** Everything the renderer needs from the current analysis (pure; testable without a DOM). */
@@ -52,13 +57,14 @@ async function fetchTile(url) {
 
 /** Draw the tiles of one layer into ctx; resolves false when any tile failed (caller falls back). */
 async function drawTiles(ctx, view, layerKey) {
-  const layer = LAYERS[layerKey]; const z = Math.min(view.z, layer.maxZoom || 19), n = 2 ** z;
-  const x0 = Math.floor(view.left / TILE), x1 = Math.floor((view.left + view.w) / TILE), y0 = Math.max(0, Math.floor(view.top / TILE)), y1 = Math.min(n - 1, Math.floor((view.top + view.h) / TILE));
+  const layer = LAYERS[layerKey]; const z = view.z, n = 2 ** z, s = view.s;
+  const x0 = Math.floor(view.left / TILE), x1 = Math.floor((view.left + view.w / s) / TILE), y0 = Math.max(0, Math.floor(view.top / TILE)), y1 = Math.min(n - 1, Math.floor((view.top + view.h / s) / TILE));
   const jobs = [];
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
   for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
     const wx = ((tx % n) + n) % n, sub = 'abc'[(tx + ty) % 3];
     const url = layer.url.replace('{z}', z).replace('{x}', wx).replace('{y}', ty).replace('{s}', sub);
-    jobs.push(fetchTile(url).then((img) => { ctx.drawImage(img, tx * TILE - view.left, ty * TILE - view.top); img.close && img.close(); }));
+    jobs.push(fetchTile(url).then((img) => { ctx.drawImage(img, (tx * TILE - view.left) * s, (ty * TILE - view.top) * s, TILE * s + 0.5, TILE * s + 0.5); img.close && img.close(); }));
   }
   const res = await Promise.allSettled(jobs);
   return res.every((r) => r.status === 'fulfilled');
@@ -70,13 +76,13 @@ export async function renderPreview(data, { canvasFactory = null } = {}) {
   const W = PREVIEW_W, H = PREVIEW_H, MAPH = H - CAPTION_H;
   const canvas = canvasFactory ? canvasFactory(W, H) : Object.assign(document.createElement('canvas'), { width: W, height: H });
   const ctx = canvas.getContext('2d');
-  const view = fitView(data.bounds, W, MAPH);
-  ctx.fillStyle = '#e9eef3'; ctx.fillRect(0, 0, W, H);
   let layer = data.layer, ok = false;
+  let view = fitView(data.bounds, W, MAPH, LAYERS[layer].maxZoom || 19);
+  ctx.fillStyle = '#e9eef3'; ctx.fillRect(0, 0, W, H);
   try { ok = await drawTiles(ctx, view, layer); } catch { ok = false; }
-  if (!ok && layer !== 'osm') { ctx.fillStyle = '#e9eef3'; ctx.fillRect(0, 0, W, MAPH); layer = 'osm'; try { ok = await drawTiles(ctx, view, 'osm'); } catch { ok = false; } }
-  const z = Math.min(view.z, (LAYERS[layer].maxZoom || 19));
-  const X = (lon) => lon2x(lon, z) - view.left, Y = (lat) => lat2y(lat, z) - view.top;
+  if (!ok && layer !== 'osm') { ctx.fillStyle = '#e9eef3'; ctx.fillRect(0, 0, W, MAPH); layer = 'osm'; view = fitView(data.bounds, W, MAPH, LAYERS.osm.maxZoom || 19); try { ok = await drawTiles(ctx, view, 'osm'); } catch { ok = false; } }
+  const z = view.z, sc = view.s;
+  const X = (lon) => (lon2x(lon, z) - view.left) * sc, Y = (lat) => (lat2y(lat, z) - view.top) * sc;
   if (data.layer === 'sat' && ok) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(0, 0, W, MAPH); }   // tone the imagery down a little
   // track: white halo, then runs coloured by vario class
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';

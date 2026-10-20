@@ -7,13 +7,20 @@ import { state, recompute } from '../src/state.js';
 import { detectProfile } from '../src/parse/profiles.js';
 import { readWithProfile } from '../src/parse/readers.js';
 
-test('fitView picks the largest zoom at which the bounds fit the map area', () => {
-  const v = fitView({ west: 6.5, east: 26.5, south: 51.5, north: 60.5 });          // GB26: Germany → Finland
-  assert.equal(v.z, 5); assert.equal(v.w, PREVIEW_W); assert.ok(v.h < PREVIEW_H);
+test('fitView fits the bounds exactly (fractional zoom): the wider side touches the padding', () => {
   const lon2x = (lon, z) => (lon + 180) / 360 * 256 * 2 ** z;
-  assert.ok(lon2x(6.5, 5) - v.left >= 56 && lon2x(26.5, 5) - v.left <= PREVIEW_W - 56, 'bounds inside the padding');
-  assert.equal(fitView({ west: 8.0, east: 8.05, south: 47.0, north: 47.03 }).z, 13);   // short local flight
-  assert.equal(fitView({ west: 8.0, east: 8.05, south: 47.0, north: 47.03 }, 1200, 566, 11).z, 11);   // layer max zoom
+  const lat2y = (lat, z) => { const r = lat * Math.PI / 180; return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * 256 * 2 ** z; };
+  const b = { west: 6.5, east: 26.5, south: 51.5, north: 60.5 };                       // GB26: Germany → Finland
+  const v = fitView(b);
+  assert.equal(v.w, PREVIEW_W); assert.ok(v.h < PREVIEW_H); assert.ok(v.s > 0.5 && v.s <= 1, `scale ${v.s}`); assert.equal(v.z, Math.ceil(v.zf));
+  const px = (lon) => (lon2x(lon, v.z) - v.left) * v.s, py = (lat) => (lat2y(lat, v.z) - v.top) * v.s;
+  const wPx = px(b.east) - px(b.west), hPx = py(b.south) - py(b.north);
+  assert.ok(Math.abs(wPx - (PREVIEW_W - 112)) < 1 || Math.abs(hPx - (v.h - 112)) < 1, `one side fills the area: ${wPx} × ${hPx}`);
+  assert.ok(px(b.west) >= 55.5 && px(b.east) <= PREVIEW_W - 55.5 && py(b.north) >= 55.5 && py(b.south) <= v.h - 55.5, 'inside the padding');
+  assert.ok(Math.abs((px(b.west) + px(b.east)) / 2 - PREVIEW_W / 2) < 1, 'centred');
+  const small = fitView({ west: 8.0, east: 8.05, south: 47.0, north: 47.03 });        // short local flight → deeper zoom
+  assert.ok(small.zf > 13 && small.zf < 15, `zf ${small.zf}`);
+  assert.equal(fitView({ west: 8.0, east: 8.05, south: 47.0, north: 47.03 }, 1200, 566, 11).z, 11);   // layer max zoom caps it
 });
 
 test('previewData: track points with vario classes, padded bounds, markers and caption from the stats', () => {

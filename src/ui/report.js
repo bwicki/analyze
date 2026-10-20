@@ -11,6 +11,7 @@ import { movingMean, indexAt } from '../process/series.js';
 import { createMap, createDetailMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
 import { session, logoUrl, DEFAULT_LOGO, orgName } from '../session.js';
+import { pickFromRepo } from './events.js';
 import { qrSvg } from '../util/qr.js';
 import { eventsForDisplay, ballastSeries, typeLabel } from './events.js';
 import { photosForDisplay } from './photos.js';
@@ -21,7 +22,10 @@ import { terrainForDisplay } from '../terrain/store.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
+const SPECIAL_CODE = 'ZKKG2L';   // the Ballonteam PIN – with the Supermaster the only ones who see the special functions (0.8.7)
+
 export function mountReport(root, ctx) {
+  const special = !state.viewer && (!!session.adminToken || session.code === SPECIAL_CODE);
   const m = state.meta;
   // defaults of the Kennung (Meine Fahrten → Vorgaben) prefill empty fields of a new flight
   const prefs = (session.me && session.me.prefs) || {};
@@ -71,10 +75,21 @@ export function mountReport(root, ctx) {
         <article class="report" data-report></article>
       </div>
     </div>
+    ${special ? `<section class="card noprint special" data-special>
+      <h2>${esc(t('rep.specialTitle'))}</h2>
+      <p class="small muted" style="margin:0">${esc(t('rep.specialSub'))}</p>
+      <div class="row"><span>${esc(t('rep.specialEvents'))}<br><span class="muted small" data-evstate></span></span><button class="btn sm primary" type="button" data-act="pickRepo">${esc(t('rep.specialPick'))}</button></div>
+      <div class="row"><span>${esc(t('rep.specialOps'))}<br><span class="muted small">${esc(t('exp.opsSoon'))}</span></span><button class="btn sm" type="button" disabled>${esc(t('exp.opsHandover'))}</button></div>
+    </section>` : ''}
   </main>`);
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
-  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export') });
+  onAct(el, { print: () => window.print(), toExport: () => ctx.goto('export'), pickRepo: () => pickFromRepo() });
+  function renderSpecial() {
+    const st = el.querySelector('[data-evstate]'); if (!st) return;
+    const lg = state.evlog;
+    st.textContent = lg ? t('rep.specialLinked', { name: lg.source && (lg.source.flight || lg.source.name) || '–', n: lg.events ? lg.events.length : 0 }) : t('rep.specialNone');
+  }
   let map = null, mapEl = null, detailMaps = [];
 
   function renderReport() {
@@ -200,7 +215,8 @@ export function mountReport(root, ctx) {
       `;
   }
 
-  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', renderReport), off4 = bus.on('photos', renderReport);
+  const off = bus.on('track', renderReport), off2 = bus.on('places', renderReport), off3 = bus.on('events', () => { renderReport(); renderSpecial(); }), off4 = bus.on('photos', renderReport);
+  renderSpecial();
   let terrTimer = null; const off5 = bus.on('terrain', () => { if (state.terrain && state.terrain.status === 'ready') { clearTimeout(terrTimer); terrTimer = setTimeout(renderReport, 300); } });
   renderReport();
   root.appendChild(el);

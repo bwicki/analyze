@@ -13,11 +13,9 @@ import { api } from '../api.js';
 import { qrSvg } from '../util/qr.js';
 
 const FORMATS = ['gpx', 'geojson', 'kmz', 'csv'];
-const OPS_CODE = 'ZKKG2L';   // the Ballonteam PIN that may hand tracks over to ops.wicki.aero (besides the Supermaster)
 
 export function mountExport(root, ctx) {
   let step = 10;
-  const opsAllowed = !!session.adminToken || session.code === OPS_CODE;   // ops.wicki.aero handover: Supermaster or the Ballonteam PIN only
   const step_ = (n, title) => `<h2><span class="stepnum">${n}</span>${esc(title)}</h2>`;
   const el = html(`<main class="page">
     <div class="row-wrap" style="align-items:flex-start">
@@ -51,7 +49,6 @@ export function mountExport(root, ctx) {
         <section class="card step">
           ${step_(5, t('exp.handover'))}
           <div class="row"><span>Google Earth</span><button class="btn sm" type="button" data-act="kmz">${esc(t('exp.kmzOpen'))}</button></div>
-          ${opsAllowed ? `<div class="row"><span>ops.wicki.aero</span><button class="btn sm" type="button" disabled title="${esc(t('exp.opsSoon'))}">${esc(t('exp.opsHandover'))}</button></div>` : ''}
           <span class="muted small">${esc(t('exp.earthNote'))}</span>
         </section>
       </div>
@@ -123,6 +120,13 @@ export function mountExport(root, ctx) {
     btn.textContent = selected.zip ? t('exp.downloadZip') : n > 1 ? t('exp.downloadN', { n }) : t('exp.downloadSelected');
     el.querySelector('[data-dlhint]').textContent = selected.zip ? t('exp.zipHint') : n === 0 ? t('exp.selectHint') : n > 1 ? t('exp.multiHint') : '';
   }
+  /** Raw tracker files: what will be stored / what is stored (0.8.7). */
+  function rawLine(f) {
+    const n = state.rawFiles.length, bytes = state.rawFiles.reduce((a, x) => a + x.size, 0);
+    if (state.rawBusy) return t('exp.rawBusy');
+    if (f && state.rawUploadedFor === f.id) return n ? t('exp.rawStored', { n, size: fmtBytes(bytes) }) : f.rawFiles ? t('exp.rawStoredN', { n: f.rawFiles, size: fmtBytes(f.rawBytes || 0) }) : t('exp.rawNone');
+    return n ? t('exp.rawPending', { n, size: fmtBytes(bytes) }) : t('exp.rawNone');
+  }
   function renderSave() {
     const box = el.querySelector('[data-save]');
     if (!hasServer()) { box.innerHTML = `<div class="banner info"><div class="body"><h3>${esc(t('start.noServer'))}</h3></div></div>`; return; }
@@ -131,6 +135,7 @@ export function mountExport(root, ctx) {
     box.innerHTML = `<div class="row"><span class="k2">${esc(t('rep.title'))}</span><span class="val" style="white-space:normal">${esc(flightTitle())}</span></div>
       <div class="row"><span class="k2">${esc(t('start.code'))}</span><span class="val">${esc(session.code)}${session.me && session.me.displayName ? ` · <span class="sub">${esc(session.me.displayName)}</span>` : ''}</span></div>
       <div class="row"><span class="k2">${esc(t('exp.saveWhat'))}</span><span class="val" style="white-space:normal"><span class="sub">${esc(t('exp.saveWhatSub', { n: fmtInt(full ? full.points : 0) }))}</span></span></div>
+      <div class="row"><span class="k2">${esc(t('exp.rawWhat'))}</span><span class="val" style="white-space:normal"><span class="sub">${esc(rawLine(f))}</span></span></div>
       ${f ? `<div class="row"><span class="k2">${esc(t('exp.savedAs'))}</span><span class="val">/v/${esc(f.id)}<br><span class="sub">${esc(t('exp.savedAt'))} ${fmtDateTimeUTC(f.updatedAt)}</span></span></div>` : ''}
       <div class="actions"><span class="muted small">${esc(t('exp.saveNote'))}</span><button class="btn primary" type="button" data-act="save">${esc(f && !state.viewer ? t('exp.saveAgain') : t('exp.saveNow'))}</button></div>`;
   }
@@ -148,7 +153,8 @@ export function mountExport(root, ctx) {
   }
   const off = bus.on('track', render), off2 = bus.on('flight', () => { renderSave(); renderShare(); });
   const off3 = bus.on('preview', () => renderShare());   // image being rendered / uploaded → placeholder, then the picture
+  const off4 = bus.on('raw', (d) => { renderSave(); if (d && d.ok === false) toast(d.error === 413 ? t('exp.rawQuota') : t('exp.rawFailed'), true); });
   render();
   root.appendChild(el);
-  return { unmount: () => { off(); off2(); off3(); } };
+  return { unmount: () => { off(); off2(); off3(); off4(); } };
 }

@@ -7,6 +7,7 @@ import { logAction } from './log.js';
 import { counts } from './codes.js';
 import { syncPreview, removePreview } from './preview.js';
 import { removeFlightPhotos } from './photos.js';
+import { rawBytes, listRaw, putRaw, getRaw, removeFlightRaw } from './rawfiles.js';
 
 const TRACK_MAX = 25 * 1024 * 1024;                 // gzipped bytes per flight
 const QUOTA_DEFAULT_MB = 300;                       // per code
@@ -22,7 +23,14 @@ export function flightView(row, { withOwner = false } = {}) {
 
 export async function listFlights(env, user) {
   const r = await env.DB.prepare('SELECT * FROM flights WHERE code = ?1 ORDER BY COALESCE(start_ts, created_at) DESC').bind(user.code).all();
-  return (r.results || []).map((row) => flightView(row));
+  return withRawCounts(env, (r.results || []).map((row) => flightView(row)));
+}
+/** Add rawFiles (number of stored raw tracker files) to a list of flight views – one grouped query. */
+export async function withRawCounts(env, list) {
+  if (!list.length) return list;
+  const r = await env.DB.prepare('SELECT flight_id, COUNT(*) AS n, COALESCE(SUM(gz_bytes), 0) AS b FROM raw_files GROUP BY flight_id').all().catch(() => ({ results: [] }));
+  const m = new Map((r.results || []).map((x) => [x.flight_id, x]));
+  return list.map((f) => { const x = m.get(f.id); return { ...f, rawFiles: x ? x.n : 0, rawBytes: x ? x.b : 0 }; });
 }
 
 const EVENTS_MAX = 2 * 1024 * 1024;                 // JSON bytes of an event log per flight
@@ -80,10 +88,19 @@ function fields(m) {
 
 async function checkQuota(env, user, addBytes, excludeId = null) {
   const c = await counts(env, user.code);
-  const used = (c.bytes || 0) - (excludeId ? ((await env.DB.prepare('SELECT track_bytes FROM flights WHERE id = ?1').bind(excludeId).first()) || {}).track_bytes || 0 : 0);
+  const used = (c.bytes || 0) - (excludeId ? ((await env.DB.prepare('SELECT track_bytes FROM flights WHERE id = ?1').bind(excludeId).first()) || {}).track_bytes || 0 : 0) + await rawBytes(env, user.code);
   const quota = Number(env.QUOTA_MB || QUOTA_DEFAULT_MB) * 1024 * 1024;
   if (used + addBytes > quota) throw new HttpError(413, 'storage quota of this code exhausted');
 }
+
+// ---- raw tracker files of an own flight (0.8.7) --------------------------------------------------------
+export async function listOwnRaw(env, user, id) { const row = await ownFlight(env, user, id); return listRaw(env, row.id); }
+export async function putOwnRaw(env, user, id, request) {
+  const row = await ownFlight(env, user, id);
+  const c = await counts(env, user.code);
+  return putRaw(env, user, row, request, { quotaBytes: Number(env.QUOTA_MB || QUOTA_DEFAULT_MB) * 1024 * 1024, usedBytes: (c.bytes || 0) + await rawBytes(env, user.code, row.id) });
+}
+export async function getOwnRaw(env, user, id, n, request) { const row = await ownFlight(env, user, id); return getRaw(env, row.id, n, 'owner', request); }
 
 export async function createFlight(env, user, request, ctx) {
   const { meta, track, events } = await readFlightBody(request);
@@ -146,6 +163,7 @@ export async function deleteFlight(env, user, id, request, ctx) {
 
 export async function removeFlightRow(env, row) {
   await removeFlightPhotos(env, row.id).catch(() => {});
+  await removeFlightRaw(env, row.id).catch(() => {});
   await env.FILES.delete(row.track_key).catch(() => {});
   await env.FILES.delete(previewKey(row.id)).catch(() => {});
   if (row.events_key) await env.FILES.delete(row.events_key).catch(() => {});

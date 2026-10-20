@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.8.6 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.8.7 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -30,7 +30,10 @@ Beim ersten Laden fragt die App nach dem **persönlichen PIN** (sechs Zeichen, i
 «Kennung»/`code`): «Neuen PIN erzeugen» (einmal notieren) oder einen vorhandenen eingeben. Der PIN ist das
 einzige Geheimnis — wer ihn kennt, sieht und ändert die Fahrten darunter; er bleibt im Browser und geht nur als
 Header `X-Code` an den eigenen Worker. «Ohne PIN ausprobieren» = reiner Browserbetrieb ohne Speichern (Phase 1).
-Ohne Worker (`apiBase` in `src/config.js` leer) startet die App direkt im Import.
+Ohne Worker (`apiBase` in `src/config.js` leer) startet die App direkt im Import. Beim **ersten Besuch** öffnet
+sich für sechs Sekunden ein kleines Fenster (DE/EN umschaltbar; Zeiger darüber hält es an), das erklärt, was die
+Seite macht und dass sie sich mit einem PIN auf das eigene Ballonteam personalisieren lässt; ☰ → «Einführung
+anzeigen» zeigt es wieder.
 
 Kopfzeile: Titel «Fahrtanalyse/Fahrtbericht», darunter der **Team-/Organisationsname** des PIN (Profil; leer =
 «Wickipartners Ballonteam»), rechts das **Logo** des PIN (eigenes oder das Ballonteam-Logo), DE/EN und das Menü ☰
@@ -44,7 +47,8 @@ CSV/JSONL, GPX 1.0/1.1, KML/KMZ (Google Earth, Garmin inReach), IGC, aprs.fi CSV
 die ein Profil existiert (siehe *Neues Trackerprofil*). Grosse Logs (80 MB) werden in einem Web Worker gelesen, die Seite bleibt
 bedienbar. Je Datei entstehen **Segmente** (Zeitsprünge rückwärts > 60 s oder Lücken trennen); doppelte
 Aufzeichnungen (CSV + JSONL desselben Geräts) werden einmal verwendet, Segmente weit ausserhalb der Hauptfahrt
-(> 12 h) gelten als **andere Fahrt** und lösen eine Rückfrage aus («Ignorieren» / «Trotzdem verwenden»).
+(> 12 h) gelten als **andere Fahrt** und lösen eine Rückfrage aus («Ignorieren» / «Trotzdem verwenden»). Die
+importierten Dateien selbst bleiben als **Rohdaten** in der Sitzung und werden beim Speichern der Fahrt mitgesichert.
 
 **Mehrere Geräte** (ab 0.8.0): zeichnen zwei oder mehr Tracker dieselbe Fahrt auf, erscheint die Karte «Mehrere
 Geräte». *Konsens (Median)* bildet im überlappenden Bereich pro Rasterpunkt (5–60 s, Vorgabe 10 s) den Median von
@@ -130,15 +134,22 @@ am Bildschirm ein Platzhalter, im Druck nichts). Seite 1 Stammdaten (zweispaltig
 Erkennung und Unterschrift mit «Daten hochgeladen / letzte Änderung», dann Ereignislog und Fotos. Gedruckt wird in
 Schritt 5; im Viewer (Kurzlink-Besucher ohne Schritt 5) steht der Druckknopf direkt hier.
 
+**Spezialfunktionen Balthasar** (unten, nur für den Supermaster und den PIN des Ballonteams): Ereignislog aus
+`gb_flight_data` verknüpfen – Liste der JSON-Dateien im Repository, passende Fahrten nach Zeitraum markiert, «JSON
+auswählen …» – und «Track an ops.wicki.aero übergeben» (folgt mit der ops-Schnittstelle). Der Supermaster braucht
+dafür keinen Team-PIN.
+
 ### 5 · Speichern/Drucken/Exportieren
 
 Fünf nummerierte Karten mit je einem blauen Aktionsknopf:
 
 1. **Unter dem persönlichen PIN speichern** — legt den geschnittenen Track (volle Auflösung, gzip-GeoJSON),
-   Kennzahlen, Stammdaten und das Ereignislog ab, erzeugt den Kurzlink `analyze.wicki.aero/v/‹ID›` und zeichnet
-   das **Vorschaubild** für Messenger (1200 × 630, JPEG < 300 KB: Kartenkacheln des gewählten Layers, Track nach
+   Kennzahlen, Stammdaten, das Ereignislog und die **Rohdaten** (die importierten Trackerdateien, im Browser
+   gzip-komprimiert; bis 24 Dateien, 25 MB je Datei und 80 MB je Fahrt komprimiert, zählen zum Speicher des PIN)
+   ab, erzeugt den Kurzlink `analyze.wicki.aero/v/‹ID›` und zeichnet das **Vorschaubild** für Messenger (1200 × 630,
+   JPEG < 300 KB: Kartenkacheln des gewählten Layers, Fahrt exakt eingepasst (bruchteilige Zoomstufe), Track nach
    Vario gefärbt, Start/Landung, Bildzeile mit Titel, Dauer, Strecke, Zeiten). «Nochmals speichern» aktualisiert
-   die Version.
+   die Version; die Rohdaten werden nur neu geladen, wenn sich der Dateisatz geändert hat.
 2. **Bericht drucken / PDF** — öffnet Schritt 4 und nach dem Kartenaufbau den Druckdialog des Browsers («Als PDF
    sichern»); man bleibt danach im Bericht. Ist die Fahrt noch nicht gespeichert, fragt die App «Zuerst speichern,
    dann drucken / Ohne Link drucken / Abbrechen» — nur ein gespeicherter Bericht trägt Kurzlink und QR-Code.
@@ -148,8 +159,8 @@ Fünf nummerierte Karten mit je einem blauen Aktionsknopf:
    «Ausgewählte herunterladen» (bei mehreren Dateien fragt der Browser einmal). Dateiname aus Datum und Titel.
 4. **Teilen · Viewer** — Kurzlink mit «Link kopieren», QR-Code, «Viewer öffnen», «Kurzlink deaktivieren»
    (Fahrt privat) und das Vorschaubild, wie es Messenger beim Teilen zeigen.
-5. **Weitergabe an andere Programme** — «KMZ sichern» für Google Earth; die Übergabe an ops.wicki.aero folgt mit
-   der ops-Schnittstelle und erscheint nur für den Supermaster und den PIN des Ballonteams.
+5. **Weitergabe an andere Programme** — «KMZ sichern» für Google Earth (die Übergabe an ops.wicki.aero steht bei
+   den Spezialfunktionen im Bericht).
 
 ### Viewer und Link-Vorschau
 
@@ -163,7 +174,8 @@ nach dem Speichern (GitHub-Pages-Build).
 
 ### Meine Fahrten und Profil
 
-Klick auf den PIN oben rechts: Liste der eigenen Fahrten (Öffnen ohne Neu-Import, Kurzlink kopieren, Löschen),
+Klick auf den PIN oben rechts: Liste der eigenen Fahrten mit Anzahl Rohdateien (Öffnen ohne Neu-Import, Kurzlink
+kopieren, Löschen),
 **Profil** mit Anzeigename, **Team / Organisation** (ersetzt «Wickipartners Ballonteam» unter dem App-Titel, im
 Viewer und im Bericht), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
 Berichten), Vorgaben (Standard-Ballon, PIC), Abmelden. Je PIN 300 MB Speicher.
@@ -172,8 +184,8 @@ Berichten), Vorgaben (Standard-Ballon, PIC), Abmelden. Je PIN 300 MB Speicher.
 
 ☰ → Supermaster oder `#admin`: einmalig Name + Supermaster-PIN einrichten, danach Login (Token 12 h). Tabs
 **PINs** (sperren/freigeben, löschen, **Team-Zugang** für das Ereignislog aus gb_flight_data), **Fahrten** (alle
-PINs; **Rohdaten**: gespeicherter Track als GeoJSON und Ereignislog als JSON jeder Fahrt, jeder Abruf im
-Nutzungsprotokoll; Löschen), **Profile** (geteilte Trackerprofile), **Nutzung** (Protokoll). Die Kopfzeile zeigt
+PINs; **Rohdaten (n)**: die importierten Trackerdateien jeder Fahrt als ZIP (eine Datei direkt), dazu «Track» =
+gespeicherter Track als GeoJSON und «Ereignislog» als JSON; jeder Abruf steht im Nutzungsprotokoll; Löschen), **Profile** (geteilte Trackerprofile), **Nutzung** (Protokoll). Die Kopfzeile zeigt
 Anzahl PINs/Fahrten/Speicher/Aktionen und ob die beiden Worker-Tokens (`GH_DATA_TOKEN`, `GH_PAGES_TOKEN`)
 hinterlegt sind — nur gesetzt/fehlt, nie der Wert.
 
@@ -202,8 +214,9 @@ Experte: Lückenlänge (30 s), Abstand «andere Fahrt» (12 h), Erkennungsfenste
 * **Gelände:** bis 1500 Stützpunkte entlang des Tracks aus Terrarium-DEM-Kacheln (Ersatz open-meteo); DEM ≤ 0 m =
   Meer (Oberfläche 0 m, Boden als Bathymetrie); Seen und Flüsse aus OpenFreeMap-Vektorkacheln (eigener MVT-Leser,
   Punkt-in-Polygon). Höhe über Grund = GPS-Höhe − Gelände.
-* **Vorschaubild:** Web-Mercator-Einpassung der Fahrt in 1200 × 566 px, Kacheln des gewählten Layers (Ersatz OSM,
-  sonst Grundfarbe), JPEG-Qualität wird gesenkt, bis die Datei unter 280 KB liegt.
+* **Vorschaubild:** exakte Web-Mercator-Einpassung der Fahrt in 1200 × 566 px (bruchteilige Zoomstufe: Kacheln der
+  nächsthöheren ganzen Stufe werden herunterskaliert), Kacheln des gewählten Layers (Ersatz OSM, sonst
+  Grundfarbe), JPEG-Qualität wird gesenkt, bis die Datei unter 280 KB liegt.
 
 ## Woher die Daten kommen
 
@@ -220,11 +233,12 @@ Repository `bwicki/gb_flight_data` über den Worker. Ortsnamen, Gelände und 3D 
   `bwicki.github.io`; die Zone liegt nicht bei Cloudflare, darum keine Worker-Route). Kurzlinks `/v/‹ID›` werden
   von `404.html` in die App geleitet, sofern keine Vorschauseite existiert. Ersatzadresse `bwicki.github.io/analyze/`.
 * **Worker:** `analyze-api` auf workers.dev (Adresse in `src/config.js`, `apiBase`), D1 `analyze` (Tabellen
-  `codes`, `flights`, `photos`, `tracker_profiles`, `admins`, `tokens`, `usage_log`), R2 `analyze` (`tracks/`, `events/`,
-  `photos/`, `logos/`, `previews/`). Tabellen und Spalten, die nach der ersten Migration dazukamen, legt der Worker
+  `codes`, `flights`, `photos`, `raw_files`, `tracker_profiles`, `admins`, `tokens`, `usage_log`), R2 `analyze`
+  (`tracks/`, `events/`, `raw/`, `photos/`, `logos/`, `previews/`). Tabellen und Spalten, die nach der ersten Migration dazukamen, legt der Worker
   beim ersten Aufruf selbst an. Täglicher Cron: Fahrten 730 Tage nach der letzten Änderung löschen
-  (`RETENTION_DAYS`), abgelaufene Tokens und alte Protokollzeilen entfernen. Limiten: 300 MB je PIN (`QUOTA_MB`),
-  Track ≤ 25 MB komprimiert, Logo ≤ 1 MB, Vorschaubild ≤ 600 KB. CORS nur für `APP_ORIGINS`.
+  (`RETENTION_DAYS`), abgelaufene Tokens und alte Protokollzeilen entfernen. Limiten: 300 MB je PIN (`QUOTA_MB`,
+  Tracks und Rohdaten), Track ≤ 25 MB komprimiert, Rohdaten ≤ 24 Dateien / 25 MB je Datei / 80 MB je Fahrt
+  (komprimiert), Logo ≤ 1 MB, Vorschaubild ≤ 600 KB. CORS nur für `APP_ORIGINS`.
 * **Deploy:** `.github/workflows/deploy.yml` deployt den Worker bei jedem Push unter `worker/` (und manuell mit
   Schema-Migration); `.github/workflows/tests.yml` führt die Tests bei jedem Push aus. Secrets liegen nur in GitHub
   Secrets, `wrangler.toml` enthält keine.
@@ -265,7 +279,7 @@ node --test tests/*.test.js
 verdünnten GB26-Daten (Start 23:31 UTC, Landung 16:34 UTC, 41 h 03 min, ≈ 1 590 km WGS84, 1 Neustart, 2 Nächte),
 Exporte, GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit denselben Segmenten und Kennzahlen), Gelände und MVT,
 Vorschaubild, Fotos/EXIF, QR-Code, Worker-API mit D1/R2-Attrappen (PIN, Fahrten, Viewer, Vorschauseite, Bild,
-Fotos, Supermaster, Rohdaten, Token-Status) und Vollständigkeit der Übersetzungen. Dazu Browser-Durchläufe mit
+Fotos, Supermaster, Rohdaten und Rohdateien, Token-Status) und Vollständigkeit der Übersetzungen. Dazu Browser-Durchläufe mit
 Playwright (nicht im Repo) vor jeder Version.
 
 ## Neues Trackerprofil
@@ -289,10 +303,10 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 | `src/terrain/` | Gelände und Wasser: DEM-Kacheln/open-meteo (`terrain.js`), MVT-Leser (`mvt.js`), Cache und Anzeige (`store.js`) |
 | `src/events/log.js`, `src/photos/` | Ereignislog (Normalisierung, Verknüpfung), Fotos (EXIF, Verkleinern, Platzierung, Speicher) |
 | `src/export/` | GPX/GeoJSON/KML/KMZ/CSV (`formats.js`), Downloads und ZIP (`download.js`), Vorschaubild (`preview.js`) |
-| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent |
+| `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`) |
 | `src/util/` | DOM-Helfer und Dialoge, Formate, Einheiten, Geodäsie (Vincenty, Dämmerung), Ortsnamen, QR-Code (eigener Code) |
 | `src/worker/parse-worker.js` | Parser im Web Worker |
-| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten) |
+| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten) |
 | `v/‹ID›/index.html` | Vom Worker abgelegte Vorschauseiten öffentlicher Fahrten |
 | `404.html`, `CNAME`, `.nojekyll` | Kurzlink-Umleitung, Domain, Pages-Einstellung |
 | `tests/` | Automatische Tests mit Fixtures (verdünnte GB26-Logs, Fotos, Ereignislog) |
@@ -304,12 +318,13 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 
 `POST /api/codes` · `GET|PUT /api/me` · `PUT|DELETE /api/me/logo` · `GET /api/logo/‹code›` ·
 `GET|POST /api/flights` · `GET|PUT|DELETE /api/flights/‹id›` · `GET /api/flights/‹id›/track|events` ·
-`PUT /api/flights/‹id›/preview` (JPEG ≤ 600 KB) · `GET|POST /api/flights/‹id›/photos`, `PUT|DELETE
+`PUT /api/flights/‹id›/preview` (JPEG ≤ 600 KB) · `GET|POST /api/flights/‹id›/raw`, `GET /api/flights/‹id›/raw/‹n›`
+(Rohdaten: multipart `meta` + `files` gzip) · `GET|POST /api/flights/‹id›/photos`, `PUT|DELETE
 /api/flights/‹id›/photos/‹pid›` · `GET /api/profiles` (öffentlich), `POST /api/profiles`, `DELETE
-/api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs) ·
+/api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
 öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg]`, `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|
-flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events` (Rohdaten), `DELETE
+flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events|raw`, `GET /api/admin/flights/‹id›/raw/‹n›` (Rohdaten), `DELETE
 /api/admin/flights/‹id›`, `POST /api/admin/codes/‹code›/block|unblock|team`, `DELETE /api/admin/codes/‹code›`.
 PIN als Header `X-Code`. Speichern = multipart `meta` (JSON) + `track` (gzip GeoJSON) + `events` (JSON);
 Foto = multipart `meta` + `image` + `thumb` (JPEG).

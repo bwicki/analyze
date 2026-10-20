@@ -7,7 +7,7 @@ import { normalizeCode, isCode, isFlightId, randomCode, hashPin, verifyPin } fro
 
 // ---- fake D1: a handful of SQL shapes mapped onto JS arrays ------------------------------------------
 function fakeD1() {
-  const T = { codes: [], flights: [], admins: [], tokens: [], usage_log: [], profiles: [], photos: [] };
+  const T = { codes: [], flights: [], admins: [], tokens: [], usage_log: [], profiles: [], photos: [], raw: [] };
   const run = (sql, args) => {
     const s = sql.replace(/\s+/g, ' ').trim();
     const a = (i) => args[i - 1];
@@ -68,6 +68,15 @@ function fakeD1() {
     if (/^SELECT (\*|id) FROM tracker_profiles WHERE id/.test(s)) return T.profiles.filter((p) => p.id === a(1));
     if (/^INSERT INTO tracker_profiles/.test(s)) { T.profiles.push({ id: a(1), name: a(2), manufacturer: a(3), version: 1, spec: a(4), created_by: a(5), public: a(6), created_at: a(7), updated_at: a(7) }); return []; }
     if (/^DELETE FROM tracker_profiles/.test(s)) { T.profiles = T.profiles.filter((p) => p.id !== a(1)); return []; }
+    if (/^SELECT n FROM raw_files LIMIT 1/.test(s)) return [];
+    if (/^SELECT COALESCE\(SUM\(gz_bytes\), 0\) AS b FROM raw_files WHERE code = \?1 AND flight_id <> \?2/.test(s)) return [{ b: T.raw.filter((r) => r.code === a(1) && r.flight_id !== a(2)).reduce((x, r) => x + r.gz_bytes, 0) }];
+    if (/^SELECT COALESCE\(SUM\(gz_bytes\), 0\) AS b FROM raw_files WHERE code/.test(s)) return [{ b: T.raw.filter((r) => r.code === a(1)).reduce((x, r) => x + r.gz_bytes, 0) }];
+    if (/^SELECT n, name, bytes, gz_bytes, created_at FROM raw_files WHERE flight_id/.test(s)) return T.raw.filter((r) => r.flight_id === a(1)).sort((x, y) => x.n - y.n);
+    if (/^SELECT n FROM raw_files WHERE flight_id/.test(s)) return T.raw.filter((r) => r.flight_id === a(1)).map((r) => ({ n: r.n }));
+    if (/^SELECT \* FROM raw_files WHERE flight_id = \?1 AND n = \?2/.test(s)) return T.raw.filter((r) => r.flight_id === a(1) && r.n === a(2));
+    if (/^SELECT flight_id, COUNT\(\*\) AS n, COALESCE\(SUM\(gz_bytes\), 0\) AS b FROM raw_files GROUP BY/.test(s)) { const m = new Map(); for (const r of T.raw) { const x = m.get(r.flight_id) || { flight_id: r.flight_id, n: 0, b: 0 }; x.n++; x.b += r.gz_bytes; m.set(r.flight_id, x); } return [...m.values()]; }
+    if (/^INSERT INTO raw_files/.test(s)) { T.raw.push({ flight_id: a(1), n: a(2), code: a(3), name: a(4), bytes: a(5), gz_bytes: a(6), created_at: a(7) }); return []; }
+    if (/^DELETE FROM raw_files WHERE flight_id/.test(s)) { T.raw = T.raw.filter((r) => r.flight_id !== a(1)); return []; }
     if (/^INSERT INTO usage_log/.test(s)) { T.usage_log.push({ t: a(1), who: a(2), action: a(3), detail: a(4), ip: a(5) }); return []; }
     if (/^SELECT t, who, action, detail, ip FROM usage_log/.test(s)) return T.usage_log.slice().reverse().slice(0, a(1));
     if (/^DELETE FROM usage_log/.test(s)) { T.usage_log = T.usage_log.filter((x) => x.t >= a(1)); return []; }
@@ -82,7 +91,7 @@ function fakeR2() {
   const objs = new Map();
   return {
     objs,
-    put: async (key, data, opts) => { objs.set(key, { data: data instanceof Uint8Array ? data : typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(data), opts }); },
+    put: async (key, data, opts) => { const bytes = data instanceof Uint8Array ? data : typeof data === 'string' ? new TextEncoder().encode(data) : data instanceof ReadableStream ? new Uint8Array(await new Response(data).arrayBuffer()) : new Uint8Array(data); objs.set(key, { data: bytes, opts }); },
     get: async (key) => { const o = objs.get(key); return o ? { body: o.data, size: o.data.byteLength } : null; },
     delete: async (key) => { objs.delete(key); },
   };
@@ -275,6 +284,10 @@ test('admin: setup once, login, lists, block, delete', async () => {
   delete e.GITHUB_PAGES_TOKEN;
   const log = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log.some((l) => l.action === 'admin.login') && log.some((l) => l.action === 'code.block'));
+  // Supermaster may read the Ereignislog endpoints without a team PIN (0.8.7): auth passes, the missing token answers 503
+  assert.equal((await call(e, 'GET', '/api/events/flights')).status, 401);
+  assert.equal((await call(e, 'GET', '/api/events/flights', { headers: A })).status, 503);
+  assert.equal((await call(e, 'GET', '/api/events/flights', { headers: { 'X-Code': c.code } })).status, 503, 'team code: auth passes too');
   // raw data of any flight (0.8.6): stored track (gzip GeoJSON) and event log, logged as flight.rawdata
   const fdR = new FormData(); fdR.set('meta', JSON.stringify({ title: 'Raw', stats: {}, meta: {} })); fdR.set('track', new Blob([await gz('{"type":"FeatureCollection","features":[]}')], { type: 'application/gzip' }), 't.gz'); fdR.set('events', '[{"t":1}]');
   const rawFl = await (await call(e, 'POST', '/api/flights', { body: fdR, headers: { 'X-Code': c.code } })).json();
@@ -287,7 +300,28 @@ test('admin: setup once, login, lists, block, delete', async () => {
   assert.equal((await call(e, 'GET', `/api/admin/flights/${rawFl.id}/track`)).status, 401, 'needs the Supermaster token');
   const log2 = await (await call(e, 'GET', '/api/admin/log?limit=50', { headers: A })).json();
   assert.ok(log2.some((l) => l.action === 'flight.rawdata'));
+  // raw tracker files (0.8.7): owner uploads the imported files (gzip), lists and fetches them; Supermaster too (logged)
+  const gzA = await gz('time,lat,lon\n1,47,8\n'), gzB = await gz('<gpx/>');
+  const fdRaw = new FormData(); fdRaw.set('meta', JSON.stringify([{ name: 'gb26_a.csv', bytes: 20 }, { name: 'phone.gpx', bytes: 6 }]));
+  fdRaw.append('files', new Blob([gzA], { type: 'application/gzip' }), 'a.gz'); fdRaw.append('files', new Blob([gzB], { type: 'application/gzip' }), 'b.gz');
+  const up = await call(e, 'POST', `/api/flights/${rawFl.id}/raw`, { body: fdRaw, headers: { 'X-Code': c.code } });
+  assert.equal(up.status, 200); const upJ = await up.json(); assert.equal(upJ.files.length, 2); assert.equal(upJ.files[0].name, 'gb26_a.csv');
+  const lst = await (await call(e, 'GET', `/api/flights/${rawFl.id}/raw`, { headers: { 'X-Code': c.code } })).json();
+  assert.equal(lst.length, 2); assert.equal(lst[1].name, 'phone.gpx'); assert.equal(lst[0].bytes, 20);
+  const mine = await (await call(e, 'GET', '/api/flights', { headers: { 'X-Code': c.code } })).json();
+  assert.equal(mine.find((f) => f.id === rawFl.id).rawFiles, 2, 'list carries the raw file count');
+  const one = await call(e, 'GET', `/api/admin/flights/${rawFl.id}/raw/0`, { headers: A });
+  assert.equal(one.status, 200); assert.equal(decodeURIComponent(one.headers.get('X-Analyze-Name')), 'gb26_a.csv');
+  const txt = await new Response(new Blob([await one.arrayBuffer()]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  assert.equal(txt, 'time,lat,lon\n1,47,8\n');
+  assert.equal((await (await call(e, 'GET', `/api/admin/flights/${rawFl.id}/raw`, { headers: A })).json()).length, 2);
+  assert.equal((await call(e, 'GET', `/api/flights/${rawFl.id}/raw/0`, { headers: { 'X-Code': 'ABCDEF' } })).status, 401, 'foreign code cannot read raw files');
+  const fdRaw2 = new FormData(); fdRaw2.set('meta', JSON.stringify([{ name: 'only.csv', bytes: 20 }])); fdRaw2.append('files', new Blob([gzA], { type: 'application/gzip' }), 'a.gz');
+  await call(e, 'POST', `/api/flights/${rawFl.id}/raw`, { body: fdRaw2, headers: { 'X-Code': c.code } });
+  assert.equal((await (await call(e, 'GET', `/api/flights/${rawFl.id}/raw`, { headers: { 'X-Code': c.code } })).json()).length, 1, 'a new upload replaces the set');
+  assert.ok(e.FILES.objs.has(`raw/${rawFl.id}/0.gz`) && !e.FILES.objs.has(`raw/${rawFl.id}/1.gz`));
   await call(e, 'DELETE', `/api/admin/flights/${rawFl.id}`, { headers: A });
+  assert.ok(!e.FILES.objs.has(`raw/${rawFl.id}/0.gz`), 'raw files removed with the flight');
   assert.equal((await call(e, 'DELETE', `/api/admin/codes/${c.code}`, { headers: A })).status, 200);
   assert.equal((await call(e, 'GET', '/api/me', { headers: { 'X-Code': c.code } })).status, 401);
   assert.equal((await call(e, 'POST', '/api/admin/logout', { headers: A })).status, 200);

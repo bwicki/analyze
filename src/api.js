@@ -30,6 +30,10 @@ export async function gzipText(text) {
   const stream = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
   return new Response(stream).blob();
 }
+export async function gunzipToBytes(blob) {
+  const stream = blob.stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
 export async function gunzipToText(blob) {
   const stream = blob.stream().pipeThrough(new DecompressionStream('gzip'));
   return new Response(stream).text();
@@ -49,6 +53,9 @@ function flightForm(flight, gzBlob, events) {
   if (events !== undefined && events !== null) fd.set('events', events);       // JSON text; '' removes the stored log
   return fd;
 }
+
+/** Ereignislog endpoints: the PIN when there is one, else the Supermaster token (0.8.7). */
+const evAuth = () => (session.code ? {} : { admin: true, code: null });
 
 export const api = {
   enabled: () => !!config.apiBase,
@@ -72,6 +79,9 @@ export const api = {
     events: (id) => request('GET', `/api/flights/${id}/events`),
     remove: (id) => request('DELETE', `/api/flights/${id}`),
     preview: (id, blob) => request('PUT', `/api/flights/${id}/preview`, { body: blob, headers: { 'Content-Type': 'image/jpeg' } }),
+    raw: (id) => request('GET', `/api/flights/${id}/raw`),
+    putRaw: (id, formData) => request('POST', `/api/flights/${id}/raw`, { body: formData }),
+    rawFile: (id, n) => request('GET', `/api/flights/${id}/raw/${n}`, { raw: true }),
   },
   view: {
     get: (id) => request('GET', `/api/view/${id}`, { code: null }),
@@ -93,8 +103,8 @@ export const api = {
   },
   /** Ereignislog straight from bwicki/gb_flight_data (needs a Kennung; the Worker holds the token). */
   events: {
-    repoFlights: () => request('GET', '/api/events/flights'),
-    repoFlight: (flight) => request('GET', `/api/events/${encodeURIComponent(flight)}`),
+    repoFlights: () => request('GET', '/api/events/flights', evAuth()),
+    repoFlight: (flight) => request('GET', `/api/events/${encodeURIComponent(flight)}`, evAuth()),
     mediaUrl: (file) => `${base()}/api/events/media/${encodeURIComponent(file)}`,
   },
   admin: {
@@ -113,6 +123,8 @@ export const api = {
     deleteCode: (code) => request('DELETE', `/api/admin/codes/${code}`, { admin: true, code: null }),
     deleteFlight: (id) => request('DELETE', `/api/admin/flights/${id}`, { admin: true, code: null }),
     flightTrack: (id) => trackText(`/api/admin/flights/${id}/track`, { admin: true, code: null }),
+    raw: (id) => request('GET', `/api/admin/flights/${id}/raw`, { admin: true, code: null }),
+    rawFile: (id, n) => request('GET', `/api/admin/flights/${id}/raw/${n}`, { admin: true, code: null, raw: true }),
     flightEvents: (id) => request('GET', `/api/admin/flights/${id}/events`, { admin: true, code: null, raw: true }).then((r) => r.text()),
     cleanup: () => request('POST', '/api/admin/cleanup', { admin: true, code: null }),
     profiles: () => request('GET', '/api/admin/profiles', { admin: true, code: null }),

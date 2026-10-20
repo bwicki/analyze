@@ -7,7 +7,7 @@ import { loadPhotos } from './photos/store.js';
 import { exportData, summaryForExport } from './export/download.js';
 import { toGeoJson } from './export/formats.js';
 import { parseFiles } from './parser.js';
-import { api } from './api.js';
+import { api, gzipText } from './api.js';
 import { t } from './i18n.js';
 import { fmtDateUTC } from './util/format.js';
 import { renderPreview, previewData } from './export/preview.js';
@@ -41,7 +41,22 @@ export async function saveCurrentFlight({ withTrack = true } = {}) {
   bus.emit('flight');
   loadPhotos();
   uploadPreview(rec.id);
+  uploadRawFiles(rec.id);
   return rec;
+}
+
+/** The imported tracker files, gzip-compressed in the browser, stored with the flight (0.8.7). Once per set. */
+export async function uploadRawFiles(id) {
+  if (!state.rawFiles.length || state.rawUploadedFor === id || state.viewer) return;
+  state.rawBusy = true; bus.emit('raw', { id, busy: true });
+  try {
+    const fd = new FormData();
+    fd.set('meta', JSON.stringify(state.rawFiles.map((f) => ({ name: f.name, bytes: f.size }))));
+    for (const f of state.rawFiles) fd.append('files', await gzipText(f.file), `${f.name}.gz`);
+    const r = await api.flights.putRaw(id, fd);
+    state.rawUploadedFor = id; if (state.flight && state.flight.id === id) { state.flight.rawFiles = r.files.length; state.flight.rawBytes = r.files.reduce((a, x) => a + x.gzBytes, 0); }
+    state.rawBusy = false; bus.emit('raw', { id, ok: true, n: r.files.length });
+  } catch (e) { console.warn('raw files failed:', e && e.message); state.rawBusy = false; bus.emit('raw', { id, ok: false, error: e && e.status }); }
 }
 
 /** Link-preview image for messengers (0.8.4): rendered here, stored by the Worker; failures are silent. */
@@ -83,7 +98,8 @@ export async function openFlight(rec, geojsonText, { viewer = false, eventRows =
     recompute({ reclassify: true });
     restoreSavedLanding(rec.stats);
     if (eventRows && eventRows.length) { const src = (rec.stats && rec.stats.events && rec.stats.events.source) || ''; setEventLog({ source: { kind: 'saved', flight: src.replace(/^gb_flight_data\//, ''), name: src }, rows: eventRows, events: normalizeEvents(eventRows) }); }
-    state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, createdAt: rec.createdAt, updatedAt: rec.updatedAt, public: rec.public };
+    state.flight = { id: rec.id, title: rec.title, url: rec.url || `${location.origin}${location.pathname.replace(/\/[^/]*$/, '')}/v/${rec.id}`, createdAt: rec.createdAt, updatedAt: rec.updatedAt, public: rec.public, rawFiles: rec.rawFiles || 0, rawBytes: rec.rawBytes || 0 };
+    state.rawUploadedFor = rec.id;   // nothing to upload for a reopened flight (its raw set stays as stored)
     state.viewer = viewer ? { id: rec.id, title: rec.title, owner: rec.owner || null } : null;
     state.visited = { import: true, clean: true, analyze: true };
   } finally { state.busy = false; bus.emit('track'); bus.emit('flight'); }

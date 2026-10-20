@@ -87,3 +87,16 @@ CREATE TABLE IF NOT EXISTS usage_log (
   ip            TEXT                         -- first two octets only
 );
 CREATE INDEX IF NOT EXISTS usage_t ON usage_log(t);
+
+-- Raw tracker files as imported (0.8.7): gzip blobs raw/<flight>/<n>.gz, one row per file
+CREATE TABLE IF NOT EXISTS raw_files (
+  flight_id     TEXT NOT NULL,               -- flights.id
+  n             INTEGER NOT NULL,            -- position in the upload
+  code          TEXT NOT NULL,               -- owner (quota)
+  name          TEXT NOT NULL,               -- original file name
+  bytes         INTEGER NOT NULL DEFAULT 0,  -- uncompressed
+  gz_bytes      INTEGER NOT NULL DEFAULT 0,  -- as stored
+  created_at    INTEGER NOT NULL,
+  PRIMARY KEY (flight_id, n)
+);
+CREATE INDEX IF NOT EXISTS raw_files_code ON raw_files(code);

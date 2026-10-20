@@ -24,6 +24,38 @@ export function ballastSeries() {
 }
 
 /** o: {onSelect(event|null)} – mounts into container, returns {unmount}. */
+/** Pick a finished flight of the Reporting app (gb_flight_data) and link its event log – used by the events card and the Bericht special panel. */
+export async function pickFromRepo() {
+  const st = state.stats;
+  let list;
+  try { list = await api.events.repoFlights(); }
+  catch (ex) { toast(ex instanceof ApiError && ex.status === 503 ? t('ev.notConfigured') : ex instanceof ApiError && ex.status === 502 ? t('ev.githubError') : ex instanceof ApiError && ex.status === 403 ? t('ev.notTeam') : t('start.errNetwork'), true); return; }
+  const t0 = st ? st.trim.from : 0, t1 = st ? st.trim.to : 0;
+  const scored = list.map((f) => ({ ...f, score: st ? scoreFlightMatch(f, t0, t1) : 0 })).sort((a, b) => b.score - a.score || String(b.first || '').localeCompare(String(a.first || '')));
+  const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
+    <div class="head"><h1>${esc(t('ev.pickTitle'))}</h1></div>
+    <p class="small">${esc(t('ev.pickSub'))}</p>
+    <div class="scroll-x"><table class="tbl"><thead><tr><th>${esc(t('ev.col.flight'))}</th><th>${esc(t('rep.reg'))}</th><th>${esc(t('ev.col.span'))}</th><th class="r">${esc(t('ev.col.rows'))}</th><th>${esc(t('ev.col.match'))}</th><th></th></tr></thead><tbody>
+      ${scored.map((f) => `<tr><td><strong>${esc(f.flight)}</strong></td><td>${esc(f.callsign || '–')}</td><td class="mono small nowrap">${f.first ? fmtDateTimeUTC(Date.parse(f.first)) : '–'} – ${f.last ? fmtDateTimeUTC(Date.parse(f.last)) : '–'}</td><td class="r mono">${f.rows}</td><td>${f.score > 0.5 ? `<span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('ev.matchGood'))}</span>` : f.score > 0 ? `<span class="tag">${esc(t('ev.matchPart'))}</span>` : '<span class="muted">–</span>'}</td><td><button class="btn xs primary" type="button" data-act="pick" data-flight="${esc(f.flight)}">${esc(t('ev.link'))}</button></td></tr>`).join('') || `<tr><td colspan="6" class="muted">${esc(t('ev.noFlights'))}</td></tr>`}
+    </tbody></table></div>
+    <div class="foot"><button class="btn" type="button" data-act="cancel">${esc(t('common.cancel'))}</button></div></section></div>`);
+  onAct(bg, {
+    cancel: () => bg.remove(),
+    pick: async (b) => {
+      b.disabled = true;
+      try {
+        const r = await api.events.repoFlight(b.dataset.flight);
+        const events = normalizeEvents(r.rows);
+        if (!events.length) { toast(t('ev.badFile'), true); b.disabled = false; return; }
+        setEventLog({ source: { kind: 'repo', flight: r.flight, name: `gb_flight_data/${r.flight}`, fetchedAt: r.fetchedAt }, rows: r.rows, events });
+        toast(t('ev.loaded', { n: events.length })); bg.remove();
+      } catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); b.disabled = false; }
+    },
+  });
+  bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
+  document.body.appendChild(bg);
+}
+
 export function mountEventsCard(container, o = {}) {
   const el = html(`<section class="card" data-events>
     <div class="card-head"><h2>${esc(t('ana.events'))} <span class="pill sm" data-count></span></h2>
@@ -85,37 +117,6 @@ export function mountEventsCard(container, o = {}) {
       tr.addEventListener('mouseenter', () => { const e = linked.find((x) => x.id === tr.dataset.id); o.onSelect && o.onSelect(e || null); });
       tr.addEventListener('mouseleave', () => o.onSelect && o.onSelect(null));
     });
-  }
-
-  async function pickFromRepo() {
-    const st = state.stats;
-    let list;
-    try { list = await api.events.repoFlights(); }
-    catch (ex) { toast(ex instanceof ApiError && ex.status === 503 ? t('ev.notConfigured') : ex instanceof ApiError && ex.status === 502 ? t('ev.githubError') : ex instanceof ApiError && ex.status === 403 ? t('ev.notTeam') : t('start.errNetwork'), true); return; }
-    const t0 = st ? st.trim.from : 0, t1 = st ? st.trim.to : 0;
-    const scored = list.map((f) => ({ ...f, score: st ? scoreFlightMatch(f, t0, t1) : 0 })).sort((a, b) => b.score - a.score || String(b.first || '').localeCompare(String(a.first || '')));
-    const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
-      <div class="head"><h1>${esc(t('ev.pickTitle'))}</h1></div>
-      <p class="small">${esc(t('ev.pickSub'))}</p>
-      <div class="scroll-x"><table class="tbl"><thead><tr><th>${esc(t('ev.col.flight'))}</th><th>${esc(t('rep.reg'))}</th><th>${esc(t('ev.col.span'))}</th><th class="r">${esc(t('ev.col.rows'))}</th><th>${esc(t('ev.col.match'))}</th><th></th></tr></thead><tbody>
-        ${scored.map((f) => `<tr><td><strong>${esc(f.flight)}</strong></td><td>${esc(f.callsign || '–')}</td><td class="mono small nowrap">${f.first ? fmtDateTimeUTC(Date.parse(f.first)) : '–'} – ${f.last ? fmtDateTimeUTC(Date.parse(f.last)) : '–'}</td><td class="r mono">${f.rows}</td><td>${f.score > 0.5 ? `<span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('ev.matchGood'))}</span>` : f.score > 0 ? `<span class="tag">${esc(t('ev.matchPart'))}</span>` : '<span class="muted">–</span>'}</td><td><button class="btn xs primary" type="button" data-act="pick" data-flight="${esc(f.flight)}">${esc(t('ev.link'))}</button></td></tr>`).join('') || `<tr><td colspan="6" class="muted">${esc(t('ev.noFlights'))}</td></tr>`}
-      </tbody></table></div>
-      <div class="foot"><button class="btn" type="button" data-act="cancel">${esc(t('common.cancel'))}</button></div></section></div>`);
-    onAct(bg, {
-      cancel: () => bg.remove(),
-      pick: async (b) => {
-        b.disabled = true;
-        try {
-          const r = await api.events.repoFlight(b.dataset.flight);
-          const events = normalizeEvents(r.rows);
-          if (!events.length) { toast(t('ev.badFile'), true); b.disabled = false; return; }
-          setEventLog({ source: { kind: 'repo', flight: r.flight, name: `gb_flight_data/${r.flight}`, fetchedAt: r.fetchedAt }, rows: r.rows, events });
-          toast(t('ev.loaded', { n: events.length })); bg.remove();
-        } catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); b.disabled = false; }
-      },
-    });
-    bg.addEventListener('click', (e) => { if (e.target === bg) bg.remove(); });
-    document.body.appendChild(bg);
   }
 
   onAct(el, {

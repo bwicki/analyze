@@ -4,7 +4,8 @@
 import { t, tx } from '../i18n.js';
 import { esc, html, onAct, toast, confirmDialog } from '../util/dom.js';
 import { fmtInt, fmtBytes, fmtDateTimeUTC, fmtDateUTC } from '../util/format.js';
-import { api, ApiError } from '../api.js';
+import { api, ApiError, gunzipToBytes } from '../api.js';
+import { zip } from '../parse/zip.js';
 import { session, setAdmin, hasServer } from '../session.js';
 import { config } from '../config.js';
 import { saveBlob } from '../export/download.js';
@@ -82,7 +83,7 @@ export function mountAdmin(root, ctx) {
       } else if (tab === 'flights') {
         const rows = await api.admin.flights();
         c.innerHTML = `<table class="tbl"><thead><tr><th>${esc(t('fl.col.date'))}</th><th>${esc(t('fl.col.title'))}</th><th>${esc(t('start.code'))}</th><th class="r">${esc(t('fl.points'))}</th><th class="r">${esc(t('adm.size'))}</th><th>${esc(t('adm.updated'))}</th><th>${esc(t('fl.col.viewer'))}</th><th></th></tr></thead><tbody>
-          ${rows.map((f) => `<tr><td class="mono">${f.startTs ? fmtDateUTC(f.startTs) : '–'}</td><td>${esc(f.title || '–')}</td><td class="mono">${esc(f.code)}</td><td class="r mono">${fmtInt(f.points)}</td><td class="r mono">${fmtBytes(f.bytes)}</td><td class="mono">${fmtDateTimeUTC(f.updatedAt)}</td><td><a class="mono small" target="_blank" rel="noopener" href="${esc((config.appUrl || location.origin) + '/v/' + f.id)}">/v/${esc(f.id)}</a>${f.public ? '' : ` <span class="tag">${esc(t('fl.private'))}</span>`}</td><td class="nowrap"><button class="btn xs" type="button" data-act="dlTrack" data-id="${f.id}" data-title="${esc(f.title || f.id)}" title="${esc(t('adm.rawTrackTitle'))}">${esc(t('adm.rawTrack'))}</button>${f.hasEvents ? ` <button class="btn xs" type="button" data-act="dlEvents" data-id="${f.id}" data-title="${esc(f.title || f.id)}">${esc(t('adm.rawEvents'))}</button>` : ''} <button class="btn xs" type="button" data-act="delFlight" data-id="${f.id}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="8" class="muted">–</td></tr>`}</tbody></table><div class="muted small">${esc(t('adm.rawNote'))}</div>`;
+          ${rows.map((f) => `<tr><td class="mono">${f.startTs ? fmtDateUTC(f.startTs) : '–'}</td><td>${esc(f.title || '–')}</td><td class="mono">${esc(f.code)}</td><td class="r mono">${fmtInt(f.points)}</td><td class="r mono">${fmtBytes(f.bytes)}</td><td class="mono">${fmtDateTimeUTC(f.updatedAt)}</td><td><a class="mono small" target="_blank" rel="noopener" href="${esc((config.appUrl || location.origin) + '/v/' + f.id)}">/v/${esc(f.id)}</a>${f.public ? '' : ` <span class="tag">${esc(t('fl.private'))}</span>`}</td><td class="nowrap">${f.rawFiles ? `<button class="btn xs primary" type="button" data-act="dlRaw" data-id="${f.id}" data-title="${esc(f.title || f.id)}" title="${esc(t('adm.rawFilesTitle'))}">${esc(t('adm.rawFiles', { n: f.rawFiles }))}</button> ` : ''}<button class="btn xs" type="button" data-act="dlTrack" data-id="${f.id}" data-title="${esc(f.title || f.id)}" title="${esc(t('adm.rawTrackTitle'))}">${esc(t('adm.rawTrack'))}</button>${f.hasEvents ? ` <button class="btn xs" type="button" data-act="dlEvents" data-id="${f.id}" data-title="${esc(f.title || f.id)}">${esc(t('adm.rawEvents'))}</button>` : ''} <button class="btn xs" type="button" data-act="delFlight" data-id="${f.id}">${esc(t('common.remove'))}</button></td></tr>`).join('') || `<tr><td colspan="8" class="muted">–</td></tr>`}</tbody></table><div class="muted small">${esc(t('adm.rawNote'))}</div>`;
       } else if (tab === 'profiles') {
         const rows = await api.admin.profiles();
         c.innerHTML = `<table class="tbl"><thead><tr><th>ID</th><th>${esc(t('as.name'))}</th><th>${esc(t('as.manufacturer'))}</th><th>${esc(t('as.col.column'))}</th><th>${esc(start_code())}</th><th>${esc(t('adm.created'))}</th><th></th></tr></thead><tbody>
@@ -109,6 +110,18 @@ export function mountAdmin(root, ctx) {
     delProfile: async (b) => {
       const ok = await confirmDialog({ title: t('as.removeTitle'), text: esc(b.dataset.id), okLabel: t('common.remove'), cancelLabel: t('common.cancel'), danger: true });
       if (ok) { try { await api.admin.deleteProfile(b.dataset.id); show(); } catch { toast(t('start.errNetwork'), true); } }
+    },
+    dlRaw: async (b) => {
+      b.disabled = true;
+      try {
+        const list = await api.admin.raw(b.dataset.id);
+        if (!list.length) { toast(t('adm.rawNoFiles'), true); return; }
+        toast(t('adm.rawLoading', { n: list.length }));
+        const entries = [];
+        for (const f of list) { const res = await api.admin.rawFile(b.dataset.id, f.n); entries.push({ name: f.name, data: await gunzipToBytes(await res.blob()) }); }
+        if (entries.length === 1) saveBlob(new Blob([entries[0].data]), entries[0].name);
+        else saveBlob(new Blob([await zip(entries)], { type: 'application/zip' }), `${safeName(b.dataset.title)}_${b.dataset.id}_rohdaten.zip`);
+      } catch (ex) { console.error(ex); toast(t('start.errNetwork'), true); } finally { b.disabled = false; }
     },
     dlTrack: async (b) => {
       b.disabled = true;

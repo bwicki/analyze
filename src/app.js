@@ -20,6 +20,7 @@ import { api, ApiError } from './api.js';
 import { openFlight } from './flightio.js';
 import { refreshSharedProfiles } from './profiles-store.js';
 import { loadTerrain } from './terrain/store.js';
+import { maybeShowWelcome, showWelcome } from './ui/welcome.js';
 
 function applyDocumentTitle() { if (!state.viewer) document.title = t('hdr.title'); }
 
@@ -110,6 +111,7 @@ function settingsPanel() {
       ${num('detect.minGroundSec', t('settings.minGround'), d.minGroundSec, 's')}
     </div><div class="row-wrap" style="gap:8px;padding-bottom:4px"><button class="btn sm" type="button" data-reset>${esc(t('settings.reset'))}</button><span class="muted small">${esc(t('settings.night'))}</span></div></details>
     <div class="muted small">${esc(t('settings.storage'))}</div>
+    <div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-welcome>${esc(t('settings.welcome'))}</button></div>
     ${hasServer() && !state.viewer ? `<div class="row-wrap" style="gap:8px"><button class="btn sm" type="button" data-nav="start">${esc(session.code ? t('settings.changeCode') : t('settings.toStart'))}</button><button class="btn sm" type="button" data-nav="admin">${esc(t('settings.admin'))}</button></div>` : ''}`;
   const bind = (body, details) => {
     body.querySelectorAll('[data-s]').forEach((inp) => inp.addEventListener('change', () => {
@@ -124,6 +126,7 @@ function settingsPanel() {
     }));
     const r = body.querySelector('[data-reset]'); if (r) r.addEventListener('click', () => { Object.assign(s, { gapSec: DEFAULT_SETTINGS.gapSec, otherFlightHours: DEFAULT_SETTINGS.otherFlightHours }); s.detect = { ...DETECT_DEFAULTS }; saveSettings(); if (state.files.length) recompute(); toast(t('settings.resetDone')); });
     body.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => { details.open = false; gotoPhase(b.dataset.nav); }));
+    const w = body.querySelector('[data-welcome]'); if (w) w.addEventListener('click', () => { details.open = false; showWelcome(); });
   };
   return { html: html_, bind };
 }
@@ -177,6 +180,7 @@ async function boot() {
   const wanted = phaseFromHash();
   gotoPhase(wanted || (hasServer() && !hasAccess() ? 'start' : 'import'));
   refreshMe();
+  maybeShowWelcome();   // first visit: what the site does, personalisation after the PIN (0.8.7)
 }
 
 boot().catch((e) => { root.innerHTML = `<p style="padding:20px;color:#c0392b">Start failed: ${esc(e.message)}</p>`; console.error(e); });
