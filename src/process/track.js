@@ -42,3 +42,24 @@ export function waypoints(stats, markers, labels) {
   for (const m of markers) w.push({ kind: 'marker', name: labels.marker(m.t), t: m.t, lat: m.lat, lon: m.lon, alt: m.alt });
   return w;
 }
+
+/** Where the extremes lie (0.9.0): altitude max, ground-speed max, strongest climb and sink – as display points. */
+export const EXTREME_KINDS = { alt: { symbol: '◆', color: '#14202e' }, gs: { symbol: '▶', color: '#0f766e' }, up: { symbol: '▲', color: '#1f5fbf' }, down: { symbol: '▼', color: '#c0392b' } };
+export function extremePoints(track, series, stats) {
+  if (!track || !series || !stats) return [];
+  const ps = track.points, t = ps.t, out = [];
+  const add = (kind, e) => {
+    if (!e || Number.isNaN(e.t)) return;
+    const i = indexAt(t, e.t); let p = i; while (p > 0 && !ps.fix[p]) p--;
+    if (!ps.fix[p]) return;
+    out.push({ kind, ...EXTREME_KINDS[kind], i, t: t[i], lat: ps.lat[p], lon: ps.lon[p], alt: series.altClean[i], dist: series.dist[i], gs: series.gs[i], vsS: series.vs[i], value: e.v, fix: true });
+  };
+  add('alt', stats.altMax); add('gs', stats.gsMax); add('up', stats.vsMax); add('down', stats.vsMin);
+  return out;
+}
+
+/** Time-marker interval in minutes: 'auto' = 10 min up to 5 h of flight, 30 min beyond (0.9.0). */
+export function markerMinutes(setting, durationSec) {
+  if (setting === 'auto' || setting === undefined || setting === null || setting === '') return durationSec > 5 * 3600 ? 30 : 10;
+  const n = +setting; return Number.isFinite(n) && n > 0 ? n : (durationSec > 5 * 3600 ? 30 : 10);
+}

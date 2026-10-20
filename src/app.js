@@ -94,7 +94,7 @@ function settingsPanel() {
   const html_ = `
     <div class="g2">
       <label class="f">${esc(t('settings.units'))}<select class="in sm" data-s="units"><option value="icao" ${s.units !== 'metric' ? 'selected' : ''}>ICAO (ft, kt, m/s)</option><option value="metric" ${s.units === 'metric' ? 'selected' : ''}>${esc(t('settings.metric'))} (m, km/h, m/s)</option></select></label>
-      <label class="f">${esc(t('settings.markers'))}<select class="in sm" data-s="markerMin"><option value="15" ${s.markerMin === 15 ? 'selected' : ''}>15 min</option><option value="30" ${s.markerMin === 30 ? 'selected' : ''}>30 min</option><option value="60" ${s.markerMin === 60 ? 'selected' : ''}>60 min</option><option value="180" ${s.markerMin === 180 ? 'selected' : ''}>3 h</option></select></label>
+      <label class="f">${esc(t('settings.markers'))}<select class="in sm" data-s="markerMin"><option value="auto" ${s.markerMin === 'auto' ? 'selected' : ''}>${esc(t('ana.markerAuto'))}</option><option value="10" ${s.markerMin === 10 ? 'selected' : ''}>10 min</option><option value="15" ${s.markerMin === 15 ? 'selected' : ''}>15 min</option><option value="30" ${s.markerMin === 30 ? 'selected' : ''}>30 min</option><option value="60" ${s.markerMin === 60 ? 'selected' : ''}>60 min</option><option value="180" ${s.markerMin === 180 ? 'selected' : ''}>3 h</option></select></label>
     </div>
     <label class="chk"><input type="checkbox" data-s="geocode" ${s.geocode ? 'checked' : ''}> ${esc(t('settings.geocode'))}</label>
     <label class="chk"><input type="checkbox" data-s="terrain" ${s.terrain !== false ? 'checked' : ''}> ${esc(t('settings.terrain'))}</label>
@@ -116,7 +116,7 @@ function settingsPanel() {
   const bind = (body, details) => {
     body.querySelectorAll('[data-s]').forEach((inp) => inp.addEventListener('change', () => {
       const k = inp.dataset.s, v = inp.type === 'checkbox' ? inp.checked : inp.value;
-      if (k === 'units') s.units = v; else if (k === 'markerMin') s.markerMin = +v; else if (k === 'geocode') s.geocode = v; else if (k === 'terrain') { s.terrain = v; saveSettings(); loadTerrain(true); return; }
+      if (k === 'units') s.units = v; else if (k === 'markerMin') { s.markerMin = v === 'auto' ? 'auto' : +v; s.markerTouched = true; } else if (k === 'geocode') s.geocode = v; else if (k === 'terrain') { s.terrain = v; saveSettings(); loadTerrain(true); return; }
       else if (k === 'gapSec') s.gapSec = Math.max(1, +v); else if (k === 'otherFlightHours') s.otherFlightHours = Math.max(0, +v);
       else if (k === 'detect.gsAirKt') d.gsAir = +v * 0.514444; else if (k === 'detect.gsGroundKt') d.gsGround = +v * 0.514444;
       else if (k.startsWith('detect.')) d[k.slice(7)] = +v;

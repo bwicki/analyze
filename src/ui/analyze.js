@@ -5,7 +5,7 @@ import { esc, html, onAct, toast, copyText } from '../util/dom.js';
 import { fmtInt, fmtNum, fmtTimeUTC, fmtDateTimeUTC, fmtDurationHM, fmtDurationClock, fmtBearing, icaoShort, fmtLocalByLon, fmtDayUTC } from '../util/format.js';
 import { makeUnits } from '../util/units.js';
 import { state, bus, ignoreLanding } from '../state.js';
-import { trackPoints, timeMarkers } from '../process/track.js';
+import { trackPoints, timeMarkers, extremePoints, markerMinutes } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, createDetailMap, VARIO_COLORS, GS_COLORS, GS_LIMITS_KT, varioClass, gsClass, LAYERS } from './map.js';
 import { create3D } from './map3d.js';
@@ -26,7 +26,7 @@ export function mountAnalyze(root, ctx) {
         <div class="card-head"><h2>${esc(t('ana.map'))}</h2><div class="row-wrap noprint" style="gap:8px;align-items:center">
           <div class="seg" data-view><button type="button" data-v="2d" class="on">2D</button><button type="button" data-v="3d" title="${esc(t('ana.view3dTitle'))}">3D</button></div>
           <div class="seg" data-color><button type="button" data-c="vario">${esc(t('ana.color.vario'))}</button><button type="button" data-c="gs">${esc(t('ana.color.gs'))}</button></div>
-          <select class="in sm" data-marker style="width:auto"><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="180">3 h</option></select>
+          <select class="in sm" data-marker style="width:auto" title="${esc(t('ana.markerTitle'))}"><option value="auto">${esc(t('ana.markerAuto'))}</option><option value="10">10 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">60 min</option><option value="180">3 h</option></select>
         </div></div>
         <div class="map" data-map></div>
         <div class="map map3d" data-map3d hidden><div class="layer-radio map3d-layers" data-layers3d></div><div class="map3d-exag"><label>${esc(t('ana.exag'))} <select class="in sm" data-exag><option value="auto">${esc(t('ana.exagAuto'))}</option>${[1, 2, 5, 10, 20, 50, 100].map((x) => `<option value="${x}">${x}×</option>`).join('')}</select><span class="mono" data-exagval></span></label></div><div class="map3d-hint muted small">${esc(t('ana.view3dHint'))}</div></div>
@@ -64,7 +64,7 @@ export function mountAnalyze(root, ctx) {
 
   const segBtns = (sel, attr, value) => el.querySelectorAll(`${sel} button`).forEach((b) => b.classList.toggle('on', b.dataset[attr] === value));
   el.querySelectorAll('[data-color] button').forEach((b) => b.addEventListener('click', () => { state.settings.colorBy = b.dataset.c; ctx.saveSettings(); render(); }));
-  el.querySelectorAll('[data-view] button').forEach((b) => b.addEventListener('click', () => setView(b.dataset.v === '3d')));
+  el.querySelectorAll('[data-view] button').forEach((b) => b.addEventListener('click', () => { state.settings.view3d = b.dataset.v === '3d'; ctx.saveSettings(); setView(b.dataset.v === '3d'); }));
   el.querySelector('[data-bottom]').addEventListener('change', (e) => { state.settings.showBottom = e.target.checked; ctx.saveSettings(); renderProfileCard(); });
   // layer radios of the 3D view (same choice as the 2D map)
   const layers3d = el.querySelector('[data-layers3d]');
@@ -72,7 +72,8 @@ export function mountAnalyze(root, ctx) {
   layers3d.addEventListener('change', (e) => { const k = e.target.value; state.settings.mapLayer = k; ctx.saveSettings(); map && map.setLayer(k); map3d && map3d.setLayer(k); });
   const syncLayers3d = () => layers3d.querySelectorAll('input').forEach((i) => { i.checked = i.value === state.settings.mapLayer; });
   const exagSel = el.querySelector('[data-exag]'), exagVal = el.querySelector('[data-exagval]');
-  exagSel.addEventListener('change', () => { if (map3d) { map3d.setExaggeration(exagSel.value); exagVal.textContent = `${map3d.exaggeration}×`; } });
+  exagSel.value = String(state.settings.exag ?? 10); if (exagSel.value !== String(state.settings.exag ?? 10)) exagSel.value = '10';
+  exagSel.addEventListener('change', () => { state.settings.exag = exagSel.value === 'auto' ? 'auto' : +exagSel.value; ctx.saveSettings(); if (map3d) { map3d.setExaggeration(exagSel.value); exagVal.textContent = `${map3d.exaggeration}×`; } });
 
   /** Switch between the Leaflet map and the MapLibre 3D view (created on first use). */
   async function setView(to3d) {
@@ -83,7 +84,7 @@ export function mountAnalyze(root, ctx) {
     syncLayers3d();
     if (!map3d && !map3dLoading) {
       map3dLoading = true; map3dEl.classList.add('loading');
-      try { map3d = await create3D(map3dEl, { layer: state.settings.mapLayer, onApplied: () => { exagVal.textContent = `${map3d ? map3d.exaggeration : 1}×`; } }); if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) globalThis.__map3d = map3d; }
+      try { map3d = await create3D(map3dEl, { layer: state.settings.mapLayer, exaggeration: exagSel.value, onApplied: () => { exagVal.textContent = `${map3d ? map3d.exaggeration : 1}×`; } }); if (/^(127\.0\.0\.1|localhost)$/.test(location.hostname)) globalThis.__map3d = map3d; }
       catch (e) { console.warn(e); toast(t('ana.view3dFailed'), true); map3dLoading = false; map3dEl.classList.remove('loading'); setView(false); return; }
       map3dLoading = false; map3dEl.classList.remove('loading');
       if (pinned) map3d.setPinned(pinned);
@@ -92,18 +93,19 @@ export function mountAnalyze(root, ctx) {
   }
   function render3D(refit = false) {
     if (!map3d || !display) return;
-    map3d.setTrack({ pts: display.pts, colors: display.colors, night: display.night, takeoff: display.takeoff, landing: display.landing, intermediate: display.intermediate, ground: (q) => groundAt(q.i) }, { refit });
+    map3d.setTrack({ pts: display.pts, colors: display.colors, night: display.night, takeoff: display.takeoff, landing: display.landing, intermediate: display.intermediate, extremes: display.extremes, ground: (q) => groundAt(q.i) }, { refit });
     exagVal.textContent = `${map3d.exaggeration}×`;
   }
   el.querySelectorAll('[data-xmode] button').forEach((b) => b.addEventListener('click', () => { xMode = b.dataset.x; renderProfileCard(); segBtns('[data-xmode]', 'x', xMode); }));
   const markerSel = el.querySelector('[data-marker]'); markerSel.value = String(state.settings.markerMin);
-  markerSel.addEventListener('change', () => { state.settings.markerMin = +markerSel.value; ctx.saveSettings(); render(); });
+  markerSel.addEventListener('change', () => { state.settings.markerMin = markerSel.value === 'auto' ? 'auto' : +markerSel.value; state.settings.markerTouched = true; ctx.saveSettings(); render(); });
   onAct(el, {
     kmz: () => downloadKmz(10),
     copy: async () => { const txt = statsText(); if (await copyText(txt)) toast(t('common.copied')); },
     units: (b) => { state.settings.units = b.dataset.u; ctx.saveSettings(); render(); },
     geocode: () => fetchPlaces(true),
     ignore: (b) => { ignoreLanding(+b.dataset.t); toast(t('ana.landingIgnored')); },
+    locate: (b) => { const x = display && display.extremes.find((e) => e.kind === b.dataset.kind); if (!x) return; pin(x); const m = el.querySelector(view3d ? '[data-map3d]' : '[data-map]'); if (m && m.scrollIntoView) m.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); },
   });
 
   function buildDisplay() {
@@ -116,11 +118,13 @@ export function mountAnalyze(root, ctx) {
     const vsS = movingMean(s.track.points.t, s.series.vs, half);
     const colorBy = s.settings.colorBy === 'gs' ? 'gs' : 'vario';
     for (const q of pts) { q.vsS = vsS[q.i]; q.cls = colorBy === 'gs' ? gsClass(q.gs) : varioClass(q.vsS); }
-    const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin).map((m) => ({ ...m, dist: s.series.dist[m.i] }));
+    const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, markerMinutes(s.settings.markerMin, s.stats.durationSec)).map((m) => ({ ...m, dist: s.series.dist[m.i] }));
     const st = s.stats;
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
     const altMax = st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null;
-    return { pts, markers, step, colors: colorBy === 'gs' ? GS_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, t: l.t, name: state.places.inter[l.t] || '' })), altMax, night: st.night.intervals, events: shownEvents(), ballast: ballastSeries() };
+    const un = makeUnits(s.settings.units);
+    const extremes = extremePoints(s.track, s.series, st).map((x) => ({ ...x, label: extremeLabel(x, un) }));
+    return { pts, markers, step, colors: colorBy === 'gs' ? GS_COLORS : VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, t: l.t, name: state.places.inter[l.t] || '' })), altMax, extremes, night: st.night.intervals, events: shownEvents(), ballast: ballastSeries() };
   }
 
   function render() {
@@ -137,7 +141,8 @@ export function mountAnalyze(root, ctx) {
       map.onHover((q) => { profile && profile.setHover(q); readout(q || pinned); }); map.onClick((q) => pin(q));
       map.onLayerChange((k) => { state.settings.mapLayer = k; ctx.saveSettings(); map3d && map3d.setLayer(k); syncLayers3d(); });
     }
-    const every = state.settings.markerMin >= 180 ? 1 : state.settings.markerMin >= 60 ? 3 : state.settings.markerMin >= 30 ? 6 : 12;
+    const mm = markerMinutes(state.settings.markerMin, state.stats.durationSec);
+    const every = mm >= 180 ? 1 : mm >= 60 ? 3 : mm >= 30 ? 6 : mm >= 15 ? 12 : 18;
     map.setTrack({ ...display, labelEvery: every, takeoffLabel: `${t('wp.takeoff')} ${fmtTimeUTC(display.takeoff ? display.takeoff.t : 0)} UTC`, landingLabel: `${t('wp.landing')} ${fmtTimeUTC(display.landing ? display.landing.t : 0)} UTC`, intermediateLabel: t('wp.intermediate'), ignoreLabel: t('ana.ignoreLanding'), onIgnoreIntermediate: state.viewer ? null : (ms) => { ignoreLanding(ms); toast(t('ana.landingIgnored')); } });
     if (pinned) map.setPinned(pinned);
     renderDetailMaps();
@@ -188,6 +193,16 @@ export function mountAnalyze(root, ctx) {
     else lg.innerHTML = [`<span><span class="sw" style="background:${VARIO_COLORS[0]}"></span> ${esc(t('ana.sink'))} &lt; −0.5 m/s</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[1]}"></span> −0.5 … −0.15</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[2]}"></span> ${esc(t('ana.neutral'))}</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[3]}"></span> +0.15 … +0.5</span>`, `<span><span class="sw" style="background:${VARIO_COLORS[4]}"></span> ${esc(t('ana.climb'))} &gt; +0.5 m/s</span>`, `<span style="margin-left:auto">${esc(t('ana.legendNote'))}${terrainNote()}</span>`].join('');
   }
 
+  /** Button that pins the point of an extreme value on map, 3D view and profile (0.9.0). */
+  function locBtn(kind) {
+    const x = display && display.extremes.find((e) => e.kind === kind); if (!x) return '';
+    return `<button type="button" class="loc noprint" data-act="locate" data-kind="${kind}" title="${esc(t('ana.locate'))}" style="color:${x.color}">${x.symbol}</button>`;
+  }
+  function extremeLabel(x, un) {
+    const name = t(x.kind === 'alt' ? 'st.altMax' : x.kind === 'gs' ? 'ana.xGs' : x.kind === 'up' ? 'ana.xUp' : 'ana.xDown');
+    const val = x.kind === 'alt' ? un.alt(x.value) : x.kind === 'gs' ? un.speed(x.value) : un.vs(x.value);
+    return `${x.symbol} ${name} ${val} · ${fmtTimeUTC(x.t)} UTC`;
+  }
   function renderTiles() {
     const st = state.stats, un = u();
     const tile = (k, v, unit, sub) => `<div class="tile"><span class="k">${esc(k)}</span><span class="v">${v}<small>${esc(unit)}</small></span><span class="u">${sub}</span></div>`;
@@ -195,9 +210,9 @@ export function mountAnalyze(root, ctx) {
     el.querySelector('[data-tiles]').innerHTML = [
       tile(t('st.duration'), fmtDurationClock(st.durationSec), 'h:min', `${st.landings} ${esc(t(st.landings === 1 ? 'st.landing1' : 'st.landingN'))}`),
       tile(t('st.distance'), noUnit(un.dist(st.distanceM)), 'km', `${un.dist(st.straightM)} ${esc(t('st.straightShort'))}`),
-      tile(t('st.altMax'), st.altMax ? noUnit(un.alt(st.altMax.v)) : '–', un.altUnit, st.altMax ? fmtTimeUTC(st.altMax.t) + ' UTC' : ''),
-      tile(t('st.vs'), `<span style="font-size:20px">${st.vsMax ? noUnit(un.vs(st.vsMax.v)) : '–'} / ${st.vsMin ? noUnit(un.vs(st.vsMin.v)) : '–'}</span>`, 'm/s', esc(t('st.vsSub'))),
-      tile(t('st.gs'), `${st.gsMax ? fmtNum(un.speedValue(st.gsMax.v), 0) : '–'} / ${fmtNum(un.speedValue(st.gsMean), 0)}`, un.speedUnit, esc(t('st.gsSub'))),
+      tile(t('st.altMax'), st.altMax ? noUnit(un.alt(st.altMax.v)) : '–', un.altUnit, (st.altMax ? fmtTimeUTC(st.altMax.t) + ' UTC ' : '') + locBtn('alt')),
+      tile(t('st.vs'), `<span style="font-size:20px">${st.vsMax ? noUnit(un.vs(st.vsMax.v)) : '–'} / ${st.vsMin ? noUnit(un.vs(st.vsMin.v)) : '–'}</span>`, 'm/s', esc(t('st.vsSub')) + ' ' + locBtn('up') + locBtn('down')),
+      tile(t('st.gs'), `${st.gsMax ? fmtNum(un.speedValue(st.gsMax.v), 0) : '–'} / ${fmtNum(un.speedValue(st.gsMean), 0)}`, un.speedUnit, esc(t('st.gsSub')) + ' ' + locBtn('gs')),
       tile(t('st.night'), fmtDurationClock(st.night.totalSec), 'h:min', `${st.night.intervals.length} ${esc(t(st.night.intervals.length === 1 ? 'st.night1' : 'st.nightN'))}`),
     ].join('');
   }
@@ -217,12 +232,12 @@ export function mountAnalyze(root, ctx) {
       ${row(t('st.landings'), `${st.landings}`, st.intermediate.length ? st.intermediate.map((l) => `<span class="inter">${fmtTimeUTC(l.t)} UTC · ${esc(state.places.inter[l.t] || icaoShort(l.lat, l.lon))} (${fmtDurationHM(l.groundSec || 0)})${state.viewer ? '' : ` <button type="button" class="tt-x inline noprint" data-act="ignore" data-t="${l.t}" title="${esc(t('ana.ignoreLanding'))}">×</button>`}</span>`).join('<br>') + (state.ignoredLandings.length ? `<br><span class="muted">${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}</span>` : '') : esc(t('st.noIntermediate')) + (state.ignoredLandings.length ? ` · ${esc(t('ana.ignoredCount', { n: state.ignoredLandings.length }))}` : ''))}
       ${row(t('st.duration'), `<span class="big">${fmtDurationHM(st.durationSec)}</span>`, st.intermediate.length ? esc(t('st.airtime', { v: fmtDurationHM(st.airSec) })) : '')}
       ${row(t('st.distanceLine'), `${un.dist(st.distanceM)} · ${un.dist(st.straightM)} · ${fmtBearing(st.bearingDeg)}`)}
-      ${row(t('st.altMaxGps'), st.altMax ? un.alt(st.altMax.v, true) : '–', st.altMax ? `${fmtDateTimeUTC(st.altMax.t)}` : '')}
+      ${row(t('st.altMaxGps'), st.altMax ? un.alt(st.altMax.v, true) : '–', st.altMax ? `${fmtDateTimeUTC(st.altMax.t)} ${locBtn('alt')}` : '')}
       ${st.baroMax ? row(t('st.altMaxBaro'), un.alt(st.baroMax.v, true)) : ''}
       ${row(t('st.altMean'), un.alt(st.altMean, true))}
-      ${row(t('st.vsMax'), st.vsMax ? un.vs(st.vsMax.v) : '–', st.vsMax ? `${fmtDateTimeUTC(st.vsMax.t)} · ${esc(t('st.vs30'))}` : '')}
-      ${row(t('st.vsMin'), st.vsMin ? un.vs(st.vsMin.v) : '–', st.vsMin ? `${fmtDateTimeUTC(st.vsMin.t)} · ${esc(t('st.vs30'))}` : '')}
-      ${row(t('st.gsLine'), `${st.gsMax ? un.speed(st.gsMax.v) : '–'} · ${un.speed(st.gsMean)}`, esc(t('st.gsSub2')))}
+      ${row(t('st.vsMax'), st.vsMax ? un.vs(st.vsMax.v) : '–', st.vsMax ? `${fmtDateTimeUTC(st.vsMax.t)} · ${esc(t('st.vs30'))} ${locBtn('up')}` : '')}
+      ${row(t('st.vsMin'), st.vsMin ? un.vs(st.vsMin.v) : '–', st.vsMin ? `${fmtDateTimeUTC(st.vsMin.t)} · ${esc(t('st.vs30'))} ${locBtn('down')}` : '')}
+      ${row(t('st.gsLine'), `${st.gsMax ? un.speed(st.gsMax.v) : '–'} · ${un.speed(st.gsMean)}`, esc(t('st.gsSub2')) + ' ' + locBtn('gs'))}
       ${row(t('st.accV'), st.accVertMax ? un.acc(st.accVertMax.v) : '–', st.accVertMax ? `${fmtDateTimeUTC(st.accVertMax.t)} · ${esc(t('st.accDerived'))}${warm ? ' · ' + esc(t('st.check')) : ''}` : '')}
       ${row(t('st.accH'), st.accHorMax ? un.acc(st.accHorMax.v) : '–', st.accHorMax ? `${fmtDateTimeUTC(st.accHorMax.t)} · ${esc(t('st.accDerived'))}` : '')}
       ${row(t('st.touchdown'), st.touchdown.length ? st.touchdown.map((x) => un.vs(x.vs)).join(' · ') : '–', esc(t('st.touchdownSub')))}
@@ -271,6 +286,7 @@ export function mountAnalyze(root, ctx) {
   render();
   root.appendChild(el);
   setTimeout(() => map && map.invalidate(), 50);
+  if (state.settings.view3d !== false && state.track) setTimeout(() => setView(true), 0);   // 0.9.0: Auswerten opens in 3D
   return { unmount: () => { off(); off2(); off3(); off4(); off5(); evCard.unmount(); phCard.unmount(); map && map.destroy(); map = null; map3d && map3d.destroy(); map3d = null; detailMaps.forEach((m) => m.remove()); detailMaps = []; } };
 }
 

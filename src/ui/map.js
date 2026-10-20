@@ -135,6 +135,8 @@ export function createMap(container, opts = {}) {
     }
     big(data.landing, '#c0392b', data.landingLabel);
     for (const e of data.events || []) L.circleMarker([e.lat, e.lon], { radius: 5, color: e.color || '#1f5fbf', weight: 2, fillColor: '#fff', fillOpacity: 1 }).addTo(markerLayer).bindTooltip(e.label);
+    // extremes (0.9.0): altitude max ◆, ground-speed max ▶, strongest climb ▲ and sink ▼ as symbols with a tooltip
+    for (const x of data.extremes || []) { if (Number.isNaN(x.lat)) continue; L.marker([x.lat, x.lon], { icon: L.divIcon({ className: 'xmark', html: `<span style="color:${x.color}">${x.symbol}</span>`, iconSize: [18, 18], iconAnchor: [9, 9] }), interactive: true, keyboard: false }).addTo(markerLayer).bindTooltip(x.label || '', { direction: 'top', offset: [0, -8] }); }
     const fixed = pts.filter((q) => q.fix);
     bounds = fixed.length ? L.latLngBounds(fixed.map((q) => [q.lat, q.lon])) : null;
     fit();

@@ -6,7 +6,7 @@ import { esc, html, onAct } from '../util/dom.js';
 import { fmtInt, fmtNum, fmtTimeUTC, fmtDateUTC, fmtDateTimeUTC, fmtDurationHM, fmtBearing, icaoShort, fmtLocalByLon, fmtDayUTC } from '../util/format.js';
 import { makeUnits } from '../util/units.js';
 import { state, bus, saveMeta, VERSION } from '../state.js';
-import { trackPoints, timeMarkers } from '../process/track.js';
+import { trackPoints, timeMarkers, extremePoints, markerMinutes } from '../process/track.js';
 import { movingMean, indexAt } from '../process/series.js';
 import { createMap, createDetailMap, VARIO_COLORS, varioClass } from './map.js';
 import { renderProfile } from './profile.js';
@@ -174,9 +174,10 @@ export function mountReport(root, ctx) {
     const s = state; const dur = (s.trim.to - s.trim.from) / 1000; const step = Math.max(1, Math.ceil(dur / 1500));
     const pts = trackPoints(s.track, s.series, s.trim, step); const vsS = movingMean(s.track.points.t, s.series.vs, Math.max(15, step / 2));
     for (const q of pts) { q.vsS = vsS[q.i]; q.cls = varioClass(q.vsS); }
-    const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin).map((x) => ({ ...x, dist: s.series.dist[x.i] }));
+    const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, markerMinutes(s.settings.markerMin, st.durationSec)).map((x) => ({ ...x, dist: s.series.dist[x.i] }));
+    const extremes = extremePoints(s.track, s.series, st).map((x) => ({ ...x, label: `${x.symbol} ${x.kind === 'alt' ? un.alt(x.value) : x.kind === 'gs' ? un.speed(x.value) : un.vs(x.value)} · ${fmtTimeUTC(x.t)} UTC` }));
     const mk = (e) => (e ? { t: e.t, lat: e.lat, lon: e.lon, alt: e.alt, dist: s.series.dist[e.idx] } : null);
-    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, name: state.places.inter[l.t] || '' })), night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: [...eventsForDisplay(), ...photosForDisplay()], ballast: ballastSeries() };
+    const data = { pts, markers, colors: VARIO_COLORS, takeoff: mk(st.takeoff), landing: mk(st.landing), intermediate: st.intermediate.map((l) => ({ lat: l.lat, lon: l.lon, name: state.places.inter[l.t] || '' })), extremes, night: st.night.intervals, altMax: st.altMax ? { t: st.altMax.t, alt: st.altMax.v, dist: s.series.dist[indexAt(s.track.points.t, st.altMax.t)] } : null, events: [...eventsForDisplay(), ...photosForDisplay()], ballast: ballastSeries() };
     if (map) { map.destroy(); map = null; }
     detailMaps.forEach((d) => d.remove()); detailMaps = [];
     mapEl = rep.querySelector('[data-repmap]');

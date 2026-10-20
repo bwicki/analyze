@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.8.9 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.9.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -78,19 +78,24 @@ verworfene Zeitstempel, Lücken, Neustarts, ausgeblendete Höhensprünge, Gerät
 
 ### 3 · Auswerten
 
-**Karte (2D):** Layer Strasse/Topo/Satellit als Radiobuttons oben rechts, Track nach Vario oder Fahrt über Grund in
-fünf Stufen gefärbt, Nachtabschnitte (NVFR) mit dunklem Saum, Zeitmarker (15 min bis 3 h), Start/Landung/
-Zwischenlandungen; Knopf ⤢ passt die Fahrt exakt ein (bruchteilige Zoomstufe, auch Vorgabe). Maus über Karte oder
+**Karte:** Auswerten öffnet in der **3D-Ansicht** (Vorgabe seit 0.9.0; der Schalter 2D/3D merkt sich die Wahl),
+Farbe nach Vario (oder Fahrt über Grund) in fünf Stufen, Nachtabschnitte (NVFR) dunkler, Zeitmarker
+(**automatisch**: alle 10 min bis 5 h Fahrt, darüber alle 30 min; wählbar 10 min bis 3 h), Start/Landung/
+Zwischenlandungen und die **Extremwerte** als Symbole: ◆ Höhe max., ▲ Steigen max., ▼ Sinken max., ▶ Fahrt max.
+(mit Wert und Zeit als Tooltip). 2D: Layer Strasse/Topo/Satellit als Radiobuttons oben rechts, Knopf ⤢ passt die
+Fahrt exakt ein (bruchteilige Zoomstufe, auch Vorgabe). Maus über Karte oder
 Profil zeigt den Punkt im jeweils anderen; Klick hält ihn fest (Pin); die Karte schiebt den Ausschnitt nach, damit
 der Marker sichtbar bleibt. Darunter zwei **Detailkarten** von Startort und Landeort mit Datum und Zeit.
 
-**3D** (Knopf 2D/3D, ab 0.8.0): kippbare Karte (MapLibre GL, ca. 1 MB, nur online) mit Gelände und
-Reliefschattierung; die Fahrt steht als **Vorhang** vom Boden bis zur Fahrthöhe auf der Karte (Farben wie 2D,
-Nacht dunkler, dunkle Oberkante = Höhenprofil), Überhöhung automatisch oder 1–100×, Layerwahl oben rechts,
-Hover/Pin aus dem Profil als Pfosten. Rechte Maustaste oder Ctrl + Ziehen dreht und kippt, Mausrad zoomt.
+**3D** (ab 0.8.0, Vorgabe ab 0.9.0): kippbare Karte (MapLibre GL, ca. 1 MB, nur online; ohne WebGL oder offline
+fällt die Ansicht auf 2D zurück) mit Gelände und Reliefschattierung; die Fahrt steht als **Vorhang** vom Boden bis
+zur Fahrthöhe auf der Karte (Farben wie 2D, Nacht dunkler, dunkle Oberkante = Höhenprofil), Überhöhung **10×**
+(Vorgabe; automatisch oder 1–100×, wird gemerkt), Layerwahl oben rechts, Hover/Pin aus dem Profil als Pfosten,
+Extremwerte als Punkte. Rechte Maustaste oder Ctrl + Ziehen dreht und kippt, Mausrad zoomt.
 Gelände und 3D lassen sich in den Einstellungen abschalten.
 
 **Höhenprofil** (Zeit oder Strecke als x-Achse): Höhe nach Vario gefärbt, Nachtbänder, Zeitmarker, Maximalhöhe,
+Extremwert-Symbole ◆ ▲ ▼ ▶,
 **Geländeprofil** (grau; Terrarium-DEM-Kacheln, Ersatz open-meteo) und **Wasserflächen** (blau; Meer aus den
 Höhendaten, Seen und Flüsse aus OpenFreeMap-Vektorkacheln; über Wasser ist die Oberfläche 0 m die Basislinie,
 der Gewässerboden — Bathymetrie des DEM — lässt sich als braune gestrichelte Linie zuschalten), Fahrt über Grund
@@ -103,7 +108,9 @@ wiederholt den Abruf; nach einem verschobenen Schnitt wird der Name der neuen Po
 Zwischenlandungen mit Bodenzeit, Dauer und Fahrtzeit, Strecke und Luftlinie auf dem WGS84-Ellipsoid (Vincenty) mit
 Kurs, Höhe max. GPS/Baro und Mittel, Steigen/Sinken max. (30-s-Mittel), Fahrt über Grund max./Mittel, vertikale
 und horizontale Beschleunigung (über 3 s), Aufsetzrate, Nachtfahrt (bürgerliche Dämmerung, Sonne −6°) mit
-Zeitfenstern, Segmente/Neustarts/Lücken, Tracker und Batterie. «Tabelle kopieren» legt alles als Text in die
+Zeitfenstern, Segmente/Neustarts/Lücken, Tracker und Batterie. Bei Höhe max., Steigen/Sinken max. und Fahrt max.
+steht ein **Symbolknopf** (◆ ▲ ▼ ▶, in den Kacheln und in der Liste), der den Punkt auf Karte, 3D-Ansicht und
+Höhenprofil festhält (Pin) und im Readout zeigt. «Tabelle kopieren» legt alles als Text in die
 Zwischenablage; «In Google Earth öffnen» sichert eine KMZ mit Zeitregler.
 
 **Ereignislog:** «Aus gb_flight_data verknüpfen» (abgeschlossene Fahrten der Reporting-App; nur PINs mit
@@ -177,8 +184,8 @@ nach dem Speichern (GitHub-Pages-Build).
 Klick auf den PIN oben rechts: Liste der eigenen Fahrten (Öffnen ohne Neu-Import, Kurzlink kopieren, **Rohdaten (n)**
 = die importierten Trackerdateien als ZIP zurückholen, Löschen),
 **Profil** mit Anzeigename, **Team / Organisation** (ersetzt «Wickipartners Ballonteam» unter dem App-Titel, im
-Viewer und im Bericht), **Akzentfarbe des Berichts** (Farbwähler oder Hex-Wert; Linie unter dem Berichtskopf, Vorgabe
-das Ballonteam-Gelb; gilt auch im Viewer und im Druck), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
+Viewer und im Bericht), **Akzentfarbe** (Farbwähler oder Hex-Wert; Linie unter dem Berichtskopf und die Markierung des aktiven Schritts in
+der Kopfzeile, Vorgabe das Ballonteam-Gelb; gilt auch im Viewer und im Druck), **eigenes Logo** (PNG/JPEG/SVG/WebP ≤ 1 MB; sonst das Ballonteam-Logo in App, Viewer und
 Berichten), Vorgaben (Standard-Ballon, PIC), Abmelden. Je PIN 300 MB Speicher.
 
 ### Supermaster
@@ -192,7 +199,7 @@ hinterlegt sind — nur gesetzt/fehlt, nie der Wert.
 
 ### Einstellungen (☰)
 
-Einheiten (ICAO oder metrisch), Zeitmarker, Ortsnamen ermitteln (an/aus), Gelände/Wasser/3D (an/aus),
+Einheiten (ICAO oder metrisch), Zeitmarker (automatisch oder fest), Ortsnamen ermitteln (an/aus), Gelände/Wasser/3D (an/aus),
 Experte: Lückenlänge (30 s), Abstand «andere Fahrt» (12 h), Erkennungsfenster und Schwellen (siehe
 *Rechenmodelle*), Trimm-Reserve; Zurücksetzen. Die Schwellen werden im Bericht mitgedruckt.
 

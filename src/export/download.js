@@ -2,7 +2,7 @@
 
 import { state, VERSION } from '../state.js';
 import { makeUnits } from '../util/units.js';
-import { trackPoints, timeMarkers, waypoints } from '../process/track.js';
+import { trackPoints, timeMarkers, waypoints, markerMinutes } from '../process/track.js';
 import { toGpx, toGeoJson, toKml, toCsv } from './formats.js';
 import { zip } from '../parse/zip.js';
 import { t } from '../i18n.js';
@@ -30,7 +30,7 @@ function labels() {
 export function exportData(stepSec = 0) {
   const s = state; if (!s.track || !s.stats) return null;
   const pts = trackPoints(s.track, s.series, s.trim, stepSec);
-  const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, s.settings.markerMin);
+  const markers = timeMarkers(s.track, s.series, s.trim.from, s.trim.to, markerMinutes(s.settings.markerMin, s.stats.durationSec));
   const wps = waypoints(s.stats, markers, labels());
   const name = s.meta.title || `${fmtDateUTC(s.stats.takeoff ? s.stats.takeoff.t : s.trim.from)} ${s.meta.balloon || ''}`.trim();
   return { pts, waypoints: wps, name, stats: summaryForExport(), meta: { ...s.meta } };

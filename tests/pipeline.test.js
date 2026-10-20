@@ -9,6 +9,7 @@ import { buildSegments, classifySegments, mergeSegments } from '../src/process/s
 import { deriveSeries } from '../src/process/series.js';
 import { detectEvents, proposeTrim } from '../src/process/detect.js';
 import { computeStats } from '../src/process/stats.js';
+import { extremePoints, markerMinutes } from '../src/process/track.js';
 
 const dir = new URL('./fixtures/', import.meta.url);
 function load(name) {
@@ -114,4 +115,16 @@ test('a manual cut inside the flight defines launch and landing (0.8.3); the end
   // a widened cut (before the detected take-off) changes nothing
   const st5 = computeStats(track, series, events, { from: auto.from - 30 * 60000, to: auto.to, auto: false });
   assert.equal(st5.takeoff.t, base.takeoff.t); assert.ok(!st5.takeoff.cut);
+});
+
+test('0.9.0: marker interval auto (10 min ≤ 5 h, 30 min beyond) and the extreme points lie on the track', () => {
+  assert.equal(markerMinutes('auto', 3 * 3600), 10); assert.equal(markerMinutes('auto', 6 * 3600), 30); assert.equal(markerMinutes(15, 6 * 3600), 15); assert.equal(markerMinutes(undefined, 1000), 10);
+  const files = [load('gb26_260828_2049.csv'), load('gb26_260830_0242.csv')];
+  const track = mergeSegments(classifySegments(buildSegments(files)));
+  const series = deriveSeries(track); const { events } = detectEvents(track, series);
+  const st = computeStats(track, series, events, proposeTrim(track, events));
+  const xs = extremePoints(track, series, st);
+  assert.deepEqual(xs.map((x) => x.kind), ['alt', 'gs', 'up', 'down']);
+  const alt = xs.find((x) => x.kind === 'alt'); assert.equal(alt.t, st.altMax.t); assert.ok(Math.abs(alt.alt - st.altMax.v) < 1); assert.ok(alt.symbol === '◆' && alt.fix && !Number.isNaN(alt.lat));
+  const dn = xs.find((x) => x.kind === 'down'); assert.equal(dn.t, st.vsMin.t); assert.equal(dn.value, st.vsMin.v); assert.equal(dn.symbol, '▼');
 });

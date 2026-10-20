@@ -3,7 +3,7 @@
 import { t, currentLang } from '../i18n.js';
 import { esc, html, icons, onAct } from '../util/dom.js';
 import { state, PHASES, VERSION } from '../state.js';
-import { session, logoUrl, DEFAULT_LOGO, hasServer, orgName } from '../session.js';
+import { session, logoUrl, DEFAULT_LOGO, hasServer, orgName, accentColor, isHexColor, DEFAULT_ACCENT } from '../session.js';
 
 const PHASE_KEYS = { import: 'phase.import', clean: 'phase.clean', analyze: 'phase.analyze', report: 'phase.report', export: 'phase.export' };
 export function phaseLabel(p) { return t(PHASE_KEYS[p]); }
@@ -36,6 +36,7 @@ function logoImg(height = 46) {
 export function renderHeader(o) {
   const lang = currentLang();
   const v = state.viewer;
+  document.documentElement.style.setProperty('--accent', (v && v.owner && isHexColor(v.owner.accent) && v.owner.accent) || (!v && accentColor()) || DEFAULT_ACCENT);   // accent of the PIN in the controls (0.9.0)
   const who = v ? `<span class="pill sm viewer"><span class="dot b"></span>${esc(t('hdr.viewer'))}${v.owner && v.owner.displayName ? ` · ${esc(v.owner.displayName)}` : ''}</span>`
     : session.code ? `<button type="button" class="pill sm who" data-act="nav" data-view="flights" title="${esc(t('hdr.myFlights'))}"><span class="dot g"></span><span class="mono">${esc(session.code)}</span>${session.me && session.me.displayName ? ` · ${esc(session.me.displayName)}` : ''}</button>`
     : hasServer() ? `<button type="button" class="pill sm who" data-act="nav" data-view="start"><span class="dot x"></span>${esc(t('hdr.noCode'))}</button>` : '';

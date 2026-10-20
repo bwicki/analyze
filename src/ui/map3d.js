@@ -97,7 +97,7 @@ export async function create3D(container, opts = {}) {
   map.addControl(new ml.NavigationControl({ visualizePitch: true, showZoom: true }), 'top-left');
   map.on('load', () => { try { map.setTerrain({ source: 'dem', exaggeration: 1 }); } catch (e) { console.warn('terrain', e); } });
   map.on('error', (e) => { if (e && e.error && /dem|terrain/i.test(String(e.error.message || ''))) return; });
-  let bounds = null, pts = [], width = 100, lastData = null, exag = 1, exagMode = 'auto';
+  let bounds = null, pts = [], width = 100, lastData = null, exag = 1, exagMode = opts.exaggeration === undefined || opts.exaggeration === null || opts.exaggeration === '' ? 'auto' : opts.exaggeration;
 
   function setLayer(k) { if (!LAYERS[k] || k === current) return; current = k; const src = map.getSource('base'); if (src && src.setTiles) src.setTiles([LAYERS[k].url.replace('{s}', 'a')]); else { map.removeLayer('base'); map.removeSource('base'); map.addSource('base', rasterSource(k)); map.addLayer({ id: 'base', type: 'raster', source: 'base' }, 'hills'); } }
   const applyData = () => {
@@ -109,6 +109,7 @@ export async function create3D(container, opts = {}) {
     map.getSource('walls').setData(walls); map.getSource('tops').setData(tops);
     const marks = []; const mk = (p, color) => { if (p && !Number.isNaN(p.lat)) marks.push({ type: 'Feature', properties: { color }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } }); };
     mk(d.takeoff, '#1f8a4c'); for (const l of d.intermediate || []) mk(l, '#d98c00'); mk(d.landing, '#c0392b');
+    for (const x of d.extremes || []) mk(x, x.color || '#14202e');   // extremes (0.9.0)
     map.getSource('marks').setData({ type: 'FeatureCollection', features: marks });
     let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
     for (const q of pts) if (q.fix) { minLat = Math.min(minLat, q.lat); maxLat = Math.max(maxLat, q.lat); minLon = Math.min(minLon, q.lon); maxLon = Math.max(maxLon, q.lon); }

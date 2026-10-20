@@ -45,7 +45,7 @@ header.top .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justif
 .ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:var(--muted);font-weight:500;min-height:44px;font-size:15px;border:0;background:transparent;cursor:pointer}
 .ph .n{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid #b8c2d0;font-size:13px;font-family:var(--mono);flex:none}
 .ph.active{background:var(--text);color:#fff}
-.ph.active .n{background:var(--amber-light);border-color:var(--amber-light);color:var(--text);font-weight:600}
+.ph.active .n{background:var(--accent,var(--amber-light));border-color:var(--accent,var(--amber-light));color:var(--text);font-weight:600}
 .ph.done .n{background:var(--green);border-color:var(--green);color:#fff}
 .ph.warn .n,.ph.active.warn .n{background:var(--amber);border-color:var(--amber);color:#fff}
 .ph:disabled{cursor:default;opacity:.55}
@@ -214,7 +214,7 @@ details.exp>div{padding-bottom:10px}
 .report{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px 32px;display:flex;flex-direction:column;gap:14px;max-width:860px}
 .report h1{font-size:22px}
 .report .pk{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600}
-.report .bar{height:3px;background:var(--rep-accent,var(--amber-light));-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.report .bar{height:3px;background:var(--rep-accent,var(--accent,var(--amber-light)));-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .report table{border-collapse:collapse;width:100%;font-size:13px}
 .report .rep-detail{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
 .report .rep-detail .map{border:1px solid #ccc;border-radius:6px}
@@ -339,7 +339,7 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .msgpreview img{display:block;width:100%;aspect-ratio:1200/630;object-fit:cover;border:1px solid var(--border);border-radius:8px;margin:4px 0;background:#e9eef3}
 
 /* Bericht: special functions (Supermaster / Ballonteam PIN) */
-.card.special{border-color:var(--amber-light);background:#fffaf0}
+.card.special{border-color:var(--accent,var(--amber-light));background:#fffaf0}
 .card.special .row{align-items:center;gap:12px}
 
 /* first-visit window (0.8.7) */
@@ -359,3 +359,8 @@ table.tbl.map select.in.sm{min-width:150px;width:auto;display:inline-block;margi
 .accent-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .accent-row input[type=color]{width:44px;height:36px;padding:2px;border:1px solid var(--border);border-radius:8px;background:#fff;cursor:pointer}
 .accent-row .swatch{display:inline-block;width:120px;height:3px;border-radius:2px}
+
+/* extremes on map and profile, locate buttons in the figures (0.9.0) */
+.xmark{display:flex;align-items:center;justify-content:center;font-size:16px;line-height:1;text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 3px #fff;pointer-events:auto}
+.loc{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border:1px solid var(--border);border-radius:6px;background:var(--surface);font-size:13px;line-height:1;cursor:pointer;padding:0;vertical-align:middle;margin-left:2px}
+.loc:hover{border-color:var(--border-strong);background:var(--hair)}

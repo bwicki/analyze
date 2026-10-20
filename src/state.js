@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.8.9';
+export const VERSION = '0.9.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -19,7 +19,7 @@ export const bus = new Bus();
 
 export const DEFAULT_SETTINGS = {
   units: 'icao',          // 'icao' (ft, kt, m/s) | 'metric' (m, km/h, m/s)
-  markerMin: 60,          // time markers on map and profile
+  markerMin: 'auto',      // time markers on map and profile: 'auto' (10 min ≤ 5 h, else 30 min) or minutes
   gapSec: SEG_DEFAULTS.gapSec,
   otherFlightHours: SEG_DEFAULTS.otherFlightHours,
   detect: { ...DETECT_DEFAULTS },
@@ -27,6 +27,8 @@ export const DEFAULT_SETTINGS = {
   geocode: true,          // fetch place names from OpenStreetMap (Nominatim) for start and landing
   mapLayer: 'osm',
   colorBy: 'vario',       // track/profile colour: 'vario' | 'gs' (ground speed)
+  view3d: true,           // Auswerten opens in the 3D view (0.9.0); the 2D/3D switch remembers the choice
+  exag: 10,               // vertical exaggeration of the 3D view: 'auto' or 1–100 (0.9.0: 10× by default)
   hideOtherFlights: true,
   merge: { mode: MERGE_DEFAULTS.mode, primary: null, stepSec: MERGE_DEFAULTS.stepSec },   // several devices (0.8.0)
   terrain: true,          // ground profile + water along the track (DEM tiles / open-meteo, OpenFreeMap)
@@ -34,13 +36,15 @@ export const DEFAULT_SETTINGS = {
 };
 
 const LS_SETTINGS = 'analyze.settings', LS_META = 'analyze.meta';
+/** Saved settings from older versions: the former marker default (60 min) becomes 'auto' unless the user picked it (0.9.0). */
+function migrateSettings(s) { if (s.markerMin === 60 && !s.markerTouched) s.markerMin = 'auto'; return s; }
 function load(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : fallback; } catch { return fallback; } }
 function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
 
 export const state = {
   phase: 'import',
   visited: { import: true },
-  settings: { ...DEFAULT_SETTINGS, ...load(LS_SETTINGS, {}), detect: { ...DETECT_DEFAULTS, ...(load(LS_SETTINGS, {}).detect || {}) } },
+  settings: migrateSettings({ ...DEFAULT_SETTINGS, ...load(LS_SETTINGS, {}), detect: { ...DETECT_DEFAULTS, ...(load(LS_SETTINGS, {}).detect || {}) } }),
   meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', crew: '', commandCenter: '', equipment: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
   files: [],        // parser results (one per file / zip entry)
   unknown: [],      // files without profile
