@@ -23,8 +23,8 @@ await page.route('**/api/**', async (route) => {
 });
 await page.goto(`${ENV.base}/#start`, { waitUntil: 'networkidle' }); await page.fill('[data-code]', 'KQZMWB'); await page.click('[data-open]'); await page.waitForTimeout(600);
 await page.goto(`${ENV.base}/#import`, { waitUntil: 'networkidle' }); await page.waitForTimeout(300);
-await page.fill('[data-g=link]', 'https://share.garmin.com/bwi'); await page.waitForTimeout(100);
-console.log('card:', await page.$$eval('[data-garmin]', (c) => c.length), '| kind:', await page.textContent('[data-gkind]'), '| button enabled:', await page.$eval('[data-act=mapshare]', (b) => !b.disabled), '| from/to prefilled:', await page.$eval('[data-ms=from]', (i) => !!i.value), await page.$eval('[data-ms=to]', (i) => !!i.value)); await page.fill('[data-ms=from]', '2026-10-04T06:00'); await page.fill('[data-ms=to]', '2026-10-04T09:00'); await page.fill('[data-ms=pw]', 'falsch');
+await page.fill('[data-g=link]', 'https://share.garmin.com/bwi'); await page.click('[data-act=gNext]'); await page.waitForTimeout(200);
+console.log('card:', await page.$$eval('[data-garmin]', (c) => c.length), '| kind:', await page.textContent('[data-gstate]'), '| share block shown:', await page.$eval('[data-gshare]', (e) => !e.hidden), '| button enabled:', await page.$eval('[data-act=mapshare]', (b) => !b.disabled), '| from/to prefilled:', await page.$eval('[data-ms=from]', (i) => !!i.value), await page.$eval('[data-ms=to]', (i) => !!i.value)); await page.fill('[data-ms=from]', '2026-10-04T06:00'); await page.fill('[data-ms=to]', '2026-10-04T09:00'); await page.fill('[data-ms=pw]', 'falsch');
 await page.click('[data-act=mapshare]'); await page.waitForTimeout(600);
 console.log('wrong pw →', await page.textContent('[data-msstate]'), '| pw kept in field:', await page.$eval('[data-ms=pw]', (i) => i.value === 'falsch'), '| not remembered:', await page.evaluate(() => !((JSON.parse(localStorage.getItem('analyze.settings') || '{}').garmin || {}).pw)));
 await page.fill('[data-ms=pw]', 'richtig'); await page.click('[data-act=mapshare]'); await page.waitForTimeout(3000);

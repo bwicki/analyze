@@ -26,18 +26,17 @@ await page.route('**/api/**', async (route) => {
 });
 await page.goto(`${ENV.base}/#start`, { waitUntil: 'networkidle' }); await page.fill('[data-code]', 'KQZMWB'); await page.click('[data-open]'); await page.waitForTimeout(600);
 await page.goto(`${ENV.base}/#import`, { waitUntil: 'networkidle' }); await page.waitForTimeout(300);
-console.log('card:', await page.$$eval('[data-garmin]', (c) => c.length), '| button enabled:', await page.$eval('[data-act=ltList]', (b) => !b.disabled), '| sections hidden at start:', await page.$eval('[data-glive]', (e) => e.hidden), await page.$eval('[data-gshare]', (e) => e.hidden));
-await page.fill('[data-g=link]', 'https://share.garmin.com/bwi'); await page.waitForTimeout(100);
-console.log('share link → kind:', await page.textContent('[data-gkind]'), '| live hidden:', await page.$eval('[data-glive]', (e) => e.hidden), '| share hidden:', await page.$eval('[data-gshare]', (e) => e.hidden));
-await page.fill('[data-g=link]', 'https://live.garmin.com/nixda'); await page.waitForTimeout(100);
-console.log('live link → kind:', await page.textContent('[data-gkind]'), '| live hidden:', await page.$eval('[data-glive]', (e) => e.hidden), '| share hidden:', await page.$eval('[data-gshare]', (e) => e.hidden)); await page.click('[data-act=ltList]'); await page.waitForTimeout(500);
-console.log('unknown →', await page.textContent('[data-ltstate]'));
-await page.fill('[data-g=link]', 'https://live.garmin.com/bwi'); await page.click('[data-act=ltList]'); await page.waitForTimeout(600);
-console.log('state:', await page.textContent('[data-ltstate]'), '| rows:', await page.$$eval('[data-ltsessions] .row', (r) => r.map((x) => x.textContent.replace(/\s+/g, ' ').trim()).join(' || ')));
+console.log('card:', await page.$$eval('[data-garmin]', (c) => c.length), '| button enabled:', await page.$eval('[data-act=gNext]', (b) => !b.disabled), '| sections hidden at start:', await page.$eval('[data-glive]', (e) => e.hidden), await page.$eval('[data-gshare]', (e) => e.hidden));
+await page.fill('[data-g=link]', 'https://share.garmin.com/bwi'); await page.click('[data-act=gNext]'); await page.waitForTimeout(200);
+console.log('share link → kind:', await page.textContent('[data-gstate]'), '| live hidden:', await page.$eval('[data-glive]', (e) => e.hidden), '| share hidden:', await page.$eval('[data-gshare]', (e) => e.hidden));
+await page.fill('[data-g=link]', 'https://live.garmin.com/nixda'); await page.click('[data-act=gNext]'); await page.waitForTimeout(600);
+console.log('live link → kind: live hidden:', await page.$eval('[data-glive]', (e) => e.hidden), '| share hidden:', await page.$eval('[data-gshare]', (e) => e.hidden), '| unknown →', await page.textContent('[data-gstate]'));
+await page.fill('[data-g=link]', 'https://live.garmin.com/bwi'); await page.press('[data-g=link]', 'Enter'); await page.waitForTimeout(600);   // Enter = Weiter
+console.log('state:', await page.textContent('[data-gstate]'), '| rows:', await page.$$eval('[data-ltsessions] .row', (r) => r.map((x) => x.textContent.replace(/\s+/g, ' ').trim()).join(' || ')));
 await page.click('[data-ltsessions] [data-act=ltLoad][data-i="0"]'); await page.waitForTimeout(3000);
 console.log('queries:', seen.map((s) => decodeURIComponent(s)).join(' ; '));
 await page.waitForFunction(() => /livetrack_bwi/.test(document.querySelector('[data-table]')?.textContent || ''), null, { timeout: 20000 }).catch(() => null);
-console.log('state after load:', await page.textContent('[data-ltstate]'));
+console.log('state after load:', await page.textContent('[data-gstate]'));
 console.log('files table:', (await page.textContent('[data-table]')).replace(/\s+/g, ' ').slice(0, 160));
 console.log('status:', (await page.textContent('.actionbar .status')).replace(/\s+/g, ' ').slice(0, 120));
 console.log('remembered:', await page.evaluate(() => JSON.parse(localStorage.getItem('analyze.settings')).garmin));

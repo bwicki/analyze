@@ -38,19 +38,16 @@ export function mountImport(root, ctx) {
         <section class="card" data-garmin>
           <h2>${esc(t('imp.gTitle'))}</h2>
           <span class="muted small">${esc(t('imp.gHint'))}</span>
-          <label class="f">${esc(t('imp.gLink'))}<input class="in" data-g="link" placeholder="https://live.garmin.com/… · https://share.garmin.com/…" value="${esc((state.settings.garmin && state.settings.garmin.link) || '')}" autocomplete="off"></label>
-          <span class="muted small" data-gkind></span>
-          <div data-glive hidden class="col" style="gap:8px">
-            <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="ltList" ${session.code ? '' : 'disabled'}>${esc(t('imp.ltList'))}</button><span class="muted small" data-ltstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
-            <div data-ltsessions></div>
-          </div>
+          <div class="row-wrap" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1 1 260px">${esc(t('imp.gLink'))}<input class="in" data-g="link" placeholder="https://live.garmin.com/… · https://share.garmin.com/…" value="${esc((state.settings.garmin && state.settings.garmin.link) || '')}" autocomplete="off"></label><button class="btn sm primary" type="button" data-act="gNext" ${session.code ? '' : 'disabled'}>${esc(t('imp.gNext'))} →</button></div>
+          <span class="muted small" data-gstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span>
+          <div data-glive hidden><div data-ltsessions></div></div>
           <div data-gshare hidden class="col" style="gap:8px">
             <div class="g2">
               <label class="f">${esc(t('imp.msFrom'))}<input class="in" type="datetime-local" data-ms="from"></label>
               <label class="f">${esc(t('imp.msTo'))}<input class="in" type="datetime-local" data-ms="to"></label>
             </div>
             <label class="f">${esc(t('imp.msPw'))}<input class="in" type="password" data-ms="pw" autocomplete="off" placeholder="${esc(t('imp.msPwPh'))}" value="${esc((state.settings.garmin && state.settings.garmin.pw) || '')}"></label>
-            <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="mapshare" ${session.code ? '' : 'disabled'}>${esc(t('imp.msLoad'))}</button><span class="muted small" data-msstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
+            <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="mapshare">${esc(t('imp.msLoad'))}</button><span class="muted small" data-msstate></span></div>
           </div>
         </section>
         <section class="card" data-devices hidden></section>
@@ -132,13 +129,17 @@ export function mountImport(root, ctx) {
   const toLocalInput = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   if (msIn('from')) { const now = Date.now(); msIn('from').value = toLocalInput(now - 24 * 3600000); msIn('to').value = toLocalInput(now); }
   const rememberGarmin = (patch) => { state.settings.garmin = { ...(state.settings.garmin || {}), ...patch }; ctx.saveSettings(); };
-  function showGarminKind() {
-    const kind = garminKind(gLink()), kindEl = el.querySelector('[data-gkind]');
+  /** «Weiter»: the host of the link decides – LiveTrack lists the sessions right away, MapShare opens window + password. */
+  async function garminNext(btn) {
+    const kind = garminKind(gLink()), st = el.querySelector('[data-gstate]');
     el.querySelector('[data-glive]').hidden = kind !== 'livetrack'; el.querySelector('[data-gshare]').hidden = kind !== 'mapshare';
-    kindEl.textContent = kind === 'livetrack' ? t('imp.gKindLive') : kind === 'mapshare' ? t('imp.gKindShare') : gLink() ? t('imp.gKindNone') : '';
-    return kind;
+    if (!gLink()) { st.textContent = t('imp.ltNoShare'); return; }
+    if (!kind) { st.textContent = t('imp.gKindNone'); return; }
+    if (kind === 'mapshare') { st.textContent = t('imp.gKindShare'); rememberGarmin({ link: gLink() }); el.querySelector('[data-ms="from"]').focus(); return; }
+    st.textContent = t('imp.gKindLive');
+    await listLiveTrack(btn);
   }
-  el.querySelector('[data-g="link"]').addEventListener('input', () => { showGarminKind(); if (!gLink()) rememberGarmin({ link: '' }); });
+  el.querySelector('[data-g="link"]').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); const b = el.querySelector('[data-act=gNext]'); if (b && !b.disabled) garminNext(b); } });
   async function loadMapShare(btn) {
     const share = gLink(), from = msIn('from').value, to = msIn('to').value, pw = msIn('pw').value;
     const st = el.querySelector('[data-msstate]');
@@ -157,7 +158,7 @@ export function mountImport(root, ctx) {
     } finally { btn.disabled = false; }
   }
   async function listLiveTrack(btn) {
-    const share = gLink(), st = el.querySelector('[data-ltstate]'), box = el.querySelector('[data-ltsessions]');
+    const share = gLink(), st = el.querySelector('[data-gstate]'), box = el.querySelector('[data-ltsessions]');
     if (!share) { toast(t('imp.ltNoShare'), true); return; }
     btn.disabled = true; st.textContent = t('imp.msLoading'); box.innerHTML = '';
     try {
@@ -173,7 +174,7 @@ export function mountImport(root, ctx) {
     } finally { btn.disabled = false; }
   }
   async function loadLiveTrack(btn) {
-    const box = el.querySelector('[data-ltsessions]'), st = el.querySelector('[data-ltstate]');
+    const box = el.querySelector('[data-ltsessions]'), st = el.querySelector('[data-gstate]');
     const s = box._sessions && box._sessions[+btn.dataset.i]; if (!s) return;
     btn.disabled = true; st.textContent = t('imp.msLoading');
     try {
@@ -186,11 +187,8 @@ export function mountImport(root, ctx) {
       st.textContent = msg; toast(msg, true);
     } finally { btn.disabled = false; }
   }
-  // a remembered LiveTrack link lists its sessions right away (the usual case: one device, one page)
-  if (showGarminKind() === 'livetrack' && session.code && !state.files.length) { const b = el.querySelector('[data-act=ltList]'); if (b) listLiveTrack(b); }
-
   onAct(el, {
-    ltList: (b) => listLiveTrack(b),
+    gNext: (b) => garminNext(b),
     ltLoad: (b) => loadLiveTrack(b),
     mapshare: (b) => loadMapShare(b),
     merge: (b) => { state.settings.merge = { ...state.settings.merge, mode: b.dataset.mode }; ctx.saveSettings(); recompute({ reclassify: false }); },
