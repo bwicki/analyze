@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.0 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.1 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -60,8 +60,9 @@ importiert sie wie eine Datei (`livetrack_<Name>_<Datum>.gpx`). Der Worker (`GET
 `GET /api/livetrack/track`; PIN, 30 Abrufe je 10 min) spricht die interne JSON-Schnittstelle der LiveTrack-Seite an:
 Seite laden (CSRF-Cookie und Meta-Token), `api/personal-url/‹Name›/user`, `api/v2/user/‹GUID›/profile-sessions`,
 `api/sessions/‹ID›/track-points/common?token=`. Undokumentiert, Stand 21.10.2026 – ändert Garmin die Seite, meldet
-die Karte «Garmin antwortet nicht» bzw. einen 502. Seiten mit Passcode werden nicht unterstützt; es wird nichts
-gespeichert ausser der Adresse in den Einstellungen.
+die Karte «Garmin antwortet nicht» mit der Ursache in Klammern. Seiten mit Passcode werden nicht unterstützt; es
+wird nichts gespeichert ausser der Adresse in den Einstellungen. Prüfroute ohne PIN: `GET /api/livetrack/diag?share=‹Name›`
+(nur Statuscodes – erreicht der Worker die Seite, trägt sie das CSRF-Token, antwortet die Schnittstelle).
 
 **Garmin inReach (MapShare), ab 0.12.0** (für Konten, die noch über Garmin Explore teilen): Karte «Garmin inReach (MapShare)» – MapShare-Adresse (`share.garmin.com/…`)
 oder Name, Zeitfenster (Lokalzeit, Vorgabe die letzten 24 h, max. 31 Tage) und falls gesetzt das MapShare-Passwort →
