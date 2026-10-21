@@ -38,7 +38,7 @@ export function renderHeader(o) {
   const v = state.viewer;
   document.documentElement.style.setProperty('--accent', (v && v.owner && isHexColor(v.owner.accent) && v.owner.accent) || (!v && accentColor()) || DEFAULT_ACCENT);   // accent of the PIN in the controls (0.9.0)
   const who = v ? `<span class="pill sm viewer"><span class="dot b"></span>${esc(t('hdr.viewer'))}${v.owner && v.owner.displayName ? ` · ${esc(v.owner.displayName)}` : ''}</span>`
-    : session.code ? `<button type="button" class="pill sm who" data-act="nav" data-view="flights" title="${esc(t('hdr.myFlights'))}"><span class="dot g"></span><span class="mono">${esc(session.code)}</span>${session.me && session.me.displayName ? ` · ${esc(session.me.displayName)}` : ''}</button>`
+    : session.code ? `<span class="whogrp"><button type="button" class="pill sm who" data-act="nav" data-view="flights" title="${esc(t('hdr.myFlights'))}"><span class="dot g"></span><span class="mono">${esc(session.code)}</span>${session.me && session.me.displayName ? ` · ${esc(session.me.displayName)}` : ''}</button><button type="button" class="logout" data-act="logout" title="${esc(t('hdr.logout'))}" aria-label="${esc(t('hdr.logout'))}">${icons.logout}</button></span>`
     : hasServer() ? `<button type="button" class="pill sm who" data-act="nav" data-view="start"><span class="dot x"></span>${esc(t('hdr.noCode'))}</button>` : '';
   const nav = v ? `<nav class="phases" aria-label="${esc(t('hdr.phases'))}"><span class="ph active"><span class="n">▶</span>${esc(v.title || t('hdr.viewer'))}</span>${PHASES.filter((p) => p === 'analyze' || p === 'report').map((p) => `<button type="button" class="ph ${p === state.phase ? 'active' : ''}" data-act="goto" data-phase="${p}">${esc(phaseLabel(p))}</button>`).join('')}</nav>`
     : `<nav class="phases" aria-label="${esc(t('hdr.phases'))}">${phaseChips(state.phase)}${['start', 'flights', 'admin'].includes(state.phase) ? `<span class="ph active"><span class="n">·</span>${esc(t('view.' + state.phase))}</span>` : ''}</nav>`;
@@ -51,7 +51,7 @@ export function renderHeader(o) {
       <details class="menu"><summary aria-label="${esc(t('hdr.menu'))}" title="${esc(t('hdr.menu'))}">${icons.menu}</summary><div class="panel"><h3>${esc(t('settings.title'))} · v${VERSION}</h3><div class="body"></div></div></details>
     </div></div>
   </header>`);
-  onAct(el, { goto: (b) => o.onGoto && o.onGoto(b.dataset.phase), lang: (b) => o.onLang && o.onLang(b.dataset.lang), nav: (b) => o.onNav && o.onNav(b.dataset.view) });
+  onAct(el, { goto: (b) => o.onGoto && o.onGoto(b.dataset.phase), lang: (b) => o.onLang && o.onLang(b.dataset.lang), nav: (b) => o.onNav && o.onNav(b.dataset.view), logout: () => o.onLogout && o.onLogout() });
   const details = el.querySelector('details.menu');
   const fill = () => { const s = o.settingsBody(); const body = details.querySelector('.body'); body.innerHTML = s.html; if (s.bind) s.bind(body, details); };
   details.addEventListener('toggle', () => { if (details.open) fill(); });

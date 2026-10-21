@@ -392,6 +392,8 @@
   "hdr.viewer": "Viewer",
   "hdr.myFlights": "Meine Fahrten",
   "hdr.noCode": "ohne PIN",
+  "hdr.logout": "Abmelden – PIN aus diesem Browser entfernen",
+  "hdr.loggedOut": "Abgemeldet – der PIN ist aus diesem Browser entfernt.",
   "view.start": "Start",
   "view.flights": "Meine Fahrten",
   "view.admin": "Supermaster",

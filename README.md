@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.3 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.4 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -36,8 +36,9 @@ Seite macht und dass sie sich mit einem PIN auf das eigene Ballonteam personalis
 anzeigen» zeigt es wieder.
 
 Kopfzeile: Titel «Fahrtanalyse/Fahrtbericht», darunter der **Team-/Organisationsname** des PIN (Profil; leer =
-«Wickipartners Ballonteam»), rechts das **Logo** des PIN (eigenes oder das Ballonteam-Logo), DE/EN und das Menü ☰
-(Einstellungen, Supermaster). Die fünf Schritte stehen als Chips: Importieren · Bereinigen · Auswerten · Bericht ·
+«Wickipartners Ballonteam»), rechts das **Logo** des PIN (eigenes oder das Ballonteam-Logo), der **PIN-Chip**
+(Klick → Meine Fahrten) mit dem **Abmelden-Symbol** daneben (ab 0.15.4: entfernt den PIN nach Rückfrage aus diesem
+Browser, die Fahrten bleiben gespeichert), DE/EN und das Menü ☰ (Einstellungen, Supermaster). Die fünf Schritte stehen als Chips: Importieren · Bereinigen · Auswerten · Bericht ·
 Speichern/Drucken/Exportieren; die Aktionsleiste darunter führt mit «Weiter zu …» durch den Ablauf.
 
 ### 1 · Importieren

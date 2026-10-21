@@ -4,7 +4,7 @@
 
 import { initI18n, setLang, onLangChange, t, currentLang } from './i18n.js';
 import { state, bus, PHASES, VERSION, saveSettings, recompute, DEFAULT_SETTINGS } from './state.js';
-import { esc, html, toast } from './util/dom.js';
+import { esc, html, toast, confirmDialog } from './util/dom.js';
 import { renderHeader, renderActionBar, phaseLabel, phaseEnabled } from './ui/header.js';
 import { mountImport, importStatus } from './ui/import.js';
 import { mountClean, cleanStatus } from './ui/clean.js';
@@ -60,7 +60,7 @@ function mountView() {
 }
 
 function renderHeaderBar() {
-  const el = renderHeader({ subtitle: t('hdr.subtitle'), onGoto: gotoPhase, onLang: (l) => setLang(l), onNav: (v) => gotoPhase(v), settingsBody: settingsPanel });
+  const el = renderHeader({ subtitle: t('hdr.subtitle'), onGoto: gotoPhase, onLang: (l) => setLang(l), onNav: (v) => gotoPhase(v), onLogout: logout, settingsBody: settingsPanel });
   slots.header.replaceWith(el); slots.header = el;
 }
 
@@ -160,6 +160,13 @@ async function loadViewer() {
     renderHeaderBar(); renderAction();
   }
   return true;
+}
+
+/** Logout (0.15.4): removes the PIN from this browser after a confirmation; the flights stay on the server. */
+async function logout() {
+  const ok = await confirmDialog({ title: t('fl.logout'), text: esc(t('fl.logoutNote')), okLabel: t('fl.logout'), cancelLabel: t('common.cancel') });
+  if (!ok) return;
+  clearSession(); state.flight = null; renderHeaderBar(); renderAction(); gotoPhase('start'); toast(t('hdr.loggedOut'));
 }
 
 /** Refresh the stored Kennung in the background (display name, logo, blocked?). */
