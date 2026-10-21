@@ -71,7 +71,7 @@ export function deriveSeries(track, opts = {}) {
   if (hasField(ps, 'vs')) {
     vs = new Float32Array(ps.vs); vsSource = 'sensor';
     for (let i = 0; i < n; i++) if (Math.abs(vs[i]) > 15 || altMask[i]) vs[i] = NaN; // filter spikes
-  } else { vs = derivative(t, altClean, 2); vsSource = 'derived'; }
+  } else { vs = derivative(t, altClean, Math.max(2, Math.min(600, opts.samplingSec || 0))); vsSource = 'derived'; }   // ±2 s, or one sampling interval for sparse recordings (0.15.2)
   // warm-up mask: the first warmupSec after every segment start (tracker restart) – the vario filter settles there
   const warm = (opts.warmupSec ?? 60) * 1000, warmMask = new Uint8Array(n);
   for (const s of track.segments || []) { const t0 = t[s.from]; for (let i = s.from; i < s.to && t[i] - t0 < warm; i++) { warmMask[i] = 1; vs[i] = NaN; } }

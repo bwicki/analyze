@@ -128,3 +128,39 @@ test('0.9.0: marker interval auto (10 min ≤ 5 h, 30 min beyond) and the extrem
   const alt = xs.find((x) => x.kind === 'alt'); assert.equal(alt.t, st.altMax.t); assert.ok(Math.abs(alt.alt - st.altMax.v) < 1); assert.ok(alt.symbol === '◆' && alt.fix && !Number.isNaN(alt.lat));
   const dn = xs.find((x) => x.kind === 'down'); assert.equal(dn.t, st.vsMin.t); assert.equal(dn.value, st.vsMin.v); assert.equal(dn.symbol, '▼');
 });
+
+// ---- sparse recordings (0.15.2): inReach LiveTrack sends a point every 2 min, MapShare every 10 min – with the
+// 30-s gap threshold everything was a gap (distance 0, no vario, nothing on the map)
+test('sparse 2-min recording: gap threshold adapts, distance/vario/take-off/landing come out', async () => {
+  const { samplingSec, effectiveGapSec } = await import('../src/process/segments.js');
+  const { readGpx } = await import('../src/parse/readers.js');
+  const t0 = Date.parse('2026-10-15T13:31:45Z'); const rows = [];
+  const N = 615, latA = 44.914137, lonA = 9.715905, latB = 37.839478, lonB = 14.826093;
+  for (let k = 0; k < N; k++) {
+    let t = t0 + k * 120000; if (k >= 2) t += 80 * 60000;   // 80 min on the ground before the launch, like the real session
+    const f = k < 2 ? 0 : (k - 2) / (N - 3);
+    const lat = latA + (latB - latA) * f, lon = lonA + (lonB - lonA) * f;
+    const alt = k < 2 ? 130 : f < 0.1 ? 130 + (f / 0.1) * 3500 : f < 0.92 ? 3600 + 500 * Math.sin(f * 20) : 4000 - ((f - 0.92) / 0.08) * 2800;
+    rows.push(`<trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}"><ele>${alt.toFixed(1)}</ele><time>${new Date(t).toISOString()}</time></trkpt>`);
+  }
+  const r = readGpx(`<gpx><trk><trkseg>${rows.join('')}</trkseg></trk></gpx>`);
+  const files = [{ name: 'livetrack.gpx', size: 1, profile: { id: 'gpx' }, points: r.points, bad: 0 }];
+  assert.equal(Math.round(samplingSec(files)), 120); assert.equal(effectiveGapSec(files, 30), 360);
+  assert.equal(effectiveGapSec([{ points: { n: 3, t: [0, 1000, 2000] } }], 30), 30);   // dense data keeps the setting
+  assert.equal(effectiveGapSec([{ points: { n: 3, t: [0, 600000, 1200000] } }], 30), 1800);   // MapShare 10 min
+  const gapSec = effectiveGapSec(files, 30);
+  const segs = classifySegments(buildSegments(files, { gapSec }));
+  const track = mergeSegments(segs, { gapSec, merge: false });
+  assert.equal(track.gaps.length, 1);   // only the 80-min ground wait
+  const series = deriveSeries(track, { gapSec, samplingSec: samplingSec(files) });
+  const d = detectEvents(track, series);
+  const types = d.events.map((e) => e.type);
+  assert.ok(types.includes('takeoff') && (types.includes('landing') || types.includes('end')), `events ${types}`);
+  const trim = proposeTrim(track, d.events);
+  const st = computeStats(track, series, d.events, trim);
+  assert.ok(st.distanceM > 880000 && st.distanceM < 920000, `distance ${st.distanceM}`);
+  assert.ok(st.altMax.v > 4000, 'altitude max'); assert.ok(st.vsMax.v > 0 && st.vsMin.v < 0, `vario ${st.vsMax.v} ${st.vsMin.v}`); assert.ok(st.gsMax.v > 10, `gs ${st.gsMax.v}`);
+  // with the old fixed threshold the same data has no distance at all – the regression this guards against
+  const bad = deriveSeries(mergeSegments(segs, { gapSec: 30, merge: false }), { gapSec: 30 });
+  assert.equal(bad.dist[bad.dist.length - 1], 0);
+});

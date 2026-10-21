@@ -1,7 +1,7 @@
 // Central application state + event bus + settings (localStorage). Nothing here touches the DOM.
 // The pipeline (recompute) turns parsed files into segments → track → series → events → trim → stats.
 
-import { buildSegments, classifySegments, mergeSegments, DEFAULTS as SEG_DEFAULTS } from './process/segments.js';
+import { buildSegments, classifySegments, mergeSegments, samplingSec, effectiveGapSec, DEFAULTS as SEG_DEFAULTS } from './process/segments.js';
 import { MERGE_DEFAULTS } from './process/consensus.js';
 import { deriveSeries } from './process/series.js';
 import { detectEvents, proposeTrim, DETECT_DEFAULTS, dropIgnoredLandings, statesFromEvents } from './process/detect.js';
@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.15.1';
+export const VERSION = '0.15.2';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -29,8 +29,7 @@ export const DEFAULT_SETTINGS = {
   colorBy: 'vario',       // track/profile colour: 'vario' | 'gs' (ground speed)
   view3d: true,           // Auswerten opens in the 3D view (0.9.0); the 2D/3D switch remembers the choice
   exag: 10,               // vertical exaggeration of the 3D view: 'auto' or 1–100 (0.9.0: 10× by default)
-  mapshare: null,         // Garmin MapShare address of the last import (0.12.0); the password is never stored
-  livetrack: null,        // Garmin LiveTrack address (0.15.0)
+  garmin: null,           // Garmin link of the last import and the MapShare password (0.15.2: remembered on purpose, browser only – the Worker stores nothing)
   hideOtherFlights: true,
   merge: { mode: MERGE_DEFAULTS.mode, primary: null, stepSec: MERGE_DEFAULTS.stepSec },   // several devices (0.8.0)
   terrain: true,          // ground profile + water along the track (DEM tiles / open-meteo, OpenFreeMap)
@@ -39,13 +38,19 @@ export const DEFAULT_SETTINGS = {
 
 const LS_SETTINGS = 'analyze.settings', LS_META = 'analyze.meta';
 /** Saved settings from older versions: the former marker default (60 min) becomes 'auto' unless the user picked it (0.9.0). */
-function migrateSettings(s) { if (s.markerMin === 60 && !s.markerTouched) s.markerMin = 'auto'; return s; }
+function migrateSettings(s) {
+  if (s.markerMin === 60 && !s.markerTouched) s.markerMin = 'auto';
+  if (!s.garmin && (s.livetrack || s.mapshare)) s.garmin = { link: (s.livetrack && s.livetrack.share) || (s.mapshare && s.mapshare.share) || '', pw: '' };   // 0.15.2: one Garmin link
+  delete s.livetrack; delete s.mapshare;
+  return s;
+}
 function load(key, fallback) { try { const v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : fallback; } catch { return fallback; } }
 function save(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* private mode */ } }
 
 export const state = {
   phase: 'import',
   visited: { import: true },
+  samplingSec: 0, gapEffSec: 30,   // typical sampling interval of the loaded files and the gap threshold derived from it (0.15.2)
   settings: migrateSettings({ ...DEFAULT_SETTINGS, ...load(LS_SETTINGS, {}), detect: { ...DETECT_DEFAULTS, ...(load(LS_SETTINGS, {}).detect || {}) } }),
   meta: { title: '', event: '', purpose: 'private', balloon: '', type: '', volume: '', pic: '', copilot: '', pax: '', crew: '', commandCenter: '', equipment: '', startName: '', landName: '', remarks: '', nvfr: '', ...load(LS_META, {}) },
   files: [],        // parser results (one per file / zip entry)
@@ -84,16 +89,17 @@ export function autoTitle(fmtDate) {
 export function recompute({ reclassify = true } = {}) {
   const s = state; touch();
   const files = s.files.filter((f) => f.points && f.points.n);
+  s.samplingSec = samplingSec(files); s.gapEffSec = effectiveGapSec(files, s.settings.gapSec);   // 0.15.2: sparse recordings (inReach 2 min) are not all gaps
   if (reclassify || !s.segments.length) {
     const prev = new Map(s.segments.map((x) => [x.file + '#' + x.part, { status: x.status, keep: !!x.keep }]));
-    s.segments = buildSegments(files, { gapSec: s.settings.gapSec });
+    s.segments = buildSegments(files, { gapSec: s.gapEffSec });
     for (const sg of s.segments) { const p = prev.get(sg.file + '#' + sg.part); if (p && p.status === 'off') sg.status = 'off'; if (p && p.keep) sg.keep = true; }
     classifySegments(s.segments, { otherFlightHours: s.settings.otherFlightHours });
     for (const sg of s.segments) if (sg.keep && sg.status === 'other') sg.status = 'use';   // "other flight" kept on purpose
   }
-  s.track = mergeSegments(s.segments, { gapSec: s.settings.gapSec, merge: s.settings.merge || MERGE_DEFAULTS });
+  s.track = mergeSegments(s.segments, { gapSec: s.gapEffSec, merge: s.settings.merge || MERGE_DEFAULTS });
   if (!s.track) { s.series = null; s.events = []; s.states = null; s.trim = null; s.stats = null; bus.emit('track'); return; }
-  s.series = deriveSeries(s.track, { gapSec: s.settings.gapSec });
+  s.series = deriveSeries(s.track, { gapSec: s.gapEffSec, samplingSec: s.samplingSec });
   const d = detectEvents(s.track, s.series, s.settings.detect);
   s.events = dropIgnoredLandings(d.events, s.ignoredLandings); s.states = statesFromEvents(s.events, s.track.points.n);
   const auto = proposeTrim(s.track, s.events, s.settings.detect);

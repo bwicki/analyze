@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.1 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.2 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -50,25 +50,32 @@ Aufzeichnungen (CSV + JSONL desselben Geräts) werden einmal verwendet, Segmente
 (> 12 h) gelten als **andere Fahrt** und lösen eine Rückfrage aus («Ignorieren» / «Trotzdem verwenden»). Die
 importierten Dateien selbst bleiben als **Rohdaten** in der Sitzung und werden beim Speichern der Fahrt mitgesichert.
 
-**Garmin LiveTrack (inReach), ab 0.15.0:** inReach-Geräte, die über Garmin Connect/Messenger teilen, haben statt
-MapShare eine LiveTrack-Seite (`live.garmin.com/‹Name›`, auch `livetrack.garmin.com/‹Name›`) – dort gibt es weder
-Download noch KML-Feed. Die Karte «Garmin LiveTrack (inReach)» nimmt die Adresse (oder den Namen, oder einen
-Session-Link `livetrack.garmin.com/session/‹ID›/token/‹Token›`), «Fahrten anzeigen» listet die öffentlichen Sessions
-der Seite (Name, Start, Dauer, Strecke, max. Höhe; laufende zuerst), «Laden» holt die Positionen einer Session als
-GPX (Zeit, Höhe, Geschwindigkeit; der künstliche END-Punkt beim Schliessen der Session wird weggelassen) und
-importiert sie wie eine Datei (`livetrack_<Name>_<Datum>.gpx`). Der Worker (`GET /api/livetrack/sessions`,
-`GET /api/livetrack/track`; PIN, 30 Abrufe je 10 min) spricht die interne JSON-Schnittstelle der LiveTrack-Seite an:
-Seite laden (CSRF-Cookie und Meta-Token), `api/personal-url/‹Name›/user`, `api/v2/user/‹GUID›/profile-sessions`,
-`api/sessions/‹ID›/track-points/common?token=`. Undokumentiert, Stand 21.10.2026 – ändert Garmin die Seite, meldet
-die Karte «Garmin antwortet nicht» mit der Ursache in Klammern. Seiten mit Passcode werden nicht unterstützt; es
-wird nichts gespeichert ausser der Adresse in den Einstellungen. Prüfroute ohne PIN: `GET /api/livetrack/diag?share=‹Name›`
-(nur Statuscodes – erreicht der Worker die Seite, trägt sie das CSRF-Token, antwortet die Schnittstelle).
+**Garmin inReach – eine Karte für LiveTrack und MapShare (ab 0.15.2):** ein Feld «Garmin-Link»; die App erkennt
+am Host, was gemeint ist. Link und MapShare-Passwort werden in diesem Browser gemerkt (Einstellungen, `garmin`),
+sodass der eigene Link beim nächsten Mal schon dasteht – der Worker speichert nichts.
 
-**Garmin inReach (MapShare), ab 0.12.0** (für Konten, die noch über Garmin Explore teilen): Karte «Garmin inReach (MapShare)» – MapShare-Adresse (`share.garmin.com/…`)
-oder Name, Zeitfenster (Lokalzeit, Vorgabe die letzten 24 h, max. 31 Tage) und falls gesetzt das MapShare-Passwort →
-«Von MapShare laden» holt den KML-Feed über den Worker (`GET /api/mapshare`, nur Garmin-Hosts, 20 Abrufe je 10 min
-und PIN; Garmin sendet keine CORS-Header) und importiert ihn wie eine Datei (`mapshare_<Name>_<Datum>.kml`, auch in
-den Rohdaten). Die Adresse wird in den Einstellungen gemerkt, das Passwort nie. Braucht einen PIN.
+- **LiveTrack** (`live.garmin.com/‹Name›`, auch `livetrack.garmin.com/‹Name›` oder ein Session-Link
+  `livetrack.garmin.com/session/‹ID›/token/‹Token›`; ab 0.15.0): inReach-Geräte, die über Garmin Connect/Messenger
+  teilen, haben statt MapShare eine LiveTrack-Seite – dort gibt es weder Download noch KML-Feed. «Fahrten anzeigen»
+  listet die öffentlichen Sessions der Seite (Name, Start, Dauer, Strecke, max. Höhe; laufende zuerst; bei
+  gemerktem Link automatisch beim Öffnen von Schritt 1), «Laden» holt die Positionen einer Session als GPX (Zeit,
+  Höhe, Geschwindigkeit; der künstliche END-Punkt beim Schliessen der Session wird weggelassen) und importiert sie
+  wie eine Datei (`livetrack_<Name>_<Datum>.gpx`). Der Worker (`GET /api/livetrack/sessions`,
+  `GET /api/livetrack/track`; PIN, 30 Abrufe je 10 min) spricht die interne JSON-Schnittstelle der LiveTrack-Seite
+  an: Seite laden (CSRF-Cookie und Meta-Token), `api/personal-url/‹Name›/user`, `api/v2/user/‹GUID›/profile-sessions`,
+  `api/sessions/‹ID›/track-points/common?token=`. Undokumentiert, Stand 21.10.2026 – ändert Garmin die Seite,
+  meldet die Karte «Garmin antwortet nicht» mit der Ursache in Klammern. Seiten mit Passcode werden nicht
+  unterstützt. Prüfroute ohne PIN: `GET /api/livetrack/diag?share=‹Name›` (nur Statuscodes).
+- **MapShare** (`share.garmin.com/…`, Garmin Explore; ab 0.12.0): Zeitfenster (Lokalzeit, Vorgabe die letzten 24 h,
+  max. 31 Tage) und falls gesetzt das MapShare-Passwort → «Von MapShare laden» holt den KML-Feed über den Worker
+  (`GET /api/mapshare`, nur Garmin-Hosts, 20 Abrufe je 10 min und PIN; Garmin sendet keine CORS-Header) und
+  importiert ihn wie eine Datei (`mapshare_<Name>_<Datum>.kml`, auch in den Rohdaten). Das Passwort wird erst
+  gemerkt, wenn es einmal funktioniert hat, und geht nur an Garmin.
+
+**Grobe Aufzeichnungen (ab 0.15.2):** inReach-Tracks kommen alle 2 min (LiveTrack) bzw. alle 10 min (MapShare).
+Die Lückenschwelle (Vorgabe 30 s) passt sich der Abtastung an – drei Intervalle, höchstens eine Stunde –, und der
+Vario wird über ein Intervall statt ±2 s abgeleitet; «Bereinigen → Lücken» zeigt die angehobene Schwelle. Vorher
+war bei solchen Daten jeder Abschnitt eine Lücke: Strecke 0, kein Vario, kein Track auf der Karte.
 
 **Mehrere Geräte** (ab 0.8.0): zeichnen zwei oder mehr Tracker dieselbe Fahrt auf, erscheint die Karte «Mehrere
 Geräte». *Konsens (Median)* bildet im überlappenden Bereich pro Rasterpunkt (5–60 s, Vorgabe 10 s) den Median von

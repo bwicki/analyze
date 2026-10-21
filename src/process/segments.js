@@ -12,6 +12,28 @@ export const DEFAULTS = {
   dupOverlap: 0.9,       // overlap share to call two segments duplicates
 };
 
+/** Typical sampling interval of the recordings in seconds (median of the positive steps ≤ 1 h; 0 = unknown). */
+export function samplingSec(files) {
+  const dts = [];
+  for (const f of files || []) {
+    const p = f.points; if (!p || p.n < 2) continue;
+    const step = Math.max(1, Math.floor(p.n / 2000));   // a sample is enough
+    for (let i = step; i < p.n; i += step) { const d = (p.t[i] - p.t[i - step]) / 1000 / step; if (d > 0 && d <= 3600) dts.push(d); }
+  }
+  if (!dts.length) return 0;
+  dts.sort((a, b) => a - b); return dts[Math.floor(dts.length / 2)];
+}
+
+/**
+ * Gap threshold that fits the data (0.15.2): dense trackers keep the configured gapSec; sparse recordings such as
+ * inReach LiveTrack (2 min) or MapShare (10 min) would otherwise be all gaps – no distance, no vario, nothing on the map.
+ * Three sampling intervals, at most one hour.
+ */
+export function effectiveGapSec(files, gapSec = DEFAULTS.gapSec) {
+  const s = samplingSec(files);
+  return Math.max(gapSec, Math.min(3600, Math.round(3 * s)));
+}
+
 /** Drop implausible timestamps (year range, isolated jumps) and sort by time. Returns {points, dropped}. */
 export function cleanTimestamps(ps, opts = {}) {
   const o = { ...DEFAULTS, ...opts };

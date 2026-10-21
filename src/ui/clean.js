@@ -238,7 +238,7 @@ export function mountClean(root, ctx) {
       <div class="row"><span>${esc(t('cln.p.badLines'))}</span><span class="val">${fmtInt(bad)}</span></div>
       <div class="row"><span>${esc(t('cln.p.dropped'))}</span><span class="val">${fmtInt(dropped)}</span></div>
       <div class="row"><span>${esc(t('cln.p.collapsed'))}</span><span class="val">${fmtInt(tr.collapsed)}</span></div>
-      <div class="row"><span>${esc(t('cln.p.gaps', { sec: state.settings.gapSec }))}</span><span class="val">${tr.gaps.length}</span></div>
+      <div class="row"><span>${esc(t('cln.p.gaps', { sec: state.gapEffSec || state.settings.gapSec }))}${state.gapEffSec > state.settings.gapSec ? `<br><span class="muted small">${esc(t('cln.p.gapsSparse', { sampling: Math.round(state.samplingSec || 0) }))}</span>` : ''}</span><span class="val">${tr.gaps.length}</span></div>
       <div class="row"><span>${esc(t('cln.p.restarts'))}</span><span class="val">${restarts}${restarts ? ` (${st.restartList.map((r) => Math.round(r.sec) + ' s').join(', ')})` : ''}</span></div>
       <div class="row"><span>${esc(t('cln.p.altMasked'))}</span><span class="val">${fmtInt(st.altMasked)}</span></div>
       ${mergeLine(tr) ? `<div class="row"><span>${esc(t('cln.p.devices'))}</span><span class="val" style="white-space:normal;text-align:right;font-family:var(--sans);font-size:13px">${esc(mergeLine(tr))}</span></div>` : ''}

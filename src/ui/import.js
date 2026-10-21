@@ -10,6 +10,14 @@ import { removeProfile, sharedProfiles, localProfiles } from '../profiles-store.
 import { session } from '../session.js';
 import { api } from '../api.js';
 
+/** Which Garmin page a link points at: LiveTrack (live./livetrack.garmin.com, session links) or MapShare (share./explore./inreach.garmin.com); a bare name counts as LiveTrack. */
+export function garminKind(link) {
+  const s = String(link || '').trim(); if (!s) return null;
+  const m = /^(?:https?:\/\/)?([a-z0-9.-]+\.garmin\.com)\//i.exec(s);
+  if (m) { const h = m[1].toLowerCase(); return /^(live|livetrack)\.garmin\.com$/.test(h) ? 'livetrack' : /^(share|explore|inreach)\.garmin\.com$/.test(h) ? 'mapshare' : null; }
+  return /^[A-Za-z0-9_-]{1,60}$/.test(s) ? 'livetrack' : null;
+}
+
 const ACCEPT = '.csv,.jsonl,.json,.geojson,.txt,.gpx,.kml,.kmz,.igc,.zip,.log,.nmea';
 
 export function mountImport(root, ctx) {
@@ -27,23 +35,23 @@ export function mountImport(root, ctx) {
           <div class="muted small" data-progress></div>
           <label class="chk"><input type="checkbox" data-opt="hideOther" ${state.settings.hideOtherFlights ? 'checked' : ''}> ${esc(t('imp.hideOther'))}</label>
         </section>
-        <section class="card" data-livetrack>
-          <h2>${esc(t('imp.ltTitle'))}</h2>
-          <span class="muted small">${esc(t('imp.ltHint'))}</span>
-          <div class="row-wrap" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1 1 260px">${esc(t('imp.ltShare'))}<input class="in" data-lt="share" placeholder="https://live.garmin.com/…" value="${esc((state.settings.livetrack && state.settings.livetrack.share) || '')}"></label><button class="btn sm primary" type="button" data-act="ltList" ${session.code ? '' : 'disabled'}>${esc(t('imp.ltList'))}</button></div>
-          <span class="muted small" data-ltstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span>
-          <div data-ltsessions></div>
-        </section>
-        <section class="card" data-mapshare>
-          <h2>${esc(t('imp.msTitle'))}</h2>
-          <span class="muted small">${esc(t('imp.msHint'))}</span>
-          <label class="f">${esc(t('imp.msShare'))}<input class="in" data-ms="share" placeholder="https://share.garmin.com/…" value="${esc((state.settings.mapshare && state.settings.mapshare.share) || '')}"></label>
-          <div class="g2">
-            <label class="f">${esc(t('imp.msFrom'))}<input class="in" type="datetime-local" data-ms="from"></label>
-            <label class="f">${esc(t('imp.msTo'))}<input class="in" type="datetime-local" data-ms="to"></label>
+        <section class="card" data-garmin>
+          <h2>${esc(t('imp.gTitle'))}</h2>
+          <span class="muted small">${esc(t('imp.gHint'))}</span>
+          <label class="f">${esc(t('imp.gLink'))}<input class="in" data-g="link" placeholder="https://live.garmin.com/… · https://share.garmin.com/…" value="${esc((state.settings.garmin && state.settings.garmin.link) || '')}" autocomplete="off"></label>
+          <span class="muted small" data-gkind></span>
+          <div data-glive hidden class="col" style="gap:8px">
+            <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="ltList" ${session.code ? '' : 'disabled'}>${esc(t('imp.ltList'))}</button><span class="muted small" data-ltstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
+            <div data-ltsessions></div>
           </div>
-          <label class="f">${esc(t('imp.msPw'))}<input class="in" type="password" data-ms="pw" autocomplete="off" placeholder="${esc(t('imp.msPwPh'))}"></label>
-          <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="mapshare" ${session.code ? '' : 'disabled'}>${esc(t('imp.msLoad'))}</button><span class="muted small" data-msstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
+          <div data-gshare hidden class="col" style="gap:8px">
+            <div class="g2">
+              <label class="f">${esc(t('imp.msFrom'))}<input class="in" type="datetime-local" data-ms="from"></label>
+              <label class="f">${esc(t('imp.msTo'))}<input class="in" type="datetime-local" data-ms="to"></label>
+            </div>
+            <label class="f">${esc(t('imp.msPw'))}<input class="in" type="password" data-ms="pw" autocomplete="off" placeholder="${esc(t('imp.msPwPh'))}" value="${esc((state.settings.garmin && state.settings.garmin.pw) || '')}"></label>
+            <div class="row-wrap" style="gap:8px;align-items:center"><button class="btn sm primary" type="button" data-act="mapshare" ${session.code ? '' : 'disabled'}>${esc(t('imp.msLoad'))}</button><span class="muted small" data-msstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span></div>
+          </div>
         </section>
         <section class="card" data-devices hidden></section>
         <section class="card">
@@ -117,37 +125,44 @@ export function mountImport(root, ctx) {
     recompute({ reclassify: false });
   }
 
-  // Garmin inReach MapShare (0.12.0): the Worker fetches the KML of the window, then it goes through the normal import
+  // Garmin inReach (0.15.2): one link field – LiveTrack (live.garmin.com, Connect/Messenger accounts) lists the sessions,
+  // MapShare (share.garmin.com, Explore accounts) asks for the time window and the password; link and password are remembered
+  const gLink = () => el.querySelector('[data-g="link"]').value.trim();
   const msIn = (k) => el.querySelector(`[data-ms="${k}"]`);
   const toLocalInput = (ms) => new Date(ms - new Date(ms).getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   if (msIn('from')) { const now = Date.now(); msIn('from').value = toLocalInput(now - 24 * 3600000); msIn('to').value = toLocalInput(now); }
+  const rememberGarmin = (patch) => { state.settings.garmin = { ...(state.settings.garmin || {}), ...patch }; ctx.saveSettings(); };
+  function showGarminKind() {
+    const kind = garminKind(gLink()), kindEl = el.querySelector('[data-gkind]');
+    el.querySelector('[data-glive]').hidden = kind !== 'livetrack'; el.querySelector('[data-gshare]').hidden = kind !== 'mapshare';
+    kindEl.textContent = kind === 'livetrack' ? t('imp.gKindLive') : kind === 'mapshare' ? t('imp.gKindShare') : gLink() ? t('imp.gKindNone') : '';
+    return kind;
+  }
+  el.querySelector('[data-g="link"]').addEventListener('input', () => { showGarminKind(); if (!gLink()) rememberGarmin({ link: '' }); });
   async function loadMapShare(btn) {
-    const share = msIn('share').value.trim(), from = msIn('from').value, to = msIn('to').value, pw = msIn('pw').value;
+    const share = gLink(), from = msIn('from').value, to = msIn('to').value, pw = msIn('pw').value;
     const st = el.querySelector('[data-msstate]');
     if (!share) { toast(t('imp.msNoShare'), true); return; }
     if (!from || !to || Date.parse(from) >= Date.parse(to)) { toast(t('imp.msBadWindow'), true); return; }
     btn.disabled = true; st.textContent = t('imp.msLoading');
     try {
       const r = await api.flights.mapshare({ share, from: new Date(from).toISOString(), to: new Date(to).toISOString(), pw });
-      state.settings.mapshare = { share }; ctx.saveSettings();
+      rememberGarmin({ link: share, pw });   // the password only once it worked
       if (!r.points) { st.textContent = t('imp.msEmpty'); return; }
       st.textContent = t('imp.msLoaded', { n: r.points, name: r.name });
       await addFiles([new File([r.text], r.name, { type: 'application/vnd.google-earth.kml+xml' })]);
     } catch (ex) {
-      const msg = ex.status === 401 ? t('imp.msPwWrong') : ex.status === 404 ? t('imp.msNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.msBadAddress') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      const msg = ex.status === 401 ? t('imp.msPwWrong') : ex.status === 404 ? t('imp.msNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.msBadAddress') : ex.status === 504 || ex.status === 502 ? `${t('imp.msGarminDown')} (${ex.message})` : `${t('start.errNetwork')} (${ex.status || 0} ${ex.message})`;
       st.textContent = msg; toast(msg, true);
-    } finally { btn.disabled = false; msIn('pw').value = ''; }
+    } finally { btn.disabled = false; }
   }
-
-  // Garmin LiveTrack (0.15.0): list the sessions of the personal link, load one as GPX through the normal import
-  const ltIn = () => el.querySelector('[data-lt="share"]');
   async function listLiveTrack(btn) {
-    const share = ltIn().value.trim(), st = el.querySelector('[data-ltstate]'), box = el.querySelector('[data-ltsessions]');
+    const share = gLink(), st = el.querySelector('[data-ltstate]'), box = el.querySelector('[data-ltsessions]');
     if (!share) { toast(t('imp.ltNoShare'), true); return; }
     btn.disabled = true; st.textContent = t('imp.msLoading'); box.innerHTML = '';
     try {
       const r = await api.flights.livetrackSessions(share);
-      state.settings.livetrack = { share }; ctx.saveSettings();
+      rememberGarmin({ link: share });
       if (!r.sessions.length) { st.textContent = t('imp.ltNone'); return; }
       st.textContent = t('imp.ltFound', { n: r.sessions.length });
       box.innerHTML = r.sessions.map((s, i) => `<div class="row"><span><strong>${esc(s.name || '–')}</strong>${s.active ? ` <span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('imp.ltActive'))}</span>` : ''}<br><span class="muted small">${esc(t('imp.ltColStart'))} ${s.start ? fmtDateTimeUTC(Date.parse(s.start)) : '–'} · ${s.durationSec === null ? '–' : fmtDurationHM(s.durationSec)} · ${s.distanceM === null ? '–' : fmtInt(Math.round(s.distanceM / 1000)) + ' km'} · ${esc(t('imp.ltColAlt'))} ${s.maxElevM === null ? '–' : fmtInt(s.maxElevM) + ' m'}</span></span><button class="btn sm primary" type="button" data-act="ltLoad" data-i="${i}">${esc(t('imp.ltLoad'))}</button></div>`).join('');
@@ -171,6 +186,8 @@ export function mountImport(root, ctx) {
       st.textContent = msg; toast(msg, true);
     } finally { btn.disabled = false; }
   }
+  // a remembered LiveTrack link lists its sessions right away (the usual case: one device, one page)
+  if (showGarminKind() === 'livetrack' && session.code && !state.files.length) { const b = el.querySelector('[data-act=ltList]'); if (b) listLiveTrack(b); }
 
   onAct(el, {
     ltList: (b) => listLiveTrack(b),
