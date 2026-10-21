@@ -820,5 +820,21 @@
   "imp.msNotFound": "MapShare not found – check the name or switch sharing on in the Garmin app.",
   "imp.msTooMany": "Too many requests – please wait a moment.",
   "imp.msBadAddress": "Only Garmin MapShare addresses (share.garmin.com/…) or the name.",
-  "imp.msGarminDown": "Garmin is not responding – try again later."
+  "imp.msGarminDown": "Garmin is not responding – try again later.",
+  "imp.ltTitle": "Garmin LiveTrack (inReach)",
+  "imp.ltHint": "For inReach devices sharing through Garmin Connect/Messenger (address live.garmin.com/…): Garmin offers no download there – the Worker reads the sessions of the page and loads one of them as GPX into the import. The address is remembered. Pages with a passcode are not supported.",
+  "imp.ltShare": "LiveTrack address or name",
+  "imp.ltList": "Show sessions",
+  "imp.ltNoShare": "LiveTrack address or name missing.",
+  "imp.ltNone": "No public sessions on this page.",
+  "imp.ltFound": "{n} session(s) found – pick one.",
+  "imp.ltColStart": "Start",
+  "imp.ltColAlt": "max.",
+  "imp.ltActive": "live",
+  "imp.ltLoad": "Load",
+  "imp.ltLoaded": "{n} positions loaded ({name}) – imported.",
+  "imp.ltPasscode": "This LiveTrack page needs a passcode – not supported.",
+  "imp.ltNotFound": "LiveTrack page not found – check the address.",
+  "imp.ltBadAddress": "Only Garmin LiveTrack addresses (live.garmin.com/…) or the name.",
+  "imp.ltNoPoints": "This session has no positions."
 }

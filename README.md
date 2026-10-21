@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.14.0 (20.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.0 (21.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -50,7 +50,20 @@ Aufzeichnungen (CSV + JSONL desselben Geräts) werden einmal verwendet, Segmente
 (> 12 h) gelten als **andere Fahrt** und lösen eine Rückfrage aus («Ignorieren» / «Trotzdem verwenden»). Die
 importierten Dateien selbst bleiben als **Rohdaten** in der Sitzung und werden beim Speichern der Fahrt mitgesichert.
 
-**Garmin inReach (MapShare), ab 0.12.0:** Karte «Garmin inReach (MapShare)» – MapShare-Adresse (`share.garmin.com/…`)
+**Garmin LiveTrack (inReach), ab 0.15.0:** inReach-Geräte, die über Garmin Connect/Messenger teilen, haben statt
+MapShare eine LiveTrack-Seite (`live.garmin.com/‹Name›`, auch `livetrack.garmin.com/‹Name›`) – dort gibt es weder
+Download noch KML-Feed. Die Karte «Garmin LiveTrack (inReach)» nimmt die Adresse (oder den Namen, oder einen
+Session-Link `livetrack.garmin.com/session/‹ID›/token/‹Token›`), «Fahrten anzeigen» listet die öffentlichen Sessions
+der Seite (Name, Start, Dauer, Strecke, max. Höhe; laufende zuerst), «Laden» holt die Positionen einer Session als
+GPX (Zeit, Höhe, Geschwindigkeit; der künstliche END-Punkt beim Schliessen der Session wird weggelassen) und
+importiert sie wie eine Datei (`livetrack_<Name>_<Datum>.gpx`). Der Worker (`GET /api/livetrack/sessions`,
+`GET /api/livetrack/track`; PIN, 30 Abrufe je 10 min) spricht die interne JSON-Schnittstelle der LiveTrack-Seite an:
+Seite laden (CSRF-Cookie und Meta-Token), `api/personal-url/‹Name›/user`, `api/v2/user/‹GUID›/profile-sessions`,
+`api/sessions/‹ID›/track-points/common?token=`. Undokumentiert, Stand 21.10.2026 – ändert Garmin die Seite, meldet
+die Karte «Garmin antwortet nicht» bzw. einen 502. Seiten mit Passcode werden nicht unterstützt; es wird nichts
+gespeichert ausser der Adresse in den Einstellungen.
+
+**Garmin inReach (MapShare), ab 0.12.0** (für Konten, die noch über Garmin Explore teilen): Karte «Garmin inReach (MapShare)» – MapShare-Adresse (`share.garmin.com/…`)
 oder Name, Zeitfenster (Lokalzeit, Vorgabe die letzten 24 h, max. 31 Tage) und falls gesetzt das MapShare-Passwort →
 «Von MapShare laden» holt den KML-Feed über den Worker (`GET /api/mapshare`, nur Garmin-Hosts, 20 Abrufe je 10 min
 und PIN; Garmin sendet keine CORS-Header) und importiert ihn wie eine Datei (`mapshare_<Name>_<Datum>.kml`, auch in
@@ -356,13 +369,13 @@ npm run smoke                     # Browser-Durchläufe (Playwright, Chromium)
 verdünnten GB26-Daten (Start 23:31 UTC, Landung 16:34 UTC, 41 h 03 min, ≈ 1 590 km WGS84, 1 Neustart, 2 Nächte),
 Exporte, GeoJSON-Rundlauf (gespeicherte Fahrt öffnet mit denselben Segmenten und Kennzahlen), Gelände und MVT,
 Vorschaubild, Fotos/EXIF, QR-Code, Logbuch, Worker-API mit D1/R2-Attrappen (PIN, Fahrten, Viewer, Vorschauseite,
-Bild, Fotos, Supermaster, Rohdaten und Rohdateien, Token-Status), ops-Übergabe und MapShare mit Netz-Attrappen,
+Bild, Fotos, Supermaster, Rohdaten und Rohdateien, Token-Status), ops-Übergabe, MapShare und LiveTrack mit Netz-Attrappen,
 Vollständigkeit der Übersetzungen.
 
 **Browser-Durchläufe** (`tests/smoke/`, ab 0.12.1 im Repo und in der CI): `run.mjs` startet einen statischen Server
 der Arbeitskopie und führt die Skripte nacheinander aus – Einführungsfenster, Legal, Rückweg Bericht → Bereinigen,
 Extremwerte, Viewer/Detailansicht/Fahrtaufzeichnung, Landung von Hand und Fotos, Druckfluss, Schritt 5 und
-Akzentfarbe, Rohdateien und Ereignislog, Logbuch, ops-Übergabe, MapShare. Kacheln, Ortsnamen, Gelände und MapLibre
+Akzentfarbe, Rohdateien und Ereignislog, Logbuch, ops-Übergabe, MapShare, LiveTrack. Kacheln, Ortsnamen, Gelände und MapLibre
 sind gesperrt oder durch `leaflet_stub.js` ersetzt, die Worker-API durch Routen im Skript; ein Durchlauf gilt als
 bestanden, wenn er mit 0 endet, «errors: none» meldet und seine Kennzeilen druckt (Tabelle in `run.mjs`).
 Voraussetzung lokal: `npm install --no-save playwright` und `npx playwright install chromium` (oder
@@ -393,7 +406,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 | `src/ui/` | Kopfzeile und Aktionsleiste, die fünf Schritte, Karte 2D (`map.js`) und 3D (`map3d.js`), Höhenprofil (`profile.js`), Ereignis- und Fotokarten, Start, Meine Fahrten, Supermaster, Profil-Assistent, Einführungsfenster (`welcome.js`), Viewer für Grossansicht, Detailansicht und Fahrtaufzeichnung (`viewer.js`), Logbuch (`logbook.js`), Legal (`legal.js`) |
 | `src/util/` | DOM-Helfer und Dialoge, Formate, Einheiten, Geodäsie (Vincenty, Dämmerung), Ortsnamen, QR-Code (eigener Code) |
 | `src/worker/parse-worker.js` | Parser im Web Worker |
-| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten, ops-Übergabe, MapShare, Bericht-PDF) |
+| `worker/` | Cloudflare Worker: `wrangler.toml`, `schema.sql`, `src/` (Routing, PINs, Fahrten, Rohdateien, Fotos, Ereignislog, Profile, Supermaster, Vorschauseiten, ops-Übergabe, MapShare, LiveTrack, Bericht-PDF) |
 | `v/‹ID›/index.html` | Vom Worker abgelegte Vorschauseiten öffentlicher Fahrten |
 | `404.html`, `CNAME`, `.nojekyll` | Kurzlink-Umleitung, Domain, Pages-Einstellung |
 | `tests/` | Automatische Tests mit Fixtures (verdünnte GB26-Logs, Fotos, Ereignislog) |
@@ -410,7 +423,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 /api/flights/‹id›/photos/‹pid›` · `GET /api/profiles` (öffentlich), `POST /api/profiles`, `DELETE
 /api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
 `GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster) ·
-`GET /api/mapshare?share=&from=&to=[&pw=]` (Garmin MapShare-Feed als KML, PIN) ·
+`GET /api/mapshare?share=&from=&to=[&pw=]` (Garmin MapShare-Feed als KML, PIN) · `GET /api/livetrack/sessions?share=`, `GET /api/livetrack/track?share=&session=&token=` (Garmin LiveTrack: Sessions, eine Session als GPX; PIN) ·
 öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg|/report.pdf]` (PDF: Browser Rendering, R2-Cache), `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|
 flights|log|profiles|cleanup`, `GET /api/admin/flights/‹id›/track|events|raw`, `GET /api/admin/flights/‹id›/raw/‹n›` (Rohdaten), `DELETE

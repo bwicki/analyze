@@ -27,6 +27,13 @@ export function mountImport(root, ctx) {
           <div class="muted small" data-progress></div>
           <label class="chk"><input type="checkbox" data-opt="hideOther" ${state.settings.hideOtherFlights ? 'checked' : ''}> ${esc(t('imp.hideOther'))}</label>
         </section>
+        <section class="card" data-livetrack>
+          <h2>${esc(t('imp.ltTitle'))}</h2>
+          <span class="muted small">${esc(t('imp.ltHint'))}</span>
+          <div class="row-wrap" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1 1 260px">${esc(t('imp.ltShare'))}<input class="in" data-lt="share" placeholder="https://live.garmin.com/…" value="${esc((state.settings.livetrack && state.settings.livetrack.share) || '')}"></label><button class="btn sm primary" type="button" data-act="ltList" ${session.code ? '' : 'disabled'}>${esc(t('imp.ltList'))}</button></div>
+          <span class="muted small" data-ltstate>${esc(session.code ? '' : t('imp.msNeedPin'))}</span>
+          <div data-ltsessions></div>
+        </section>
         <section class="card" data-mapshare>
           <h2>${esc(t('imp.msTitle'))}</h2>
           <span class="muted small">${esc(t('imp.msHint'))}</span>
@@ -132,7 +139,42 @@ export function mountImport(root, ctx) {
     } finally { btn.disabled = false; msIn('pw').value = ''; }
   }
 
+  // Garmin LiveTrack (0.15.0): list the sessions of the personal link, load one as GPX through the normal import
+  const ltIn = () => el.querySelector('[data-lt="share"]');
+  async function listLiveTrack(btn) {
+    const share = ltIn().value.trim(), st = el.querySelector('[data-ltstate]'), box = el.querySelector('[data-ltsessions]');
+    if (!share) { toast(t('imp.ltNoShare'), true); return; }
+    btn.disabled = true; st.textContent = t('imp.msLoading'); box.innerHTML = '';
+    try {
+      const r = await api.flights.livetrackSessions(share);
+      state.settings.livetrack = { share }; ctx.saveSettings();
+      if (!r.sessions.length) { st.textContent = t('imp.ltNone'); return; }
+      st.textContent = t('imp.ltFound', { n: r.sessions.length });
+      box.innerHTML = r.sessions.map((s, i) => `<div class="row"><span><strong>${esc(s.name || '–')}</strong>${s.active ? ` <span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('imp.ltActive'))}</span>` : ''}<br><span class="muted small">${esc(t('imp.ltColStart'))} ${s.start ? fmtDateTimeUTC(Date.parse(s.start)) : '–'} · ${s.durationSec === null ? '–' : fmtDurationHM(s.durationSec)} · ${s.distanceM === null ? '–' : fmtInt(Math.round(s.distanceM / 1000)) + ' km'} · ${esc(t('imp.ltColAlt'))} ${s.maxElevM === null ? '–' : fmtInt(s.maxElevM) + ' m'}</span></span><button class="btn sm primary" type="button" data-act="ltLoad" data-i="${i}">${esc(t('imp.ltLoad'))}</button></div>`).join('');
+      box._sessions = r.sessions; box._share = share;
+    } catch (ex) {
+      const msg = ex.status === 401 ? t('imp.ltPasscode') : ex.status === 404 ? t('imp.ltNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.ltBadAddress') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      st.textContent = msg; toast(msg, true);
+    } finally { btn.disabled = false; }
+  }
+  async function loadLiveTrack(btn) {
+    const box = el.querySelector('[data-ltsessions]'), st = el.querySelector('[data-ltstate]');
+    const s = box._sessions && box._sessions[+btn.dataset.i]; if (!s) return;
+    btn.disabled = true; st.textContent = t('imp.msLoading');
+    try {
+      const r = await api.flights.livetrackTrack({ share: box._share, session: s.id, token: s.token, name: s.name });
+      if (!r.points) { st.textContent = t('imp.msEmpty'); return; }
+      st.textContent = t('imp.ltLoaded', { n: r.points, name: r.name });
+      await addFiles([new File([r.text], r.name, { type: 'application/gpx+xml' })]);
+    } catch (ex) {
+      const msg = ex.status === 404 ? t('imp.ltNoPoints') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      st.textContent = msg; toast(msg, true);
+    } finally { btn.disabled = false; }
+  }
+
   onAct(el, {
+    ltList: (b) => listLiveTrack(b),
+    ltLoad: (b) => loadLiveTrack(b),
     mapshare: (b) => loadMapShare(b),
     merge: (b) => { state.settings.merge = { ...state.settings.merge, mode: b.dataset.mode }; ctx.saveSettings(); recompute({ reclassify: false }); },
     reset: async () => { if (await confirmDialog({ title: t('imp.reset'), text: esc(t('imp.resetText')), okLabel: t('imp.reset'), cancelLabel: t('common.cancel'), danger: true })) { resetAll(); } },

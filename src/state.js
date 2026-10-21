@@ -9,7 +9,7 @@ import { computeStats } from './process/stats.js';
 import { linkEvents } from './events/log.js';
 
 export const PHASES = ['import', 'clean', 'analyze', 'report', 'export'];
-export const VERSION = '0.14.0';
+export const VERSION = '0.15.0';
 
 class Bus extends EventTarget {
   on(type, fn) { const h = (e) => fn(e.detail); this.addEventListener(type, h); return () => this.removeEventListener(type, h); }
@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS = {
   view3d: true,           // Auswerten opens in the 3D view (0.9.0); the 2D/3D switch remembers the choice
   exag: 10,               // vertical exaggeration of the 3D view: 'auto' or 1–100 (0.9.0: 10× by default)
   mapshare: null,         // Garmin MapShare address of the last import (0.12.0); the password is never stored
+  livetrack: null,        // Garmin LiveTrack address (0.15.0)
   hideOtherFlights: true,
   merge: { mode: MERGE_DEFAULTS.mode, primary: null, stepSec: MERGE_DEFAULTS.stepSec },   // several devices (0.8.0)
   terrain: true,          // ground profile + water along the track (DEM tiles / open-meteo, OpenFreeMap)

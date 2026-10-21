@@ -108,3 +108,54 @@ test('mapshare: feed URL from address, feed URL or name; Garmin hosts only; wind
     await assert.rejects(fetchMapShare({}, { code: 'K' }, { share: 'nix' }), /not found/);
   } finally { globalThis.fetch = realFetch; }
 });
+
+// ---- Garmin LiveTrack (0.15.0): address parsing, the page → API cookie/CSRF flow with a stubbed Garmin, GPX output
+test('livetrack: addresses, sessions through the CSRF flow, one session as GPX without the artificial END point', async () => {
+  const { parseLiveTrack, liveTrackSessions, liveTrackTrack, toPoints, toGpx } = await import('../worker/src/livetrack.js');
+  assert.deepEqual(parseLiveTrack('https://live.garmin.com/bwi'), { kind: 'profile', name: 'bwi' });
+  assert.deepEqual(parseLiveTrack('livetrack.garmin.com/bwi/'), { kind: 'profile', name: 'bwi' });
+  assert.deepEqual(parseLiveTrack(' bwi '), { kind: 'profile', name: 'bwi' });
+  assert.deepEqual(parseLiveTrack('https://livetrack.garmin.com/session/cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401/token/D7C33539C297952631463B463BD2BFC'), { kind: 'session', sessionId: 'cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401', token: 'D7C33539C297952631463B463BD2BFC' });
+  assert.throws(() => parseLiveTrack('https://share.garmin.com/bwi'), /LiveTrack/);
+  assert.throws(() => parseLiveTrack('https://live.garmin.com/'), /name/);
+  assert.throws(() => parseLiveTrack(''), /missing/);
+  const realFetch = globalThis.fetch; const seen = [];
+  const page = '<html><head><meta name="csrf-token" content="CSRF123" data-sentry-element="meta"/></head><body>{"garminGuid":"g-1"}</body></html>';
+  globalThis.fetch = async (url, init) => {
+    seen.push({ url, h: init.headers });
+    if (/livetrack\.garmin\.com\/(bwi|session\/[^/]+\/token\/[^/]+)$/.test(url)) { const h = new Headers({ 'Content-Type': 'text/html' }); h.append('Set-Cookie', 'livetrack_csrf=COOKIE1; Path=/; Secure'); h.append('Set-Cookie', '__cflb=LB; Path=/'); return new Response(page, { status: 200, headers: h }); }
+    if (/\/nixda$/.test(url)) return new Response('', { status: 404 });
+    if (init.headers['Livetrack-Csrf-Token'] !== 'CSRF123' || !/livetrack_csrf=COOKIE1/.test(init.headers.Cookie)) return new Response('{}', { status: 403 });
+    if (/\/api\/personal-url\/bwi\/user$/.test(url)) return new Response(JSON.stringify({ garminGuid: 'g-1', userProfilePk: 1, isPasscodeRequired: false }), { status: 200 });
+    if (/\/api\/v2\/user\/g-1\/profile-sessions$/.test(url)) return new Response(JSON.stringify({ activeSessions: [], completedSessions: [
+      { sessionId: 'cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401', sessionToken: 'TOKEN1234567', sessionName: 'San Giorgio Piacentino Oct 15, 2026', startDate: '2026-10-15T13:31:45Z', duration: 'PT45H44M29.384S', distance: 905266, maxElevation: 4315.32, privacyLevels: ['EVERYONE'] },
+      { sessionId: '83f0ea4a-efb0-8279-925a-08bf6b952501', sessionToken: 'TOKEN7654321', sessionName: 'Flims Oct 3, 2026', startDate: '2026-10-03T05:19:15Z', duration: 'PT1H50M', distance: 1411, maxElevation: 1423.66, privacyLevels: ['EVERYONE'] },
+      { sessionId: '00000000-0000-0000-0000-000000000001', sessionToken: 'TOKENPRIVATE', sessionName: 'privat', startDate: '2026-10-01T05:00:00Z', duration: 'PT1H', distance: 10, maxElevation: 1, privacyLevels: ['FRIENDS'] }] }), { status: 200 });
+    if (/\/api\/sessions\/cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401\/track-points\/common\?token=TOKEN1234567$/.test(url)) return new Response(JSON.stringify({ trackPoints: [
+      { dateTime: '2026-10-15T13:31:45.000Z', position: { lat: 44.914137, lon: 9.715905 }, altitude: 132.6, speed: 0, eventTypes: ['BEGIN'] },
+      { dateTime: '2026-10-15T14:53:45.000Z', position: { lat: 44.912946, lon: 9.712493 }, altitude: 347, speed: 2.52, eventTypes: [] },
+      { dateTime: '2026-10-16T11:15:45.000Z', position: { lat: 37.839478, lon: 14.826093 }, altitude: 1236.6, speed: 5.77, eventTypes: [] },
+      { dateTime: '2026-10-17T11:16:14.384Z', position: { lat: 37.839478, lon: 14.826093 }, altitude: 1236.6, speed: 5.77, eventTypes: ['END'] }] }), { status: 200 });
+    return new Response('{}', { status: 404 });
+  };
+  try {
+    const s = await liveTrackSessions({}, { code: 'K' }, { share: 'https://live.garmin.com/bwi' });
+    assert.equal(s.name, 'bwi'); assert.equal(s.sessions.length, 2);   // the FRIENDS-only session is left out
+    assert.deepEqual(s.sessions[0], { id: 'cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401', token: 'TOKEN1234567', name: 'San Giorgio Piacentino Oct 15, 2026', start: '2026-10-15T13:31:45Z', durationSec: 164669, distanceM: 905266, maxElevM: 4315, active: false, public: true });
+    assert.equal(seen[0].url, 'https://livetrack.garmin.com/bwi'); assert.match(seen[1].h.Cookie, /__cflb=LB/);
+    const res = await liveTrackTrack({}, { code: 'K' }, { share: 'live.garmin.com/bwi', session: s.sessions[0].id, token: s.sessions[0].token, name: s.sessions[0].name });
+    assert.equal(res.headers.get('X-Analyze-Name'), 'livetrack_bwi_2026-10-15.gpx'); assert.equal(res.headers.get('X-Analyze-Points'), '3');   // END point dropped
+    const gpx = await res.text();
+    assert.match(gpx, /<trkpt lat="44\.914137" lon="9\.715905"><ele>132\.6<\/ele><time>2026-10-15T13:31:45\.000Z<\/time><extensions><speed>0\.00<\/speed>/);
+    assert.ok(!gpx.includes('2026-10-17T11:16:14')); assert.match(gpx, /<name>San Giorgio Piacentino Oct 15, 2026 2026-10-15 13:31 UTC<\/name>/);
+    // a session link works without the profile
+    const res2 = await liveTrackTrack({}, { code: 'K' }, { share: 'https://livetrack.garmin.com/session/cb6e1cf7-1a0e-85b5-8fa7-9b9e8687f401/token/TOKEN1234567' });
+    assert.equal(res2.headers.get('X-Analyze-Name'), 'livetrack_session_2026-10-15.gpx');
+    await assert.rejects(liveTrackSessions({}, { code: 'K' }, { share: 'nixda' }), /not found/);
+    await assert.rejects(liveTrackTrack({}, { code: 'K' }, { share: 'bwi', session: 'x', token: 'y' }), /session and token/);
+  } finally { globalThis.fetch = realFetch; }
+  // toPoints: bad rows skipped, sorted, END kept when it is a real move
+  const pts = toPoints([{ dateTime: 'x' }, { dateTime: '2026-01-01T00:10:00Z', position: { lat: 1, lon: 2 }, altitude: 5 }, { dateTime: '2026-01-01T00:00:00Z', position: { lat: 0, lon: 0 } }, { dateTime: '2026-01-01T00:00:00Z', position: { lat: 1, lon: 1 } }, { dateTime: '2026-01-01T01:00:00Z', position: { lat: 3, lon: 3 }, eventTypes: ['END'] }]);
+  assert.deepEqual(pts.map((p) => [p.lat, p.lon]), [[1, 1], [1, 2], [3, 3]]);
+  assert.match(toGpx(pts.slice(0, 1), { name: 'A & B' }), /<name>A &amp; B<\/name>/);
+});

@@ -820,5 +820,21 @@
   "imp.msNotFound": "MapShare nicht gefunden – Name prüfen oder Freigabe in der Garmin-App einschalten.",
   "imp.msTooMany": "Zu viele Abrufe – bitte kurz warten.",
   "imp.msBadAddress": "Nur Garmin-MapShare-Adressen (share.garmin.com/…) oder der Name.",
-  "imp.msGarminDown": "Garmin antwortet nicht – später nochmals versuchen."
+  "imp.msGarminDown": "Garmin antwortet nicht – später nochmals versuchen.",
+  "imp.ltTitle": "Garmin LiveTrack (inReach)",
+  "imp.ltHint": "Für inReach-Geräte, die über Garmin Connect/Messenger teilen (Adresse live.garmin.com/…): Garmin bietet dort keinen Download – der Worker liest die Fahrten der Seite und lädt eine davon als GPX in den Import. Adresse wird gemerkt. Seiten mit Passcode gehen nicht.",
+  "imp.ltShare": "LiveTrack-Adresse oder Name",
+  "imp.ltList": "Fahrten anzeigen",
+  "imp.ltNoShare": "LiveTrack-Adresse oder Name fehlt.",
+  "imp.ltNone": "Keine öffentlichen Fahrten auf dieser Seite.",
+  "imp.ltFound": "{n} Fahrt(en) gefunden – eine wählen.",
+  "imp.ltColStart": "Start",
+  "imp.ltColAlt": "max.",
+  "imp.ltActive": "läuft",
+  "imp.ltLoad": "Laden",
+  "imp.ltLoaded": "{n} Positionen geladen ({name}) – importiert.",
+  "imp.ltPasscode": "Diese LiveTrack-Seite verlangt einen Passcode – nicht unterstützt.",
+  "imp.ltNotFound": "LiveTrack-Seite nicht gefunden – Adresse prüfen.",
+  "imp.ltBadAddress": "Nur Garmin-LiveTrack-Adressen (live.garmin.com/…) oder der Name.",
+  "imp.ltNoPoints": "Diese Fahrt hat keine Positionen."
 }

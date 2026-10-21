@@ -86,6 +86,9 @@ export const api = {
     opsBriefings: (id) => request('GET', `/api/flights/${id}/ops/briefings`, evAuth()),
     opsHandover: (id, briefingId) => request('POST', `/api/flights/${id}/ops`, { body: { briefingId }, ...evAuth() }),
     // Garmin inReach MapShare (0.12.0): KML of a time window via the Worker (Garmin sends no CORS headers); the password is passed through, never stored
+    // Garmin LiveTrack (0.15.0): sessions of a personal link, one session as GPX – through the Worker (CSRF cookie flow)
+    livetrackSessions: (share) => request('GET', `/api/livetrack/sessions?${new URLSearchParams({ share })}`),
+    livetrackTrack: async ({ share, session, token, name }) => { const res = await request('GET', `/api/livetrack/track?${new URLSearchParams({ share, session, token, name: name || '' })}`, { raw: true }); return { text: await res.text(), name: res.headers.get('X-Analyze-Name') || 'livetrack.gpx', points: +(res.headers.get('X-Analyze-Points') || 0) }; },
     mapshare: async ({ share, from, to, pw }) => { const q = new URLSearchParams({ share, from, to }); if (pw) q.set('pw', pw); const res = await request('GET', `/api/mapshare?${q}`, { raw: true }); return { text: await res.text(), name: res.headers.get('X-Analyze-Name') || 'mapshare.kml', points: +(res.headers.get('X-Analyze-Points') || 0) }; },
   },
   view: {

@@ -19,6 +19,7 @@
 //   GET  /api/events/flights · /api/events/<flight> · /api/events/media/<file>   Ereignislog from gb_flight_data (X-Code with team, or Supermaster token)
 //   GET  /api/flights/<id>/ops/briefings · POST /api/flights/<id>/ops   Übergabe an ops.wicki.aero (team or Supermaster; secret OPS_HANDOVER_TOKEN)
 //   GET  /api/mapshare?share=&from=&to=[&pw=]   Garmin inReach MapShare feed (KML) for the import – any PIN, Garmin hosts only
+//   GET  /api/livetrack/sessions?share= · /api/livetrack/track?share=&session=&token=   Garmin LiveTrack (live.garmin.com) sessions / one session as GPX (0.15.0)
 //   GET  /api/view/<id>/report.pdf        Fahrtbericht als PDF vom Server (public flights; Browser Rendering, secrets CF_BR_TOKEN + CF_ACCOUNT_ID)
 //   GET  /api/profiles (public) · POST /api/profiles (X-Code) · DELETE /api/profiles/<id> (owner or Supermaster)
 //   GET|POST /api/flights/<id>/photos · PUT|DELETE /api/flights/<id>/photos/<pid> · GET /api/view/<id>/photos (public)
@@ -35,6 +36,7 @@ import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { opsBriefings, opsHandover } from './ops.js';
 import { fetchMapShare } from './mapshare.js';
+import { liveTrackSessions, liveTrackTrack } from './livetrack.js';
 import { reportPdf } from './pdf.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
@@ -97,7 +99,7 @@ export async function api(request, env, url, ctx) {
   }
 
   // ---- code user ---------------------------------------------------------------------------------
-  if (path === '/api/me' || path === '/api/me/logo' || path === '/api/mapshare' || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
+  if (path === '/api/me' || path === '/api/me/logo' || path === '/api/mapshare' || path.startsWith('/api/livetrack/') || path.startsWith('/api/flights') || path.startsWith('/api/events') || path.startsWith('/api/profiles')) {
     let user = await codeFromRequest(env, request, url);
     if (!user && (path.startsWith('/api/events') || /\/ops(\/briefings)?$/.test(path))) { const adm = await adminFromRequest(env, request); if (adm) user = { code: `admin:${adm.name}`, team: true, admin: true }; }   // Supermaster without a PIN (0.8.7; 0.10.0 also for the ops handover)
     if (!user) {
@@ -109,6 +111,8 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me/logo' && m === 'PUT') return json(await putLogo(env, user, request));
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
     // Garmin inReach MapShare feed for the import (0.12.0): any PIN, 20 calls per 10 min
+    if (path === '/api/livetrack/sessions' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackSessions(env, user, { share: url.searchParams.get('share') }); }
+    if (path === '/api/livetrack/track' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackTrack(env, user, { share: url.searchParams.get('share'), session: url.searchParams.get('session'), token: url.searchParams.get('token'), name: url.searchParams.get('name') || '' }); }
     if (path === '/api/mapshare' && m === 'GET') { if (rateLimited('mapshare:' + user.code, 20)) throw new HttpError(429, 'too many MapShare requests'); return fetchMapShare(env, user, { share: url.searchParams.get('share'), from: url.searchParams.get('from'), to: url.searchParams.get('to'), pw: url.searchParams.get('pw') || '' }); }
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));
     if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request, ctx));
