@@ -83,7 +83,7 @@ export async function api(request, env, url, ctx) {
   const viewPdfId = seg(/^\/api\/view\/([^/]+)\/report\.pdf$/);
   if (viewPdfId && m === 'GET') { if (rateLimited('pdf:' + ip, 20)) throw new HttpError(429, 'too many PDF requests'); return reportPdf(env, ctx, await publicFlightRow(env, viewPdfId)); }
   // LiveTrack diagnostics (0.15.1): reachability of a LiveTrack page from the Worker – status codes only, no content, no PIN
-  if (path === '/api/livetrack/diag' && m === 'GET') { if (rateLimited('ltdiag:' + ip, 5)) throw new HttpError(429, 'too many requests'); return liveTrackDiag(url.searchParams.get('share') || ''); }
+  if (path === '/api/livetrack/diag' && m === 'GET') { if (rateLimited('ltdiag:' + ip, 5)) throw new HttpError(429, 'too many requests'); return json(await liveTrackDiag(url.searchParams.get('share') || '')); }
   const viewTrackId = seg(/^\/api\/view\/([^/]+)\/track$/);
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
@@ -115,7 +115,7 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me/logo' && m === 'PUT') return json(await putLogo(env, user, request));
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
     // Garmin inReach MapShare feed for the import (0.12.0): any PIN, 20 calls per 10 min
-    if (path === '/api/livetrack/sessions' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackSessions(env, user, { share: url.searchParams.get('share') }).catch(ltErr); }
+    if (path === '/api/livetrack/sessions' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return json(await liveTrackSessions(env, user, { share: url.searchParams.get('share') }).catch(ltErr)); }
     if (path === '/api/livetrack/track' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackTrack(env, user, { share: url.searchParams.get('share'), session: url.searchParams.get('session'), token: url.searchParams.get('token'), name: url.searchParams.get('name') || '' }).catch(ltErr); }
     if (path === '/api/mapshare' && m === 'GET') { if (rateLimited('mapshare:' + user.code, 20)) throw new HttpError(429, 'too many MapShare requests'); return fetchMapShare(env, user, { share: url.searchParams.get('share'), from: url.searchParams.get('from'), to: url.searchParams.get('to'), pw: url.searchParams.get('pw') || '' }); }
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));

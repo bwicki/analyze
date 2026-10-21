@@ -384,3 +384,32 @@ test('link preview: title/description from master data, HTML page under /v/<id>,
   await call(e, 'DELETE', `/api/flights/${fl.id}`, { headers: H });
   assert.ok(!e.FILES.objs.has(`previews/${fl.id}.jpg`), 'preview removed with the flight');
 });
+
+test('LiveTrack and MapShare routes answer through the Worker (Response wrapping, auth, diag)', async () => {
+  const e = env();
+  const c = await (await call(e, 'POST', '/api/codes', { body: { displayName: 'B' } })).json();
+  const H = { 'X-Code': c.code };
+  const realFetch = globalThis.fetch;
+  const page = '<html><head><meta name="csrf-token" content="C1"/></head><body></body></html>';
+  globalThis.fetch = async (url, init) => {
+    if (/livetrack\.garmin\.com\/bwi$/.test(url)) { const h = new Headers({ 'Content-Type': 'text/html' }); h.append('Set-Cookie', 'livetrack_csrf=K1; Path=/'); return new Response(page, { status: 200, headers: h }); }
+    if (/\/api\/personal-url\/bwi\/user$/.test(url)) return new Response(JSON.stringify({ garminGuid: 'g', isPasscodeRequired: false }), { status: 200 });
+    if (/profile-sessions$/.test(url)) return new Response(JSON.stringify({ activeSessions: [{ sessionId: 'abcdefabcdefabcdefabcdef', sessionToken: 'TOKEN123456', sessionName: 'Live', startDate: '2026-10-21T06:00:00Z', duration: 'PT10M', distance: 100, maxElevation: 500, privacyLevels: ['EVERYONE'] }], completedSessions: [] }), { status: 200 });
+    if (/track-points\/common/.test(url)) return new Response(JSON.stringify({ trackPoints: [{ dateTime: '2026-10-21T06:00:00Z', position: { lat: 47, lon: 8 }, altitude: 500, speed: 1 }, { dateTime: '2026-10-21T06:02:00Z', position: { lat: 47.01, lon: 8.01 }, altitude: 520, speed: 2 }] }), { status: 200 });
+    return new Response('', { status: 404 });
+  };
+  try {
+    assert.equal((await call(e, 'GET', '/api/livetrack/sessions?share=bwi')).status, 401);   // PIN required
+    const s = await call(e, 'GET', '/api/livetrack/sessions?share=https://live.garmin.com/bwi', { headers: H });
+    assert.equal(s.status, 200); const sj = await s.json(); assert.equal(sj.sessions[0].name, 'Live'); assert.equal(sj.sessions[0].active, true);
+    const tr = await call(e, 'GET', `/api/livetrack/track?share=bwi&session=${sj.sessions[0].id}&token=${sj.sessions[0].token}&name=Live`, { headers: H });
+    assert.equal(tr.status, 200); assert.equal(tr.headers.get('X-Analyze-Points'), '2'); assert.match(await tr.text(), /<trkpt lat="47\.000000"/);
+    assert.equal((await call(e, 'GET', '/api/livetrack/sessions?share=https://share.garmin.com/x', { headers: H })).status, 400);
+    const d = await call(e, 'GET', '/api/livetrack/diag?share=bwi');
+    assert.equal(d.status, 200); const dj = await d.json(); assert.equal(dj.csrfMeta, true); assert.deepEqual(dj.cookies, ['livetrack_csrf']); assert.equal(dj.api.ok, true);
+    // unexpected JSON from Garmin → 502 with the reason, not a bare 500
+    globalThis.fetch = async (url) => (/livetrack\.garmin\.com\/bwi$/.test(url) ? new Response(page, { status: 200, headers: new Headers([['Set-Cookie', 'livetrack_csrf=K1']]) }) : new Response('<html>oops</html>', { status: 200 }));
+    const bad = await call(e, 'GET', '/api/livetrack/sessions?share=bwi', { headers: H });
+    assert.equal(bad.status, 502); assert.match((await bad.json()).error, /LiveTrack:/);
+  } finally { globalThis.fetch = realFetch; }
+});
