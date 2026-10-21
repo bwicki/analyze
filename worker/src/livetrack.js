@@ -31,6 +31,25 @@ export function parseLiveTrack(share) {
   return { kind: 'profile', name: s };
 }
 
+/** Diagnostics (no Garmin content, no PIN): can the Worker reach the page and does it carry the CSRF token? */
+export async function liveTrackDiag(share) {
+  const p = parseLiveTrack(share || 'bwi');
+  const path = p.kind === 'session' ? `/session/${p.sessionId}/token/${p.token}` : `/${p.name}`;
+  const t0 = Date.now(); const out = { path, ms: 0 };
+  try {
+    const res = await fetch(`${API_HOST}${path}`, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: AbortSignal.timeout(20000) });
+    const html = await res.text();
+    const raw = typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [res.headers.get('set-cookie') || ''];
+    Object.assign(out, { status: res.status, finalUrl: res.url, contentType: res.headers.get('Content-Type'), server: res.headers.get('Server'), cfRay: !!res.headers.get('CF-Ray'), htmlLen: html.length, csrfMeta: /name="csrf-token"/.test(html), cookies: raw.map((c) => c.split('=')[0].trim()).filter(Boolean), title: (html.match(/<title>([^<]*)<\/title>/) || [])[1] || null, challenge: /challenge|just a moment|cf-browser-verification|captcha/i.test(html) });
+    if (res.ok && out.csrfMeta) {
+      const page = await pageSession(path);
+      if (p.kind === 'profile') { try { const u = await apiGet(page.headers, `/api/personal-url/${encodeURIComponent(p.name)}/user`); out.api = { ok: true, passcode: !!u.isPasscodeRequired, guid: !!u.garminGuid }; } catch (e) { out.api = { ok: false, error: e.message, status: e.status }; } }
+    }
+  } catch (e) { out.error = `${e.name || 'error'}: ${e.message}`; }
+  out.ms = Date.now() - t0;
+  return out;
+}
+
 /** GET the page: CSRF meta token + cookies (livetrack_csrf, __cflb) the API calls must carry. */
 async function pageSession(path) {
   let res;

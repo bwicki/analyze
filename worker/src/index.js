@@ -36,7 +36,7 @@ import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
 import { opsBriefings, opsHandover } from './ops.js';
 import { fetchMapShare } from './mapshare.js';
-import { liveTrackSessions, liveTrackTrack } from './livetrack.js';
+import { liveTrackSessions, liveTrackTrack, liveTrackDiag } from './livetrack.js';
 import { reportPdf } from './pdf.js';
 import { adminCount, setupAdmin, loginAdmin, changePin, adminCodes, adminFlights, adminStats, setBlocked, setTeam, adminDeleteFlight, adminDeleteCode, adminLog, adminFlightFile } from './admin.js';
 import { logAction } from './log.js';
@@ -55,6 +55,8 @@ export function corsHeaders(env, request) {
 
 // Small per-isolate rate limiter: code creation, code guessing and admin logins per client IP.
 const attempts = new Map();
+/** Unexpected errors from the LiveTrack flow (Garmin changed the page, odd JSON) reach the user as 502 with the message, not as a bare 500. */
+const ltErr = (e) => { if (e instanceof HttpError) throw e; console.error('livetrack', e); throw new HttpError(502, `LiveTrack: ${e && e.message ? e.message : e}`); };
 function rateLimited(key, max, windowMs = 10 * 60e3) {
   const now = Date.now();
   const list = (attempts.get(key) || []).filter((t) => now - t < windowMs);
@@ -80,6 +82,8 @@ export async function api(request, env, url, ctx) {
   // Fahrtbericht als PDF vom Server (0.13.0): public flights; cached in R2 until the flight changes
   const viewPdfId = seg(/^\/api\/view\/([^/]+)\/report\.pdf$/);
   if (viewPdfId && m === 'GET') { if (rateLimited('pdf:' + ip, 20)) throw new HttpError(429, 'too many PDF requests'); return reportPdf(env, ctx, await publicFlightRow(env, viewPdfId)); }
+  // LiveTrack diagnostics (0.15.1): reachability of a LiveTrack page from the Worker – status codes only, no content, no PIN
+  if (path === '/api/livetrack/diag' && m === 'GET') { if (rateLimited('ltdiag:' + ip, 5)) throw new HttpError(429, 'too many requests'); return liveTrackDiag(url.searchParams.get('share') || ''); }
   const viewTrackId = seg(/^\/api\/view\/([^/]+)\/track$/);
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);
   const viewEventsId = seg(/^\/api\/view\/([^/]+)\/events$/);
@@ -111,8 +115,8 @@ export async function api(request, env, url, ctx) {
     if (path === '/api/me/logo' && m === 'PUT') return json(await putLogo(env, user, request));
     if (path === '/api/me/logo' && m === 'DELETE') return json(await deleteLogo(env, user, request));
     // Garmin inReach MapShare feed for the import (0.12.0): any PIN, 20 calls per 10 min
-    if (path === '/api/livetrack/sessions' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackSessions(env, user, { share: url.searchParams.get('share') }); }
-    if (path === '/api/livetrack/track' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackTrack(env, user, { share: url.searchParams.get('share'), session: url.searchParams.get('session'), token: url.searchParams.get('token'), name: url.searchParams.get('name') || '' }); }
+    if (path === '/api/livetrack/sessions' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackSessions(env, user, { share: url.searchParams.get('share') }).catch(ltErr); }
+    if (path === '/api/livetrack/track' && m === 'GET') { if (rateLimited('livetrack:' + user.code, 30)) throw new HttpError(429, 'too many LiveTrack requests'); return liveTrackTrack(env, user, { share: url.searchParams.get('share'), session: url.searchParams.get('session'), token: url.searchParams.get('token'), name: url.searchParams.get('name') || '' }).catch(ltErr); }
     if (path === '/api/mapshare' && m === 'GET') { if (rateLimited('mapshare:' + user.code, 20)) throw new HttpError(429, 'too many MapShare requests'); return fetchMapShare(env, user, { share: url.searchParams.get('share'), from: url.searchParams.get('from'), to: url.searchParams.get('to'), pw: url.searchParams.get('pw') || '' }); }
     if (path === '/api/flights' && m === 'GET') return json(await listFlights(env, user));
     if (path === '/api/flights' && m === 'POST') return json(await createFlight(env, user, request, ctx));

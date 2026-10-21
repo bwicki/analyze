@@ -153,7 +153,7 @@ export function mountImport(root, ctx) {
       box.innerHTML = r.sessions.map((s, i) => `<div class="row"><span><strong>${esc(s.name || '–')}</strong>${s.active ? ` <span class="tag" style="background:var(--ok-bg);color:var(--ok-text)">${esc(t('imp.ltActive'))}</span>` : ''}<br><span class="muted small">${esc(t('imp.ltColStart'))} ${s.start ? fmtDateTimeUTC(Date.parse(s.start)) : '–'} · ${s.durationSec === null ? '–' : fmtDurationHM(s.durationSec)} · ${s.distanceM === null ? '–' : fmtInt(Math.round(s.distanceM / 1000)) + ' km'} · ${esc(t('imp.ltColAlt'))} ${s.maxElevM === null ? '–' : fmtInt(s.maxElevM) + ' m'}</span></span><button class="btn sm primary" type="button" data-act="ltLoad" data-i="${i}">${esc(t('imp.ltLoad'))}</button></div>`).join('');
       box._sessions = r.sessions; box._share = share;
     } catch (ex) {
-      const msg = ex.status === 401 ? t('imp.ltPasscode') : ex.status === 404 ? t('imp.ltNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.ltBadAddress') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      const msg = ex.status === 401 ? t('imp.ltPasscode') : ex.status === 404 ? t('imp.ltNotFound') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 400 ? t('imp.ltBadAddress') : ex.status === 504 || ex.status === 502 ? `${t('imp.msGarminDown')} (${ex.message})` : `${t('start.errNetwork')} (${ex.status || 0} ${ex.message})`;
       st.textContent = msg; toast(msg, true);
     } finally { btn.disabled = false; }
   }
@@ -167,7 +167,7 @@ export function mountImport(root, ctx) {
       st.textContent = t('imp.ltLoaded', { n: r.points, name: r.name });
       await addFiles([new File([r.text], r.name, { type: 'application/gpx+xml' })]);
     } catch (ex) {
-      const msg = ex.status === 404 ? t('imp.ltNoPoints') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 504 || ex.status === 502 ? t('imp.msGarminDown') : t('start.errNetwork');
+      const msg = ex.status === 404 ? t('imp.ltNoPoints') : ex.status === 429 ? t('imp.msTooMany') : ex.status === 504 || ex.status === 502 ? `${t('imp.msGarminDown')} (${ex.message})` : `${t('start.errNetwork')} (${ex.status || 0} ${ex.message})`;
       st.textContent = msg; toast(msg, true);
     } finally { btn.disabled = false; }
   }
