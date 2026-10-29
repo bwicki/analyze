@@ -41,10 +41,10 @@ console.log('ops option (PIN KQZMWB):', !!(await page.$('text=ops.wicki.aero')))
 console.log('checkboxes:', await page.$$eval('[data-fmt]', (c) => c.map((x) => `${x.dataset.fmt}:${x.checked ? 'on' : 'off'}${x.disabled ? '(dis)' : ''}`).join(' ')), '| button:', await txt('[data-act=downloadSelected]'), '| disabled:', await page.$eval('[data-act=downloadSelected]', (b) => b.disabled));
 await page.check('[data-fmt=csv]'); await page.waitForTimeout(100);
 console.log('gpx+csv → button:', await txt('[data-act=downloadSelected]'), '| hint:', await txt('[data-dlhint]'));
-await page.check('[data-fmt=zip]'); await page.waitForTimeout(100);
-console.log('zip → :', await page.$$eval('[data-fmt]', (c) => c.map((x) => `${x.dataset.fmt}:${x.checked ? 'on' : 'off'}${x.disabled ? '(dis)' : ''}`).join(' ')), '| button:', await txt('[data-act=downloadSelected]'), '| dimmed rows:', await page.$$eval('.dl.dim', (d) => d.length));
-await page.uncheck('[data-fmt=zip]'); await page.waitForTimeout(100);
-console.log('zip off → dimmed rows:', await page.$$eval('.dl.dim', (d) => d.length), '| button:', await txt('[data-act=downloadSelected]'));
+console.log('zip button:', await txt('[data-act=zipAll]'), '| next to resolution:', await page.evaluate(() => { const b = document.querySelector('[data-act=zipAll]'), r = document.querySelector('[data-step]').getBoundingClientRect(), z = b.getBoundingClientRect(); return z.left > r.right && Math.abs(z.bottom - r.bottom) < 20; }), '| zip checkbox gone:', !(await page.$('[data-fmt=zip]')));
+console.log('card 5 ops button:', await txt('[data-act=ops]'), '| enabled (team PIN):', await page.$eval('[data-act=ops]', (b) => !b.disabled), '| below Google Earth:', await page.evaluate(() => { const k = document.querySelector('[data-act=kmz]').getBoundingClientRect(), o = document.querySelector('[data-act=ops]').getBoundingClientRect(); return o.top > k.bottom; }), '| state:', await txt('[data-opsstate]'));
+await page.click('[data-act=zipAll]'); await page.waitForTimeout(2500);
+console.log('zip download:', downloads.filter((d) => /\.zip$/.test(d)).join(', '));
 await page.click('[data-act=downloadSelected]'); await page.waitForTimeout(2500);
 console.log('downloads:', downloads.join(', '));
 await page.screenshot({ path: `${shots}/export_steps.png`, fullPage: true });

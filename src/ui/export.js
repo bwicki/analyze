@@ -12,6 +12,7 @@ import { config } from '../config.js';
 import { api } from '../api.js';
 import { qrSvg } from '../util/qr.js';
 import { openViewer } from './viewer.js';
+import { openOpsHandover, canOpsHandover, opsStateHtml } from './ops.js';
 
 const FORMATS = ['gpx', 'geojson', 'kmz', 'csv'];
 
@@ -34,8 +35,10 @@ export function mountExport(root, ctx) {
           ${step_(3, t('exp.download'))}
           <div class="row-wrap" style="gap:12px;align-items:flex-end">
             <label class="f" style="width:300px">${esc(t('exp.resolution'))}<select class="in" data-step><option value="0">${esc(t('exp.res.all'))}</option><option value="10" selected>${esc(t('exp.res.10'))}</option><option value="60">${esc(t('exp.res.60'))}</option></select></label>
+            <button class="btn primary zipall" type="button" data-act="zipAll" title="${esc(t('exp.zipSub'))}">⬇ ${esc(t('exp.zip'))}</button>
             <span class="muted small" data-count></span>
           </div>
+          <span class="muted small">${esc(t('exp.zipSub'))}</span>
           <div class="dl-list" data-cards></div>
           <span class="muted small">${esc(t('exp.nameNote', { name: '' }))}<span class="mono" data-basename></span></span>
           <div class="actions"><span class="muted small" data-dlhint></span><button class="btn primary" type="button" data-act="downloadSelected" disabled>${esc(t('exp.downloadSelected'))}</button></div>
@@ -51,23 +54,25 @@ export function mountExport(root, ctx) {
           ${step_(5, t('exp.handover'))}
           <div class="row"><span>Google Earth</span><button class="btn sm" type="button" data-act="kmz">${esc(t('exp.kmzOpen'))}</button></div>
           <span class="muted small">${esc(t('exp.earthNote'))}</span>
+          <div class="row"><span>ops.wicki.aero<br><span class="muted small" data-opsstate></span></span><button class="btn sm primary" type="button" data-act="ops" ${canOpsHandover() ? '' : 'disabled'}>${esc(t('exp.opsHandoverBtn'))}</button></div>
         </section>
       </div>
     </div>
   </main>`);
   const stepSel = el.querySelector('[data-step]');
   stepSel.addEventListener('change', () => { step = +stepSel.value; render(); });
-  const selected = { gpx: true, geojson: false, kmz: false, csv: false, zip: false };   // «Alles als ZIP» disables the single formats
+  const selected = { gpx: true, geojson: false, kmz: false, csv: false };   // single formats; «Alles als ZIP» is its own button (0.15.6)
   el.addEventListener('change', (e) => { const cb = e.target.closest('[data-fmt]'); if (!cb) return; selected[cb.dataset.fmt] = cb.checked; renderSelection(); });
   const DL = { gpx: () => downloadGpx(step), geojson: () => downloadGeoJson(step), kmz: () => downloadKmz(step || 1), csv: () => downloadCsv(step) };
   onAct(el, {
     kmz: () => downloadKmz(step || 1),
+    zipAll: async (b) => { b.disabled = true; try { toast(t('exp.zipping')); await downloadAllZip(step); } finally { b.disabled = false; } },
+    ops: () => openOpsHandover({ onDone: renderOps }),
     bigPreview: (img) => { const v = openViewer({ title: esc(t('vw.preview')), sub: esc(flightTitle()) }); const big = document.createElement('img'); big.className = 'big'; big.alt = ''; big.src = img.src; v.body.appendChild(big); },   // 0.9.1
     downloadSelected: async (b) => {
       b.disabled = true;
       try {
-        if (selected.zip) { toast(t('exp.zipping')); await downloadAllZip(step); }
-        else { const list = FORMATS.filter((f) => selected[f]); for (let k = 0; k < list.length; k++) { if (k) await new Promise((r) => setTimeout(r, 400)); await DL[list[k]](); } }   // one download after another – browsers ask once for several
+        const list = FORMATS.filter((f) => selected[f]); for (let k = 0; k < list.length; k++) { if (k) await new Promise((r) => setTimeout(r, 400)); await DL[list[k]](); }   // one download after another – browsers ask once for several
       } finally { renderSelection(); }
     },
     save: async (b) => {
@@ -98,7 +103,7 @@ export function mountExport(root, ctx) {
     ctx.goto('report');
     setTimeout(() => { try { window.print(); } catch (e) { console.warn('print failed', e); } }, 1400);
   }
-  function row(id, ico, title, sub) { return `<label class="dl ${selected.zip && id !== 'zip' ? 'dim' : ''}"><input type="checkbox" data-fmt="${id}" ${selected[id] ? 'checked' : ''} ${selected.zip && id !== 'zip' ? 'disabled' : ''}><span class="ico">${ico}</span><span class="t"><strong>${esc(title)}</strong><span>${sub}</span></span></label>`; }
+  function row(id, ico, title, sub) { return `<label class="dl"><input type="checkbox" data-fmt="${id}" ${selected[id] ? 'checked' : ''}><span class="ico">${ico}</span><span class="t"><strong>${esc(title)}</strong><span>${sub}</span></span></label>`; }
   function render() {
     const est = estimateSizes(step);
     if (!est) { el.querySelector('[data-cards]').innerHTML = `<p class="muted">${esc(t('cln.noTrack'))}</p>`; return; }
@@ -109,19 +114,20 @@ export function mountExport(root, ctx) {
       row('geojson', 'JSON', t('exp.geojson'), `${esc(t('exp.geojsonSub'))} · ≈ ${fmtBytes(est.geojson)}`),
       row('kmz', 'KMZ', t('exp.kmz'), `${esc(t('exp.kmzSub'))} · ≈ ${fmtBytes(est.kmz)}`),
       row('csv', 'CSV', t('exp.csv'), `${esc(t('exp.csvSub'))} · ≈ ${fmtBytes(est.csv)}`),
-      row('zip', 'ZIP', t('exp.zip'), esc(t('exp.zipSub'))),
     ].join('');
     renderSelection();
-    renderSave(); renderShare();
+    renderSave(); renderShare(); renderOps();
   }
   /** Checkbox states, the hint and the button label («Alles als ZIP» greys out the single formats). */
   function renderSelection() {
-    el.querySelectorAll('[data-fmt]').forEach((cb) => { const f = cb.dataset.fmt; cb.checked = !!selected[f]; if (f !== 'zip') { cb.disabled = selected.zip; cb.closest('.dl').classList.toggle('dim', selected.zip); } });
-    const n = selected.zip ? 1 : FORMATS.filter((f) => selected[f]).length;
+    el.querySelectorAll('[data-fmt]').forEach((cb) => { cb.checked = !!selected[cb.dataset.fmt]; });
+    const n = FORMATS.filter((f) => selected[f]).length;
     const btn = el.querySelector('[data-act=downloadSelected]'); btn.disabled = n === 0;
-    btn.textContent = selected.zip ? t('exp.downloadZip') : n > 1 ? t('exp.downloadN', { n }) : t('exp.downloadSelected');
-    el.querySelector('[data-dlhint]').textContent = selected.zip ? t('exp.zipHint') : n === 0 ? t('exp.selectHint') : n > 1 ? t('exp.multiHint') : '';
+    btn.textContent = n > 1 ? t('exp.downloadN', { n }) : t('exp.downloadSelected');
+    el.querySelector('[data-dlhint]').textContent = n === 0 ? t('exp.selectHint') : n > 1 ? t('exp.multiHint') : '';
   }
+  /** ops handover row in card 5 (0.15.6): status line under the button. */
+  function renderOps() { const os = el.querySelector('[data-opsstate]'); if (os) os.innerHTML = opsStateHtml(); }
   /** Raw tracker files: what will be stored / what is stored (0.8.7). */
   function rawLine(f) {
     const n = state.rawFiles.length, bytes = state.rawFiles.reduce((a, x) => a + x.size, 0);
@@ -154,7 +160,7 @@ export function mountExport(root, ctx) {
       ${f.public && config.apiBase ? `<div class="msgpreview" data-msgpreview><div class="muted small">${esc(t('exp.msgPreview'))}</div>${state.previewBusy ? `<div class="msgpreview-busy muted small">${esc(t('exp.msgPreviewBusy'))}</div>` : `<img alt="" src="${esc(`${config.apiBase}/api/view/${f.id}/preview.jpg?v=${f.previewAt || f.updatedAt || 0}`)}" loading="lazy" data-act="bigPreview" style="cursor:zoom-in" title="${esc(t('vw.expand'))}">`}<div class="muted small">${esc(t('exp.msgPreviewSub'))}</div></div>` : ''}`;
     box.querySelector('[data-qr]').innerHTML = qrSvg(url, { size: 132 });
   }
-  const off = bus.on('track', render), off2 = bus.on('flight', () => { renderSave(); renderShare(); });
+  const off = bus.on('track', render), off2 = bus.on('flight', () => { renderSave(); renderShare(); renderOps(); });
   const off3 = bus.on('preview', () => renderShare());   // image being rendered / uploaded → placeholder, then the picture
   const off4 = bus.on('raw', (d) => { renderSave(); if (d && d.ok === false) toast(d.error === 413 ? t('exp.rawQuota') : t('exp.rawFailed'), true); });
   render();

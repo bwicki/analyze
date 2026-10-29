@@ -20,7 +20,7 @@ const SMOKES = [
   ['smoke_viewer.mjs', [/detail viewer: 1/, /record title: Fahrtaufzeichnung/, /map back in card: 1/, /viewers at end: 0/]],
   ['smoke_manual.mjs', [/report photos: /]],
   ['smoke_print.mjs', [/report print button: false/, /printed total \d \| hash #report/]],
-  ['smoke_export6.mjs', [/report bar colour: rgb/]],
+  ['smoke_export6.mjs', [/report bar colour: rgb/, /zip button: ⬇ Alles als ZIP \| next to resolution: true \| zip checkbox gone: true/, /card 5 ops button: Übergabe an ops\.wicki\.aero \| enabled \(team PIN\): true \| below Google Earth: true \| state: Zuerst speichern/, /zip download: .*\.zip/]],
   ['smoke_raw.mjs', [/repo list: /]],
   ['smoke_logbook.mjs', [/modal: 1 \| rows: 2/, /csv: Logbuch_2025_KQZMWB\.csv/, /print called: \[ 1, 'print-logbook' \]/]],
   ['smoke_ops.mjs', [/special card \(team PIN\): 1/, /toast: An Briefing 2026-004 übergeben \(241 Punkte\)/]],

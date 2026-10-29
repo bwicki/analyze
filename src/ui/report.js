@@ -21,6 +21,7 @@ import { summarizeEvents, EVENT_COLORS } from '../events/log.js';
 import { mergeLine } from '../process/mergeinfo.js';
 import { terrainForDisplay } from '../terrain/store.js';
 import { openViewer, fitBox, expandBtn, onPlainClick } from './viewer.js';
+import { openOpsHandover, canOpsHandover, opsStateHtml } from './ops.js';
 
 const FIELDS = ['title', 'event', 'purpose', 'nvfr', 'balloon', 'type', 'volume', 'equipment', 'pic', 'copilot', 'pax', 'crew', 'commandCenter', 'startName', 'landName', 'remarks'];
 
@@ -86,49 +87,15 @@ export function mountReport(root, ctx) {
 
   el.querySelectorAll('[data-f]').forEach((inp) => { if (state.viewer) inp.disabled = true; inp.addEventListener('input', () => { state.meta[inp.dataset.f] = inp.value; saveMeta(); renderReport(); }); });
   let openers = {};   // viewers of the report graphics (set by renderReport)
-  onAct(el, { print: () => window.print(), pickRepo: () => pickFromRepo(), ops: () => opsDialog(), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
+  onAct(el, { print: () => window.print(), pickRepo: () => pickFromRepo(), ops: () => openOpsHandover({ onDone: renderSpecial }), expand: (b) => { if (openers[b.dataset.what]) openers[b.dataset.what](); } });
   function renderSpecial() {
     const st = el.querySelector('[data-evstate]'); if (!st) return;
     const lg = state.evlog;
     st.textContent = lg ? t('rep.specialLinked', { name: lg.source && (lg.source.flight || lg.source.name) || '–', n: lg.events ? lg.events.length : 0 }) : t('rep.specialNone');
     const os = el.querySelector('[data-opsstate]'); if (!os) return;
-    const h = state.meta.opsHandover;
-    os.innerHTML = !state.flight || !state.flight.id ? esc(t('rep.opsSaveFirst')) : h && h.briefingId ? `${esc(t('rep.opsLast', { no: h.no || h.briefingId, date: fmtDateTimeUTC(h.at || Date.now()) }))}${h.url ? ` · <a href="${esc(h.url)}" target="_blank" rel="noopener">${esc(t('rep.opsOpen'))}</a>` : ''}` : esc(t('rep.opsReady'));
+    os.innerHTML = opsStateHtml();
   }
 
-  /**
-   * Übergabe an ops.wicki.aero (0.10.0): the Worker lists the last 20 briefings (decision 20.10.2026: always a list,
-   * no automatic match), the user picks one, the Worker sends track + Kennzahlen + Stammdaten + viewer link.
-   */
-  async function opsDialog() {
-    if (!state.flight || !state.flight.id) { toast(t('rep.opsSaveFirst'), true); return; }
-    let list;
-    try { list = await api.flights.opsBriefings(state.flight.id); } catch (e) { toast(t('rep.opsFailed', { err: e.message || '' }), true); return; }
-    const brs = list.briefings || [];
-    const dateOf = (b) => (Number.isFinite(b.startMs) ? fmtDateUTC(b.startMs) : '–');
-    const rows = brs.map((b, k) => `<label class="dl" style="cursor:pointer"><input type="radio" name="opsb" value="${esc(b.id)}" ${k === 0 ? 'checked' : ''}><div class="t"><strong>${esc(b.no || b.id)} · ${dateOf(b)} · ${esc(b.site || b.icao || '–')}</strong><span>${esc([b.reg, b.balloon, b.kind, b.status].filter(Boolean).join(' · '))}${b.trajectory ? ` · <span class="ok">✓ ${esc(t('rep.opsHas', { date: fmtDateTimeUTC(Date.parse(b.trajectory.receivedAt) || Date.now()) }))}</span>` : ''}</span></div></label>`).join('');
-    const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
-      <div class="head"><h1>${esc(t('rep.opsPick'))}</h1></div>
-      <div class="muted small">${esc(t('rep.opsPickSub', { title: state.flight.title || state.meta.title || state.flight.id }))}</div>
-      <div class="dl-list" style="max-height:min(50vh,420px);overflow:auto">${rows || `<p class="muted">${esc(t('rep.opsNone'))}</p>`}</div>
-      <div class="foot"><button class="btn" data-act="cancel" type="button">${esc(t('common.cancel'))}</button><button class="btn primary" data-act="send" type="button" ${rows ? '' : 'disabled'}>${esc(t('rep.opsSend'))}</button></div>
-    </section></div>`);
-    const close = () => bg.remove();
-    onAct(bg, {
-      cancel: close,
-      send: async (btn) => {
-        const sel = bg.querySelector('input[name=opsb]:checked'); if (!sel) return;
-        const b = brs.find((x) => x.id === sel.value); btn.disabled = true;
-        try {
-          const r = await api.flights.opsHandover(state.flight.id, sel.value);
-          state.meta.opsHandover = { briefingId: sel.value, no: b ? b.no || '' : '', url: r.url || '', at: Date.now(), points: r.points || 0 }; saveMeta();
-          close(); toast(t('rep.opsSent', { no: b ? b.no || b.id : sel.value, n: r.points || 0 })); renderSpecial();
-        } catch (e) { btn.disabled = false; toast(t('rep.opsFailed', { err: e.message || '' }), true); }
-      },
-    });
-    bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
-    document.body.appendChild(bg);
-  }
   let map = null, mapEl = null, detailMaps = [];
 
   let readyTimer = null;
