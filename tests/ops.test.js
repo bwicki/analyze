@@ -68,13 +68,13 @@ test('opsHandover: team or Supermaster only, saved track required, package goes 
   try {
     await assert.rejects(opsBriefings(env, { code: 'KQZMWB', team: false }), /Ballonteam/);
     const list = await opsBriefings(env, { code: 'KQZMWB', team: true });
-    assert.equal(list.briefings[0].no, '2026-004'); assert.equal(seen[0].token, 'secret-token');
+    assert.equal(list.briefings[0].no, '2026-004'); assert.equal(seen[0].token, 'b64u:' + Buffer.from('secret-token').toString('base64url'));
     await assert.rejects(opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', {}), /briefingId/);
     await assert.rejects(opsHandover(env, { code: 'OTHER1', team: true }, 'ABCD1234', { briefingId: 'abc123' }), /not found/);   // not the owner
     const r = await opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'abc123' }, null, null);
     assert.equal(r.ok, true); assert.equal(r.url, 'https://ops.wicki.aero/#/v/abc123?traj=1'); assert.equal(r.points, 241);
     const put = seen.find((s) => s.method === 'PUT');
-    assert.equal(put.token, 'secret-token'); assert.equal(put.body.flight.url, 'https://analyze.wicki.aero/v/ABCD1234'); assert.equal(put.body.trajectory.features[0].geometry.coordinates.length, 241);
+    assert.equal(put.token, 'b64u:' + Buffer.from('secret-token').toString('base64url')); assert.equal(put.body.flight.url, 'https://analyze.wicki.aero/v/ABCD1234'); assert.equal(put.body.trajectory.features[0].geometry.coordinates.length, 241);
     // the Supermaster may hand over any flight
     const r2 = await opsHandover(env, { code: 'admin:bwicki', admin: true, team: true }, 'ABCD1234', { briefingId: 'abc123' });
     assert.equal(r2.ok, true);

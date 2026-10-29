@@ -20,7 +20,9 @@ const allowed = (user) => !!(user && (user.admin || user.team));
 
 async function opsFetch(env, path, init = {}) {
   const c = cfg(env);
-  const res = await fetch(`${c.base}${path}`, { ...init, headers: { ...(init.headers || {}), 'X-Handover-Token': c.token, 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
+  // Token as «b64u:» + base64url(UTF-8): non-ASCII characters in the secret would not survive an HTTP header (ops 0.14.2 accepts both forms)
+  const tokenHdr = 'b64u:' + btoa(String.fromCharCode(...new TextEncoder().encode(c.token.trim()))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const res = await fetch(`${c.base}${path}`, { ...init, headers: { ...(init.headers || {}), 'X-Handover-Token': tokenHdr, 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
   if (res.status === 401 || res.status === 403) throw new HttpError(502, 'ops refused the handover token');
   if (res.status === 404) throw new HttpError(404, 'briefing not found on ops');
   if (!res.ok) throw new HttpError(502, `ops ${res.status}`);

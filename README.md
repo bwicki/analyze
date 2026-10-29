@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.5 (29.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.6 (29.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -202,7 +202,8 @@ die gespeicherte Fahrt (zuerst Schritt 5) wird mit Trajektorie (GeoJSON, auf ~30
 Stammdaten des Berichts, Viewer-Link und Ereignislog-Verweis – ohne Fotos – an ein Briefing übergeben; man wählt es
 aus der Liste der letzten 20 Briefings, eine zweite Übergabe ersetzt die erste, der Stand («zuletzt übergeben an
 Briefing … am …», Link «in ops öffnen») bleibt in den Stammdaten der Fahrt. Der Worker spricht mit dem ops-Worker
-über das Dienst-Token `OPS_HANDOVER_TOKEN` (beide Repositories, GitHub-Secret; der Browser sieht es nie). In ops
+über das Dienst-Token `OPS_HANDOVER_TOKEN` (beide Repositories, GitHub-Secret; der Browser sieht es nie; ab 0.15.6 im
+Header als `b64u:` + base64url, damit auch Sonderzeichen im Secret den Transport überstehen). In ops
 erscheint die Fahrt als Abschnitt «F · Ist-Trajektorie» mit Soll/Ist-Vergleich (die Worker-Routen nehmen weiterhin
 auch den Supermaster-Token an).
 
