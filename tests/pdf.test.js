@@ -29,7 +29,7 @@ test('reportPdf: renders the public viewer page through Browser Rendering, cache
     assert.equal(res.headers.get('X-Analyze-Bytes'), '1200');
     assert.equal(seen.length, 1);
     assert.equal(seen[0].url, 'https://api.cloudflare.com/client/v4/accounts/acc1/browser-rendering/pdf'); assert.equal(seen[0].auth, 'Bearer br-token');
-    assert.equal(seen[0].body.url, 'https://analyze.wicki.aero/?v=ABCD1234&pdf=1#report'); assert.equal(seen[0].body.waitForSelector.selector, 'html[data-print-ready]'); assert.equal(seen[0].body.emulateMediaType, 'print');
+    assert.equal(seen[0].body.url, 'https://analyze.wicki.aero/?v=ABCD1234&pdf=1#report'); assert.equal(seen[0].body.waitForSelector.selector, 'html[data-print-ready]'); assert.equal(seen[0].body.emulateMediaType, 'print'); assert.equal(seen[0].body.pdfOptions.format, 'a4');   // Browser Rendering wants lowercase page sizes
     assert.deepEqual([...env.FILES.objs.keys()], ['pdfs/ABCD1234-5.pdf']);   // stale copy gone, new one cached
     const res2 = await reportPdf(env, ctx(), row);
     assert.equal(res2.status, 200); assert.equal(seen.length, 1);   // served from R2, no second render

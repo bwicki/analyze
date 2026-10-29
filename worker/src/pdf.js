@@ -32,7 +32,7 @@ export async function reportPdf(env, ctx, row) {
   try {
     res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${c.account}/browser-rendering/pdf`, {
       method: 'POST', headers: { Authorization: `Bearer ${c.token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: page, gotoOptions: { waitUntil: 'networkidle0', timeout: RENDER_TIMEOUT }, waitForSelector: { selector: 'html[data-print-ready]', timeout: 45000 }, waitForTimeout: 1500, viewport: { width: 1100, height: 1500 }, emulateMediaType: 'print', pdfOptions: { format: 'A4', printBackground: true, preferCSSPageSize: true } }),
+      body: JSON.stringify({ url: page, gotoOptions: { waitUntil: 'networkidle0', timeout: RENDER_TIMEOUT }, waitForSelector: { selector: 'html[data-print-ready]', timeout: 45000 }, waitForTimeout: 1500, viewport: { width: 1100, height: 1500 }, emulateMediaType: 'print', pdfOptions: { format: 'a4', printBackground: true, preferCSSPageSize: true } }),
       signal: AbortSignal.timeout(RENDER_TIMEOUT + 15000),
     });
   } catch (e) { throw new HttpError(504, `Browser Rendering not reachable (${e.name || 'error'})`); }
