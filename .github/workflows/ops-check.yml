@@ -1,0 +1,30 @@
+# Diagnose der ops-Übergabe (0.15.7): spricht den ops-Worker mit dem Dienst-Token an, ohne etwas zu verändern –
+# Liste der Briefings und ein PUT mit leerem Paket (ops antwortet 400 «bad package», wenn das Briefing gefunden wird).
+# Ergebnis als Annotation (Statuscodes und Fehlertexte, nie der Token). Manuell: Actions → «ops handover check» → Run.
+name: ops handover check
+on:
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      OPS_HANDOVER_TOKEN: ${{ secrets.OPS_HANDOVER_TOKEN }}
+    steps:
+      - name: list + probe
+        run: |
+          set -u
+          BASE="https://briefing-api.balthasar.workers.dev"
+          B64=$(printf '%s' "$OPS_HANDOVER_TOKEN" | tr -d '\n' | base64 -w0 | tr '+/' '-_' | tr -d '=')
+          H="X-Handover-Token: b64u:$B64"
+          DIAG=$(curl -sS -H "$H" "$BASE/api/handover/diag")
+          echo "::notice title=diag::$(echo "$DIAG" | cut -c1-300)"
+          LIST=$(curl -sS -o /tmp/list.json -w '%{http_code}' -H "$H" "$BASE/api/handover/briefings?limit=3")
+          echo "::notice title=list::status $LIST · $(cut -c1-400 /tmp/list.json)"
+          ID=$(python3 -c "import json;d=json.load(open('/tmp/list.json'));print(d['briefings'][0]['id'] if d.get('briefings') else '')" 2>/dev/null || true)
+          echo "::notice title=first-id::${ID:-none}"
+          if [ -n "$ID" ]; then
+            P1=$(curl -sS -o /tmp/p1.json -w '%{http_code}' -X PUT -H "$H" -H 'Content-Type: application/json' -d '{}' "$BASE/api/handover/briefings/$ID/trajectory")
+            echo "::notice title=put-empty-package::status $P1 · $(cut -c1-300 /tmp/p1.json)"
+          fi
+          P2=$(curl -sS -o /tmp/p2.json -w '%{http_code}' -X PUT -H "$H" -H 'Content-Type: application/json' -d '{}' "$BASE/api/handover/briefings/zzzzzzzzzzzz/trajectory")
+          echo "::notice title=put-unknown-id::status $P2 · $(cut -c1-300 /tmp/p2.json)"
