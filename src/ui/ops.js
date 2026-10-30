@@ -27,10 +27,15 @@ export function opsStateHtml() {
 export async function openOpsHandover({ onDone } = {}) {
   if (!state.flight || !state.flight.id) { toast(t('rep.opsSaveFirst'), true); return; }
   let list;
-  try { list = await api.flights.opsBriefings(state.flight.id); } catch (e) { toast(t('rep.opsFailed', { err: e.message || '' }), true); return; }
+  try { list = await api.flights.opsBriefings(state.flight.id); } catch (e) { toast(t('rep.opsListFailed', { err: e.message || '' }), true); return; }
   const brs = list.briefings || [];
   const dateOf = (b) => (Number.isFinite(b.startMs) ? fmtDateUTC(b.startMs) : '–');
-  const rows = brs.map((b, k) => `<label class="dl" style="cursor:pointer"><input type="radio" name="opsb" value="${esc(b.id)}" ${k === 0 ? 'checked' : ''}><div class="t"><strong>${esc(b.no || b.id)} · ${dateOf(b)} · ${esc(b.site || b.icao || '–')}</strong><span>${esc([b.reg, b.balloon, b.kind, b.status].filter(Boolean).join(' · '))}${b.trajectory ? ` · <span class="ok">✓ ${esc(t('rep.opsHas', { date: fmtDateTimeUTC(Date.parse(b.trajectory.receivedAt) || Date.now()) }))}</span>` : ''}</span></div></label>`).join('');
+  // preselect the briefing this flight was handed to before (0.15.7), otherwise the newest one
+  const prev = state.meta.opsHandover && state.meta.opsHandover.briefingId;
+  const pre = brs.some((b) => b.id === prev) ? prev : (brs[0] ? brs[0].id : '');
+  let rows = brs.map((b) => `<label class="dl" style="cursor:pointer"><input type="radio" name="opsb" value="${esc(b.id)}" ${b.id === pre ? 'checked' : ''}><div class="t"><strong>${esc(b.no || b.id)} · ${dateOf(b)} · ${esc(b.site || b.icao || '–')}</strong><span>${esc([b.reg, b.balloon, b.kind, b.status].filter(Boolean).join(' · '))}${b.trajectory ? ` · <span class="ok">✓ ${esc(t('rep.opsHas', { date: fmtDateTimeUTC(Date.parse(b.trajectory.receivedAt) || Date.now()) }))}</span>` : ''}</span></div></label>`).join('');
+  // «Neue Fahrt ohne Briefing» (0.15.7): only once ops offers it (canCreate) – ops creates the Stammdaten, the briefing part stays empty
+  if (list.canCreate) rows += `<label class="dl" style="cursor:pointer"><input type="radio" name="opsb" value="new" ${pre ? '' : 'checked'}><div class="t"><strong>＋ ${esc(t('rep.opsNew'))}</strong><span>${esc(t('rep.opsNewHint'))}</span></div></label>`;
   const bg = html(`<div class="modal-bg"><section class="modal" role="dialog" aria-modal="true" style="max-width:720px">
     <div class="head"><h1>${esc(t('rep.opsPick'))}</h1></div>
     <div class="muted small">${esc(t('rep.opsPickSub', { title: state.flight.title || state.meta.title || state.flight.id }))}</div>
@@ -45,8 +50,9 @@ export async function openOpsHandover({ onDone } = {}) {
       const b = brs.find((x) => x.id === sel.value); btn.disabled = true;
       try {
         const r = await api.flights.opsHandover(state.flight.id, sel.value);
-        state.meta.opsHandover = { briefingId: sel.value, no: b ? b.no || '' : '', url: r.url || '', at: Date.now(), points: r.points || 0 }; saveMeta();
-        close(); toast(t('rep.opsSent', { no: b ? b.no || b.id : sel.value, n: r.points || 0 })); if (onDone) onDone();
+        const no = r.no || (b ? b.no || b.id : r.briefingId || sel.value);
+        state.meta.opsHandover = { briefingId: r.briefingId || sel.value, no, url: r.url || '', at: Date.now(), points: r.points || 0 }; saveMeta();
+        close(); toast(t(r.created ? 'rep.opsSentNew' : 'rep.opsSent', { no, n: r.points || 0 })); if (onDone) onDone();
       } catch (e) { btn.disabled = false; toast(t('rep.opsFailed', { err: e.message || '' }), true); }
     },
   });

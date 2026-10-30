@@ -24,16 +24,24 @@ async function opsFetch(env, path, init = {}) {
   const tokenHdr = 'b64u:' + btoa(String.fromCharCode(...new TextEncoder().encode(c.token.trim()))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   const res = await fetch(`${c.base}${path}`, { ...init, headers: { ...(init.headers || {}), 'X-Handover-Token': tokenHdr, 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
   if (res.status === 401 || res.status === 403) throw new HttpError(502, 'ops refused the handover token');
-  if (res.status === 404) throw new HttpError(404, 'briefing not found on ops');
-  if (!res.ok) throw new HttpError(502, `ops ${res.status}`);
+  if (!res.ok) {
+    // 0.15.7: ops's own error text travels with the status («briefing not found» from the trajectory route differs from a
+    // plain «not found» of an unknown route) – the Supermaster sees it in the usage log, the user in the toast
+    let msg = ''; try { msg = String((await res.json()).error || ''); } catch { /* no JSON body */ }
+    if (res.status === 404) throw new HttpError(404, `ops.wicki.aero: ${msg || 'not found'} (${(init.method || 'GET')} ${path.replace(/\?.*$/, '')})`);
+    throw new HttpError(502, `ops.wicki.aero ${res.status}${msg ? `: ${msg}` : ''}`);
+  }
   return res.json();
 }
 
 /** The last briefings on ops (id, number, date, site, balloon, status, whether a trajectory is already there). */
 export async function opsBriefings(env, user) {
   if (!allowed(user)) throw new HttpError(403, 'handover only for the Ballonteam and the Supermaster');
-  const j = await opsFetch(env, `/api/handover/briefings?limit=${LIST_LIMIT}`);
-  return { briefings: Array.isArray(j.briefings) ? j.briefings : [], ops: (env.OPS_APP_URL || 'https://ops.wicki.aero') };
+  let j;
+  try { j = await opsFetch(env, `/api/handover/briefings?limit=${LIST_LIMIT}`); }
+  catch (e) { await logAction(env, user.code, 'ops_list_failed', `${e.status || ''} ${e.message}`); throw e; }
+  // canCreate (0.15.7): ops announces that it can create a flight without a briefing (POST /api/handover/briefings)
+  return { briefings: Array.isArray(j.briefings) ? j.briefings : [], canCreate: j.canCreate === true, ops: (env.OPS_APP_URL || 'https://ops.wicki.aero') };
 }
 
 /** Flight row for the handover: the owner's flight, or any flight for the Supermaster. */
@@ -99,14 +107,27 @@ const parse = (s) => { try { const j = JSON.parse(s || '{}'); return j && typeof
 export async function opsHandover(env, user, id, body, request, ctx) {
   if (!allowed(user)) throw new HttpError(403, 'handover only for the Ballonteam and the Supermaster');
   const briefingId = String(body && body.briefingId || '').trim();
-  if (!/^[a-z0-9]{1,40}$/.test(briefingId)) throw new HttpError(400, 'briefingId missing');
+  // «new» (0.15.7): no briefing yet – ops creates the flight's Stammdaten from the package (briefing part stays empty)
+  const create = briefingId === 'new';
+  if (!create && !/^[a-z0-9]{1,40}$/.test(briefingId)) throw new HttpError(400, 'briefingId missing');
   const row = await flightRow(env, user, id);
   const obj = row.track_key ? await env.FILES.get(row.track_key) : null;
   if (!obj) throw new HttpError(409, 'flight has no saved track');
   const geo = await gunzipJson(obj.body);
   const c = cfg(env);
   const pkg = buildPackage(row, geo, { app: c.app });
-  const res = await opsFetch(env, `/api/handover/briefings/${encodeURIComponent(briefingId)}/trajectory`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pkg) });
-  if (ctx) ctx.waitUntil(logAction(env, user.code, 'ops_handover', `${id} → ${briefingId}`, request));
-  return { ok: true, briefingId, url: res.url || `${env.OPS_APP_URL || 'https://ops.wicki.aero'}/#/v/${briefingId}/traj`, receivedAt: res.receivedAt || null, points: pkg.trajectory.features.filter((f) => f.geometry.type === 'LineString').reduce((n, f) => n + f.geometry.coordinates.length, 0) };
+  const points = pkg.trajectory.features.filter((f) => f.geometry.type === 'LineString').reduce((n, f) => n + f.geometry.coordinates.length, 0);
+  let res;
+  try {
+    res = create
+      ? await opsFetch(env, '/api/handover/briefings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...pkg, create: { by: user.code } }) })
+      : await opsFetch(env, `/api/handover/briefings/${encodeURIComponent(briefingId)}/trajectory`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(pkg) });
+  } catch (e) {
+    // 0.15.7: failed handovers are logged too (status + ops text, never the token) – the Supermaster sees them in the usage log
+    await logAction(env, user.code, 'ops_handover_failed', `${id} → ${briefingId}: ${e.status || ''} ${e.message}`, request);
+    throw e;
+  }
+  const targetId = create ? String(res.id || res.briefingId || '') : briefingId;
+  if (ctx) ctx.waitUntil(logAction(env, user.code, 'ops_handover', `${id} → ${targetId}${create ? ' (new)' : ''}`, request));
+  return { ok: true, briefingId: targetId, no: res.no || null, created: create, url: res.url || `${env.OPS_APP_URL || 'https://ops.wicki.aero'}/#/v/${targetId}/traj`, receivedAt: res.receivedAt || null, points };
 }

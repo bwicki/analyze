@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.6 (29.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.7 (30.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -205,7 +205,12 @@ Briefing … am …», Link «in ops öffnen») bleibt in den Stammdaten der Fah
 über das Dienst-Token `OPS_HANDOVER_TOKEN` (beide Repositories, GitHub-Secret; der Browser sieht es nie; ab 0.15.6 im
 Header als `b64u:` + base64url, damit auch Sonderzeichen im Secret den Transport überstehen). In ops
 erscheint die Fahrt als Abschnitt «F · Ist-Trajektorie» mit Soll/Ist-Vergleich (die Worker-Routen nehmen weiterhin
-auch den Supermaster-Token an).
+auch den Supermaster-Token an). Seit 0.15.6 steht derselbe Knopf auch in Schritt 5 · Karte 5. **Fahrt ohne Briefing**
+(0.15.7): sobald ops die Funktion meldet (`canCreate`), zeigt das Auswahlfenster zusätzlich «＋ Neue Fahrt ohne
+Briefing anlegen» – ops legt die Stammdaten der Fahrt aus analyze an, der Briefing-Teil bleibt leer
+(Schnittstellenkonzept `docs/Uebergabe_ohne_Briefing.md`; die ops-Seite ist offen). Vorausgewählt ist das Briefing der
+letzten Übergabe dieser Fahrt. Fehlermeldungen nennen den ops-Fehlertext und die Route; fehlgeschlagene Übergaben
+und Listenabrufe stehen als `ops_handover_failed` / `ops_list_failed` im Nutzungsprotokoll des Supermasters.
 
 ### 5 · Speichern/Drucken/Exportieren
 
@@ -228,8 +233,8 @@ Fünf nummerierte Karten mit je einem blauen Aktionsknopf:
 4. **Teilen · Viewer** — Kurzlink mit «Link kopieren», QR-Code, «Viewer öffnen», **«Bericht-PDF»** (ab 0.13.0:
    fertiges PDF vom Server, ohne Druckdialog – nur bei aktivem Kurzlink, siehe «Bericht-PDF vom Server»),
    «Kurzlink deaktivieren» (Fahrt privat) und das Vorschaubild, wie es Messenger beim Teilen zeigen.
-5. **Weitergabe an andere Programme** — «KMZ sichern» für Google Earth (die Übergabe an ops.wicki.aero steht bei
-   den Spezialfunktionen im Bericht).
+5. **Weitergabe an andere Programme** — «KMZ sichern» für Google Earth und «Übergabe an ops.wicki.aero» (Team-PINs
+   und Supermaster; Stand der letzten Übergabe darunter – dieselbe Funktion wie bei den Spezialfunktionen im Bericht).
 
 ### Viewer und Link-Vorschau
 
@@ -361,7 +366,9 @@ Repository `bwicki/gb_flight_data` über den Worker. Ortsnamen, Gelände und 3D 
 10. **Übergabe an ops.wicki.aero (optional, 0.10.0):** ein langer Zufallstext (≥ 32 Zeichen, Passwortmanager) als
     Secret `OPS_HANDOVER_TOKEN` **in beiden Repositories** (`bwicki/analyze` und `bwicki/ops`) → in beiden «Deploy
     worker» einmal laufen lassen. Der Supermaster sieht den Status unter «Tokens» (gesetzt/fehlt, nie den Wert);
-    `worker/wrangler.toml` nennt die ops-Adressen (`OPS_API_URL`, `OPS_APP_URL`).
+    `worker/wrangler.toml` nennt die ops-Adressen (`OPS_API_URL`, `OPS_APP_URL`). Prüfung ohne App: Workflow
+    «ops handover check» (Actions → Run workflow) spricht den ops-Worker mit dem Token an – Diagnose, Briefing-Liste,
+    PUT mit leerem Paket (ops antwortet 400, wenn das Briefing gefunden wird) – und zeigt nur Statuscodes.
 11. **Bericht-PDF vom Server (optional, 0.13.0):** Cloudflare → My Profile → API Tokens → Create Token → Custom
     Token mit der Berechtigung **Browser Rendering: Edit** für das Konto (dasselbe Token wie `cf_api_token` von
     ops.wicki.aero eignet sich, wenn es diese Berechtigung trägt) → als Secret `CF_BR_TOKEN` in `bwicki/analyze`
@@ -433,7 +440,7 @@ stehen in `src/parse/profiles.js` (gleiches JSON-Format), die beiden GB-Instrume
 (Rohdaten: multipart `meta` + `files` gzip) · `GET|POST /api/flights/‹id›/photos`, `PUT|DELETE
 /api/flights/‹id›/photos/‹pid›` · `GET /api/profiles` (öffentlich), `POST /api/profiles`, `DELETE
 /api/profiles/‹id›` · `GET /api/events/flights`, `/api/events/‹Fahrt›`, `/api/events/media/‹Datei›` (Team-PINs oder Supermaster-Token) ·
-`GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster) ·
+`GET /api/flights/‹id›/ops/briefings`, `POST /api/flights/‹id›/ops` (Übergabe an ops.wicki.aero; Team-PINs oder Supermaster; `briefingId: "new"` legt die Fahrt in ops neu an, sobald ops `canCreate` meldet) ·
 `GET /api/mapshare?share=&from=&to=[&pw=]` (Garmin MapShare-Feed als KML, PIN) · `GET /api/livetrack/sessions?share=`, `GET /api/livetrack/track?share=&session=&token=` (Garmin LiveTrack: Sessions, eine Session als GPX; PIN) ·
 öffentlich: `GET /api/view/‹id›[/track|/events|/photos|/preview.jpg|/report.pdf]` (PDF: Browser Rendering, R2-Cache), `GET /api/photos/‹pid›[/thumb]`,
 `GET /v/‹id›` (Vorschauseite) · Supermaster (Bearer-Token): `/api/admin/setup|login|logout|me|pin|stats|codes|

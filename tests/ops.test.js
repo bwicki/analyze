@@ -47,7 +47,7 @@ function fakeEnv(row, calls) {
   const gz = gzipSync(Buffer.from(JSON.stringify(geo())));
   return {
     OPS_HANDOVER_TOKEN: 'secret-token', OPS_API_URL: 'https://ops-api.test', APP_URL: 'https://analyze.wicki.aero', OPS_APP_URL: 'https://ops.wicki.aero',
-    DB: { prepare: (sql) => ({ bind: (...a) => ({ first: async () => (/FROM flights WHERE id = \?1 AND code = \?2/.test(sql) ? (row && row.code === a[1] ? row : null) : /FROM flights WHERE id = \?1/.test(sql) ? row : null), run: async () => { calls.push(['sql', sql.slice(0, 30)]); return {}; } }) }) },
+    DB: { prepare: (sql) => ({ bind: (...a) => ({ first: async () => (/FROM flights WHERE id = \?1 AND code = \?2/.test(sql) ? (row && row.code === a[1] ? row : null) : /FROM flights WHERE id = \?1/.test(sql) ? row : null), run: async () => { calls.push({ sql: sql.slice(0, 60), args: a }); return {}; } }) }) },
     FILES: { get: async (key) => (row && key === row.track_key ? { body: new Blob([gz]).stream() } : null) },
   };
 }
@@ -60,7 +60,9 @@ test('opsHandover: team or Supermaster only, saved track required, package goes 
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, init) => {
     seen.push({ url, method: init.method || 'GET', token: init.headers['X-Handover-Token'], body: init.body ? JSON.parse(init.body) : null });
-    if (/\/api\/handover\/briefings\?limit=20$/.test(url)) return new Response(JSON.stringify({ briefings: [{ id: 'abc123', no: '2026-004', trajectory: null }] }), { status: 200 });
+    if (/\/api\/handover\/briefings\?limit=20$/.test(url)) return new Response(JSON.stringify({ briefings: [{ id: 'abc123', no: '2026-004', trajectory: null }], canCreate: true }), { status: 200 });
+    if (/\/api\/handover\/briefings$/.test(url) && init.method === 'POST') return new Response(JSON.stringify({ ok: true, id: 'neu987', no: '2026-014', url: 'https://ops.wicki.aero/#/v/neu987?traj=1', receivedAt: '2026-10-30T10:00:00Z', points: 241 }), { status: 200 });
+    if (/\/api\/handover\/briefings\/weg\/trajectory$/.test(url)) return new Response('', { status: 404 });
     if (/\/api\/handover\/briefings\/abc123\/trajectory$/.test(url)) return new Response(JSON.stringify({ ok: true, briefingId: 'abc123', url: 'https://ops.wicki.aero/#/v/abc123?traj=1', receivedAt: '2026-10-20T14:00:00Z', points: 241 }), { status: 200 });
     if (/\/api\/handover\/briefings\/nixda\/trajectory$/.test(url)) return new Response(JSON.stringify({ error: 'briefing not found' }), { status: 404 });
     return new Response('{}', { status: 500 });
@@ -78,7 +80,17 @@ test('opsHandover: team or Supermaster only, saved track required, package goes 
     // the Supermaster may hand over any flight
     const r2 = await opsHandover(env, { code: 'admin:bwicki', admin: true, team: true }, 'ABCD1234', { briefingId: 'abc123' });
     assert.equal(r2.ok, true);
-    await assert.rejects(opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'nixda' }), /not found on ops/);
+    // 0.15.7: ops's error text travels with the 404; a failed handover is logged (status + text, never the token)
+    await assert.rejects(opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'nixda' }), /ops\.wicki\.aero: briefing not found \(PUT \/api\/handover\/briefings\/nixda\/trajectory\)/);
+    await assert.rejects(opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'weg' }), /ops\.wicki\.aero: not found/);
+    const failed = calls.filter((c) => c.sql && /usage_log/.test(c.sql) && c.args && c.args[2] === 'ops_handover_failed');
+    assert.equal(failed.length, 2); assert.match(failed[0].args[3], /ABCD1234 → nixda: 404 ops\.wicki\.aero: briefing not found/); assert.ok(!/secret-token/.test(failed[0].args[3]));
+    // 0.15.7: «new» → POST /api/handover/briefings with the package (ops creates the flight; canCreate announced in the list)
+    assert.equal(list.canCreate, true);
+    const r3 = await opsHandover(env, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'new' });
+    assert.equal(r3.created, true); assert.equal(r3.briefingId, 'neu987'); assert.equal(r3.no, '2026-014'); assert.equal(r3.url, 'https://ops.wicki.aero/#/v/neu987?traj=1');
+    const post = seen.find((s) => s.method === 'POST');
+    assert.equal(post.body.create.by, 'KQZMWB'); assert.equal(post.body.flight.id, 'ABCD1234'); assert.equal(post.body.trajectory.type, 'FeatureCollection');
     // no saved track → 409
     const env2 = fakeEnv({ ...row, track_key: null }, calls);
     await assert.rejects(opsHandover(env2, { code: 'KQZMWB', team: true }, 'ABCD1234', { briefingId: 'abc123' }), /no saved track/);
