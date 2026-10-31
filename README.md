@@ -15,7 +15,7 @@ und Bedienidiom aus GaforCast/StueveCast/ops.
 > **Auswertungshilfe ohne Gewähr.** Die Kennzahlen entstehen aus den Trackerdaten so, wie sie aufgezeichnet
 > wurden. Flughandbuch (AFM), Flugbuchpflichten und amtliche Produkte sind massgebend.
 
-Stand: Version 0.15.9 (31.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
+Stand: Version 0.15.10 (31.10.2026) — Phase 1 (Analyse lokal) und Phase 2 (Worker: PIN, Speichern, Kurzlink,
 Viewer, Supermaster, Ereignislog, Profil-Assistent) abgeschlossen, Phase 3 begonnen (Fotos, mehrere Geräte,
 Gelände/Wasser, 3D, Link-Vorschau, Übergabe an ops.wicki.aero). Offen: Stammdaten-Übergabe aus ops.wicki.aero. Konzept:
 `docs/Konzept_analyze_v0.1.md`; Design-Boards (Phase 0): `design/`.
@@ -44,8 +44,9 @@ DE/EN und das Menü ☰ (Einstellungen, Supermaster). Meldungen erscheinen unten
 Schliessen-Knopf: Fehler bleiben stehen, bis man sie schliesst, Hinweise verschwinden nach 7 s (bis vier gestapelt).
 Die fünf Schritte stehen als Chips: Importieren · Bereinigen · Auswerten · Bericht ·
 Speichern/Drucken/Exportieren – ab 0.15.9 in einer eigenen Zeile über die ganze Breite (auf dem Desktop eine Zeile,
-die Chips brechen nicht um), rechts aussen die **Versionsnummer** in kleiner Schrift unter den Knöpfen; Logo und
-Knöpfe stehen oben rechts nebeneinander. Auf dem Handy: Titel und Logo, darunter die Knöpfe, darunter die Chips.
+die Chips brechen nicht um), rechts aussen die **Versionsnummer** in kleiner Schrift unter den Knöpfen; oben rechts
+stehen die Knöpfe und ganz rechts aussen das Logo (0.15.10). Auf dem Handy: Titel und Logo, darunter die Knöpfe,
+darunter die Chips.
 Die Aktionsleiste darunter führt mit «Weiter zu …» durch den Ablauf.
 
 ### 1 · Importieren
