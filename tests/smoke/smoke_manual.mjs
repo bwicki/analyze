@@ -44,11 +44,11 @@ await page.setInputFiles('[data-photos] input[type=file]', [`${fx}/photo_exif.jp
 const figs = async () => page.$$eval('[data-photos] figure', (f) => f.map((x) => x.dataset.id + ': ' + x.querySelector('figcaption').textContent.replace(/\s+/g, ' ').trim().slice(0, 90)).join(' || '));
 console.log('after upload:', await figs());
 console.log('manual inputs:', await page.$$eval('[data-photos] [data-man]', (i) => i.map((x) => x.dataset.man + '=' + JSON.stringify(x.value) + ' min=' + x.min)));
-console.log('toast after upload:', (await txt('.toast').catch(() => '')).slice(0, 160));
+console.log('toast after upload:', (await txt('.toast:last-child .tx').catch(() => '')).slice(0, 160));
 await page.screenshot({ path: `${shots}/pm_01_notime.png`, fullPage: true });
 // 1) fromPin without a pin → hint
 await page.click('[data-photos] [data-act=fromPin]'); await page.waitForTimeout(300);
-console.log('fromPin w/o pin toast:', (await txt('.toast:last-of-type').catch(() => '')).slice(0, 100));
+console.log('fromPin w/o pin toast:', (await txt('.toast:last-child .tx').catch(() => '')).slice(0, 100));
 // 2) type a UTC time (29.08.2026 10:00:00 UTC, inside the flight)
 const man = page.locator('[data-photos] [data-man]');
 await man.evaluate((el) => { el.value = '2026-08-29T10:00:00'; el.dispatchEvent(new Event('change', { bubbles: true })); }); await page.waitForTimeout(800);

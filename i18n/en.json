@@ -2,6 +2,7 @@
   "common.cancel": "Cancel",
   "common.remove": "Remove",
   "common.copied": "Copied",
+  "common.close": "Close",
   "common.yes": "yes",
   "common.no": "no",
   "common.or": "or",
@@ -842,5 +843,12 @@
   "imp.ltPasscode": "This LiveTrack page needs a passcode – not supported.",
   "imp.ltNotFound": "LiveTrack page not found – check the address.",
   "imp.ltBadAddress": "Only Garmin LiveTrack addresses (live.garmin.com/…) or the name.",
-  "imp.ltNoPoints": "This session has no positions."
+  "imp.ltNoPoints": "This session has no positions.",
+  "hdr.messages": "Messages",
+  "msg.title": "Messages of this session",
+  "msg.hint": "System and error messages stay here (newest first) until the page is reloaded – copy them for a bug report.",
+  "msg.none": "No messages.",
+  "msg.copyOne": "Copy message",
+  "msg.copyAll": "Copy all",
+  "msg.clear": "Clear"
 }

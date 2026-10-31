@@ -4,6 +4,7 @@ import { t, currentLang } from '../i18n.js';
 import { esc, html, icons, onAct } from '../util/dom.js';
 import { state, PHASES, VERSION } from '../state.js';
 import { session, logoUrl, DEFAULT_LOGO, hasServer, orgName, accentColor, isHexColor, DEFAULT_ACCENT } from '../session.js';
+import { messagesButtonHtml, bindMessagesBadge, openMessages } from './messages.js';
 
 const PHASE_KEYS = { import: 'phase.import', clean: 'phase.clean', analyze: 'phase.analyze', report: 'phase.report', export: 'phase.export' };
 export function phaseLabel(p) { return t(PHASE_KEYS[p]); }
@@ -47,11 +48,13 @@ export function renderHeader(o) {
     ${nav}
     <div class="right">${logoImg()}<div class="tools">
       ${who}
+      ${messagesButtonHtml()}
       <div class="seg lang" aria-label="${esc(t('hdr.language'))}"><button type="button" data-act="lang" data-lang="de" class="${lang === 'de' ? 'on' : ''}">DE</button><button type="button" data-act="lang" data-lang="en" class="${lang === 'en' ? 'on' : ''}">EN</button></div>
       <details class="menu"><summary aria-label="${esc(t('hdr.menu'))}" title="${esc(t('hdr.menu'))}">${icons.menu}</summary><div class="panel"><h3>${esc(t('settings.title'))} · v${VERSION}</h3><div class="body"></div></div></details>
     </div></div>
   </header>`);
-  onAct(el, { goto: (b) => o.onGoto && o.onGoto(b.dataset.phase), lang: (b) => o.onLang && o.onLang(b.dataset.lang), nav: (b) => o.onNav && o.onNav(b.dataset.view), logout: () => o.onLogout && o.onLogout() });
+  onAct(el, { goto: (b) => o.onGoto && o.onGoto(b.dataset.phase), lang: (b) => o.onLang && o.onLang(b.dataset.lang), nav: (b) => o.onNav && o.onNav(b.dataset.view), logout: () => o.onLogout && o.onLogout(), msgs: () => openMessages() });
+  bindMessagesBadge(el);   // 0.15.8: Meldungen (badge counts unread errors)
   const details = el.querySelector('details.menu');
   const fill = () => { const s = o.settingsBody(); const body = details.querySelector('.body'); body.innerHTML = s.html; if (s.bind) s.bind(body, details); };
   details.addEventListener('toggle', () => { if (details.open) fill(); });

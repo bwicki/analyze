@@ -32,6 +32,8 @@ export const icons = {
   info: '<svg class="ic" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16h.01"/></svg>',
   pin: '<svg class="ic" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
   logout: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="M15 8l5 4-5 4M20 12H9"/></svg>',
+  copy: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg>',
+  messages: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg>',
   menu: '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>',
   close: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   clock: '<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
@@ -48,12 +50,35 @@ export function banner({ level, title, sub = '', intro = '', steps = [], side = 
   return `<div class="banner ${level}" role="status">${icon}<div class="body"><h3>${title}</h3>${sub ? `<div class="sub">${sub}</div>` : ''}${intro ? `<div class="sub">${intro}</div>` : ''}${list}</div>${side ? `<div class="side">${side}</div>` : ''}${extra}</div>`;
 }
 
-let toastTimer = null;
+/**
+ * Messages (0.15.8): every toast is kept in `messages` (newest first, max 50) for the «Meldungen» window in the header,
+ * so errors can be copied instead of vanishing. Error toasts stay until closed; others close after 7 s. Each toast
+ * carries a copy and a close button; up to four are stacked bottom-centre. Labels come from `toastLabels` (set by i18n).
+ */
+export const messages = [];
+const MSG_MAX = 50, TOAST_MAX = 4, TOAST_MS = 7000;
+const msgListeners = new Set();
+export function onMessages(fn) { msgListeners.add(fn); return () => msgListeners.delete(fn); }
+export const toastLabels = { copy: 'Kopieren', close: 'Schliessen', copied: 'Kopiert' };
+const notify = () => { for (const fn of msgListeners) { try { fn(messages); } catch { /* listener error must not block the toast */ } } };
+export function clearMessages() { messages.length = 0; notify(); }
 export function toast(text, isError = false) {
-  let el = document.querySelector('.toast');
-  if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
-  el.textContent = text; el.classList.toggle('err', isError);
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.remove(), 3500);
+  const msg = { t: Date.now(), text: String(text ?? ''), err: !!isError };
+  messages.unshift(msg); if (messages.length > MSG_MAX) messages.length = MSG_MAX; notify();
+  let box = document.querySelector('.toasts');
+  if (!box) { box = document.createElement('div'); box.className = 'toasts'; box.setAttribute('aria-live', 'polite'); document.body.appendChild(box); }
+  const el = document.createElement('div'); el.className = 'toast' + (isError ? ' err' : ''); el.setAttribute('role', isError ? 'alert' : 'status');
+  el.innerHTML = `<span class="tx"></span><button type="button" class="tb" data-tact="copy" title="${esc(toastLabels.copy)}" aria-label="${esc(toastLabels.copy)}">${icons.copy}</button><button type="button" class="tb" data-tact="close" title="${esc(toastLabels.close)}" aria-label="${esc(toastLabels.close)}">×</button>`;
+  el.querySelector('.tx').textContent = msg.text;
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-tact]'); if (!b) return;
+    if (b.dataset.tact === 'close') { el.remove(); return; }
+    if (await copyText(msg.text)) { b.classList.add('ok'); b.title = toastLabels.copied; setTimeout(() => { b.classList.remove('ok'); b.title = toastLabels.copy; }, 1500); }
+  });
+  box.appendChild(el);
+  while (box.children.length > TOAST_MAX) box.firstElementChild.remove();
+  if (!isError) setTimeout(() => el.remove(), TOAST_MS);
+  return el;
 }
 
 /** Simple modal confirm; resolves true/false. Buttons are labels passed by the caller (i18n). */

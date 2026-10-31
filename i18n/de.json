@@ -2,6 +2,7 @@
   "common.cancel": "Abbrechen",
   "common.remove": "Entfernen",
   "common.copied": "Kopiert",
+  "common.close": "Schliessen",
   "common.yes": "ja",
   "common.no": "nein",
   "common.or": "oder",
@@ -842,5 +843,12 @@
   "imp.ltPasscode": "Diese LiveTrack-Seite verlangt einen Passcode – nicht unterstützt.",
   "imp.ltNotFound": "LiveTrack-Seite nicht gefunden – Adresse prüfen.",
   "imp.ltBadAddress": "Nur Garmin-LiveTrack-Adressen (live.garmin.com/…) oder der Name.",
-  "imp.ltNoPoints": "Diese Fahrt hat keine Positionen."
+  "imp.ltNoPoints": "Diese Fahrt hat keine Positionen.",
+  "hdr.messages": "Meldungen",
+  "msg.title": "Meldungen dieser Sitzung",
+  "msg.hint": "System- und Fehlermeldungen bleiben hier stehen (neueste zuoberst), bis das Fenster neu geladen wird – zum Kopieren für eine Rückmeldung.",
+  "msg.none": "Keine Meldungen.",
+  "msg.copyOne": "Meldung kopieren",
+  "msg.copyAll": "Alles kopieren",
+  "msg.clear": "Leeren"
 }

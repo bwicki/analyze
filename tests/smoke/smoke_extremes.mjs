@@ -34,7 +34,7 @@ await page.goto(`${ENV.base}/#import`, { waitUntil: 'networkidle' }); await page
 await page.setInputFiles('input[type=file][multiple]:not([accept*="jpeg"])', [`${fx}/gb26_260828_2049.csv`, `${fx}/gb26_260830_0242.csv`]);
 await page.waitForFunction(() => /Segment/.test(document.querySelector('.actionbar .status').textContent) && !/gelesen …/.test(document.querySelector('.actionbar .status').textContent), null, { timeout: 60000 });
 await page.click('button[data-phase=analyze]'); await page.waitForTimeout(2500);
-console.log('view after fallback:', await page.$eval('[data-view] button.on', (b) => b.dataset.v), '| map hidden:', await page.$eval('[data-map]', (m) => m.hidden), '| toast:', (await txt('.toast')).slice(0, 60));
+console.log('view after fallback:', await page.$eval('[data-view] button.on', (b) => b.dataset.v), '| map hidden:', await page.$eval('[data-map]', (m) => m.hidden), '| toast:', (await txt('.toast:last-child .tx')).slice(0, 60));
 console.log('marker select:', await page.inputValue('[data-marker]'), '| exag select:', await page.inputValue('[data-exag]'));
 console.log('time markers (41 h → 30 min):', await page.evaluate(() => (window.__markers || []).length), 'divIcon markers;', await page.$$eval('svg.chart circle[r="2.5"]', (c) => c.length), 'profile marker dots');
 console.log('extreme symbols on profile:', await page.$$eval('svg.chart text[paint-order]', (ts) => ts.map((x) => x.lastChild && x.lastChild.textContent).filter((x) => /^[◆▶▲▼]$/.test(x || '')).join(' ')));

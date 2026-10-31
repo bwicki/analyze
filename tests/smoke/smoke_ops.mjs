@@ -41,7 +41,15 @@ await page.waitForFunction(() => /Segment/.test(document.querySelector('.actionb
 await page.click('button[data-phase=report]'); await page.waitForTimeout(1200);
 console.log('special card (team PIN):', await page.$$eval('[data-special]', (c) => c.length), '| title:', await txt('[data-special] h2'), '| ops state:', await txt('[data-opsstate]'));
 await page.click('[data-special] [data-act=ops]'); await page.waitForTimeout(400);
-console.log('toast without saved flight:', (await txt('.toast')).slice(0, 60));
+console.log('toast without saved flight:', (await txt('.toast:last-child .tx')).slice(0, 60));
+// 0.15.8: error toasts stay (copy + close buttons), the header's «Meldungen» window lists them with a badge
+await page.waitForTimeout(4000);
+console.log('error toast still there after 4 s:', await page.$$eval('.toast.err', (t) => t.length), '| copy button:', await page.$$eval('.toast.err [data-tact=copy]', (b) => b.length), '| badge:', await txt('.msgbtn .badge'));
+await page.click('header .msgbtn'); await page.waitForTimeout(300);
+console.log('messages window:', await txt('.modal h1'), '| rows:', await page.$$eval('.msglist .msg', (r) => r.length), '| first err row:', (await txt('.msglist .msg.err .tx')).slice(0, 40), '| badge after open:', await page.$eval('.msgbtn .badge', (b) => b.hidden));
+await page.click('.modal [data-act=close]'); await page.waitForTimeout(200);
+await page.click('.toast.err [data-tact=close]'); await page.waitForTimeout(200);
+console.log('error toast closed:', await page.$$eval('.toast.err', (t) => t.length));
 await page.click('button[data-phase=export]'); await page.waitForTimeout(800);
 await page.click('[data-act=save]'); await page.waitForTimeout(2500);
 console.log('saved:', await page.evaluate(() => !!(window.__state && window.__state.flight) || document.body.textContent.includes('NEWFLJGH')));
@@ -51,6 +59,6 @@ await page.click('[data-special] [data-act=ops]'); await page.waitForTimeout(600
 console.log('dialog:', await page.$$eval('.modal-bg .modal', (m) => m.length), '| title:', await txt('.modal .head h1'), '| options:', await page.$$eval('.modal input[name=opsb]', (i) => i.map((x) => x.value).join(',')), '| has traj mark:', await page.$$eval('.modal .dl .ok', (o) => o.length));
 await page.screenshot({ path: `${shots}/ops_dialog.png` });
 await page.click('.modal [data-act=send]'); await page.waitForTimeout(800);
-console.log('toast:', (await txt('.toast')).slice(0, 80), '| sent body:', JSON.stringify(globalThis.__opsBody), '| state line:', (await txt('[data-opsstate]')).slice(0, 100), '| link:', await page.$$eval('[data-opsstate] a', (a) => a.map((x) => x.href).join(' ')));
+console.log('toast:', (await txt('.toast:last-child .tx')).slice(0, 80), '| sent body:', JSON.stringify(globalThis.__opsBody), '| state line:', (await txt('[data-opsstate]')).slice(0, 100), '| link:', await page.$$eval('[data-opsstate] a', (a) => a.map((x) => x.href).join(' ')));
 console.log('errors:', errors.join('\n') || 'none');
 await browser.close();
