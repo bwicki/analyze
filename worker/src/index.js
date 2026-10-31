@@ -34,7 +34,7 @@ import { previewHtml, removePreview } from './preview.js';
 import { listFlights, createFlight, getFlight, updateFlight, deleteFlight, getTrack, getEvents, viewFlight, viewTrack, viewEvents, cleanup, putPreview, viewPreviewImage, listOwnRaw, putOwnRaw, getOwnRaw, publicFlightRow } from './flights.js';
 import { listRaw, getRaw } from './rawfiles.js';
 import { listRepoFlights, getRepoFlight, getRepoMedia } from './events.js';
-import { opsBriefings, opsHandover } from './ops.js';
+import { opsBriefings, opsHandover, opsDiag } from './ops.js';
 import { fetchMapShare } from './mapshare.js';
 import { liveTrackSessions, liveTrackTrack, liveTrackDiag } from './livetrack.js';
 import { reportPdf } from './pdf.js';
@@ -83,6 +83,7 @@ export async function api(request, env, url, ctx) {
   const viewPdfId = seg(/^\/api\/view\/([^/]+)\/report\.pdf$/);
   if (viewPdfId && m === 'GET') { if (rateLimited('pdf:' + ip, 20)) throw new HttpError(429, 'too many PDF requests'); return reportPdf(env, ctx, await publicFlightRow(env, viewPdfId)); }
   // LiveTrack diagnostics (0.15.1): reachability of a LiveTrack page from the Worker – status codes only, no content, no PIN
+  if (path === '/api/ops/diag' && m === 'GET') { if (rateLimited('opsdiag:' + ip, 10)) throw new HttpError(429, 'too many requests'); return json(await opsDiag(env)); }   // 0.15.8: handover connection check (no secrets)
   if (path === '/api/livetrack/diag' && m === 'GET') { if (rateLimited('ltdiag:' + ip, 5)) throw new HttpError(429, 'too many requests'); return json(await liveTrackDiag(url.searchParams.get('share') || '')); }
   const viewTrackId = seg(/^\/api\/view\/([^/]+)\/track$/);
   if (viewTrackId && m === 'GET') return viewTrack(env, viewTrackId);

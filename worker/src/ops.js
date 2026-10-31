@@ -18,11 +18,39 @@ function cfg(env) {
 }
 const allowed = (user) => !!(user && (user.admin || user.team));
 
+/** Request to the ops Worker: through the service binding OPS (0.15.8) when it is bound, otherwise over the public address. */
+function opsRaw(env, url, init) {
+  if (env.OPS && typeof env.OPS.fetch === 'function') return env.OPS.fetch(url, init);
+  return fetch(url, init);
+}
+
+/**
+ * Diagnostics (0.15.8, public, no secrets): which address the Worker uses, whether the service binding is there and
+ * what ops answers on the public diag route (binding and direct) and on the list route with the token – status codes only.
+ */
+export async function opsDiag(env) {
+  const base = (env.OPS_API_URL || OPS_DEFAULT).replace(/\/+$/, '');
+  const out = { base, binding: !!(env.OPS && typeof env.OPS.fetch === 'function'), tokenSet: !!env.OPS_HANDOVER_TOKEN };
+  const probe = async (fn, url, init) => {
+    const t0 = Date.now();
+    try { const r = await fn(url, init); const txt = await r.text(); return { status: r.status, type: (r.headers.get('Content-Type') || '').split(';')[0], head: txt.replace(/\s+/g, ' ').slice(0, 90), ms: Date.now() - t0 }; }
+    catch (e) { return { error: `${e.name || 'error'}: ${e.message}`.slice(0, 120), ms: Date.now() - t0 }; }
+  };
+  const diagUrl = `${base}/api/handover/diag`;
+  out.direct = await probe(fetch, diagUrl, { headers: { 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
+  if (out.binding) out.viaBinding = await probe((u, i) => env.OPS.fetch(u, i), diagUrl, { headers: { 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
+  if (env.OPS_HANDOVER_TOKEN) {
+    try { const j = await opsFetch(env, '/api/handover/briefings?limit=1'); out.list = { ok: true, n: Array.isArray(j.briefings) ? j.briefings.length : null, canCreate: j.canCreate === true }; }
+    catch (e) { out.list = { ok: false, status: e.status, error: e.message }; }
+  }
+  return out;
+}
+
 async function opsFetch(env, path, init = {}) {
   const c = cfg(env);
   // Token as «b64u:» + base64url(UTF-8): non-ASCII characters in the secret would not survive an HTTP header (ops 0.14.2 accepts both forms)
   const tokenHdr = 'b64u:' + btoa(String.fromCharCode(...new TextEncoder().encode(c.token.trim()))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const res = await fetch(`${c.base}${path}`, { ...init, headers: { ...(init.headers || {}), 'X-Handover-Token': tokenHdr, 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
+  const res = await opsRaw(env, `${c.base}${path}`, { ...init, headers: { ...(init.headers || {}), 'X-Handover-Token': tokenHdr, 'User-Agent': 'analyze-worker (analyze.wicki.aero)' } });
   if (res.status === 401 || res.status === 403) throw new HttpError(502, 'ops refused the handover token');
   if (!res.ok) {
     // 0.15.7: ops's own error text travels with the status («briefing not found» from the trajectory route differs from a

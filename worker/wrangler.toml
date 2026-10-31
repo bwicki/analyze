@@ -42,6 +42,13 @@ database_id = "555946b6-0726-45a8-a765-f7219fcea48d"
 binding = "FILES"
 bucket_name = "analyze"
 
+# Service binding to the ops Worker (0.15.8): the handover talks to briefing-api inside Cloudflare instead of over the
+# public workers.dev address (a Worker-to-Worker fetch on the same account answered 404). The ops Worker still checks
+# the service token on every request. Worker name as in bwicki/ops worker/wrangler.toml.
+[[services]]
+binding = "OPS"
+service = "briefing-api"
+
 # Daily cleanup of flights older than RETENTION_DAYS and of expired admin tokens.
 [triggers]
 crons = ["17 3 * * *"]

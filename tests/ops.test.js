@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
-import { thinTrajectory, buildPackage, opsBriefings, opsHandover } from '../worker/src/ops.js';
+import { thinTrajectory, buildPackage, opsBriefings, opsHandover, opsDiag } from '../worker/src/ops.js';
 
 const t0 = Date.UTC(2026, 7, 29, 6, 0);
 const iso = (ms) => new Date(ms).toISOString();
@@ -170,4 +170,25 @@ test('livetrack: addresses, sessions through the CSRF flow, one session as GPX w
   const pts = toPoints([{ dateTime: 'x' }, { dateTime: '2026-01-01T00:10:00Z', position: { lat: 1, lon: 2 }, altitude: 5 }, { dateTime: '2026-01-01T00:00:00Z', position: { lat: 0, lon: 0 } }, { dateTime: '2026-01-01T00:00:00Z', position: { lat: 1, lon: 1 } }, { dateTime: '2026-01-01T01:00:00Z', position: { lat: 3, lon: 3 }, eventTypes: ['END'] }]);
   assert.deepEqual(pts.map((p) => [p.lat, p.lon]), [[1, 1], [1, 2], [3, 3]]);
   assert.match(toGpx(pts.slice(0, 1), { name: 'A & B' }), /<name>A &amp; B<\/name>/);
+});
+
+// 0.15.8: with the service binding OPS the Worker talks to ops through env.OPS.fetch (no public hop); the diag reports status codes only
+test('ops service binding: opsFetch uses env.OPS.fetch when bound; opsDiag reports base, binding and statuses without the token', async () => {
+  const calls = [];
+  const row = { id: 'ABCD1234', code: 'KQZMWB', title: 'GB26', start_ts: t0, end_ts: t0 + 7200000, points: 1441, public: 1, updated_at: 5, track_key: 'tracks/ABCD1234.geojson.gz', stats: '{}', meta: '{}' };
+  const bound = [];
+  const env = { ...fakeEnv(row, calls), OPS: { fetch: async (url, init) => { bound.push({ url, token: (init && init.headers || {})['X-Handover-Token'] }); return new Response(JSON.stringify(/diag$/.test(url) ? { configured: true } : { briefings: [{ id: 'abc123' }], canCreate: false }), { status: 200, headers: { 'Content-Type': 'application/json' } }); } } };
+  const realFetch = globalThis.fetch; let direct = 0;
+  globalThis.fetch = async () => { direct++; return new Response('<html>404</html>', { status: 404, headers: { 'Content-Type': 'text/html' } }); };
+  try {
+    const list = await opsBriefings(env, { code: 'KQZMWB', team: true });
+    assert.equal(list.briefings[0].id, 'abc123'); assert.equal(bound.length, 1); assert.equal(direct, 0);
+    const d = await opsDiag(env);
+    assert.equal(d.base, 'https://ops-api.test'); assert.equal(d.binding, true); assert.equal(d.tokenSet, true);
+    assert.equal(d.direct.status, 404); assert.equal(d.viaBinding.status, 200); assert.deepEqual(d.list, { ok: true, n: 1, canCreate: false });
+    assert.ok(!JSON.stringify(d).includes('secret-token'));
+    // without the binding the public address is used
+    const env2 = fakeEnv(row, calls); const d2 = await opsDiag(env2);
+    assert.equal(d2.binding, false); assert.equal(d2.viaBinding, undefined); assert.equal(d2.list.ok, false); assert.match(d2.list.error, /not found/);
+  } finally { globalThis.fetch = realFetch; }
 });
