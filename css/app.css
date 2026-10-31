@@ -33,16 +33,19 @@ main.page{flex:1;padding:20px 28px;display:flex;flex-direction:column;gap:18px}
 .col{display:flex;flex-direction:column;gap:18px;min-width:0}
 
 /* ---- header ---- */
-header.top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:6px 20px;padding:12px 28px;border-bottom:1px solid var(--border);background:var(--surface)}
+/* Header (0.15.9): row 1 = brand | logo + tools; row 2 = the phase chips across the whole width (one line on the
+   desktop, Balthasar 31.10.2026) ending with the version at the far right under the buttons. */
+header.top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:6px 20px;padding:12px 28px;border-bottom:1px solid var(--border);background:var(--surface)}
 header.top .brand{display:flex;flex-direction:column;min-width:120px}
 header.top .brand strong{font-size:18px}
 header.top .brand span{font-size:13px;color:var(--muted)}
-header.top nav.phases{display:flex;gap:2px;flex-wrap:wrap}
-header.top .right{grid-column:2;grid-row:1 / span 2;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+header.top nav.phases{grid-column:1 / span 2;display:flex;gap:2px;flex-wrap:wrap;align-items:center}
+header.top nav.phases .ver{margin-left:auto;font-size:12px;color:var(--muted);font-family:var(--mono);padding-left:12px;white-space:nowrap}
+header.top .right{grid-column:2;grid-row:1;display:flex;flex-direction:row;align-items:center;justify-content:flex-end;gap:14px}
 header.top .right img{height:46px;width:auto}
 header.top .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
 
-.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:var(--muted);font-weight:500;min-height:44px;font-size:15px;border:0;background:transparent;cursor:pointer}
+.ph{display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;color:var(--muted);font-weight:500;min-height:44px;font-size:15px;border:0;background:transparent;cursor:pointer;white-space:nowrap}
 .ph .n{display:inline-flex;width:26px;height:26px;border-radius:50%;align-items:center;justify-content:center;border:1.5px solid #b8c2d0;font-size:13px;font-family:var(--mono);flex:none}
 .ph.active{background:var(--text);color:#fff}
 .ph.active .n{background:var(--accent,var(--amber-light));border-color:var(--accent,var(--amber-light));color:var(--text);font-weight:600}
@@ -247,7 +250,14 @@ footer.app{padding:10px 28px;font-size:12px;color:var(--muted);border-top:1px so
   main.page{padding:12px 14px;gap:12px}
   header.top{padding:10px 14px;gap:6px 10px}
   header.top .brand span{display:none}
-  header.top .right img{height:34px}
+  header.top .brand{min-width:0}
+  header.top .brand strong{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* phone: brand | logo in row 1, the tools right-aligned in row 2, the phases (wrapping) in row 3 */
+  header.top .right{display:contents}
+  header.top .right img{grid-column:2;grid-row:1;height:34px;justify-self:end}
+  header.top .tools{grid-column:1 / span 2;grid-row:2;justify-content:flex-end}
+  header.top nav.phases{grid-row:3}
+  header.top nav.phases .ver{flex-basis:100%;text-align:right;padding:2px 4px 0 0}
   .ph{padding:8px 10px;font-size:13px;min-height:40px}
   .ph .n{width:22px;height:22px;font-size:12px}
   .actionbar{padding:8px 14px}
