@@ -1,5 +1,7 @@
 # Fahrtanalyse/Fahrtbericht — analyze.wicki.aero
 
+**App 0.15.10 · README Dok. 261116-01**
+
 Wertet die Aufzeichnungen beliebiger Tracker einer Ballonfahrt aus und macht daraus die Grundlage für das
 Logbuch: Dateien importieren, zusammenfügen und bereinigen, Start und Landung erkennen, Karte (2D und 3D),
 Höhenprofil mit Gelände und Wasser, Kennzahlen, Ereignislog, Fotos, druckbarer Fahrtbericht (A4/PDF), Exporte
